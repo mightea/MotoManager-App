@@ -4,12 +4,8 @@ struct SettingsView: View {
     @EnvironmentObject var authVM: AuthViewModel
     
     var body: some View {
-        NavigationView {
-            ZStack {
-                Theme.Colors.background.ignoresSafeArea()
-                
-                List {
-                    Section(header: Text("Account")) {
+        List {
+            Section(header: Text("Account")) {
                         Button(action: {
                             authVM.logout()
                         }) {
@@ -32,9 +28,6 @@ struct SettingsView: View {
                     }
                 }
                 .listStyle(InsetGroupedListStyle())
-            }
-            .navigationTitle("Settings")
-        }
     }
 }
 
