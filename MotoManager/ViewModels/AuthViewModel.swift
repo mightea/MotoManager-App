@@ -132,11 +132,21 @@ extension AuthViewModel: ASAuthorizationControllerDelegate {
 
 extension AuthViewModel: ASAuthorizationControllerPresentationContextProviding {
     func presentationAnchor(for controller: ASAuthorizationController) -> ASPresentationAnchor {
-        guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-              let window = windowScene.windows.first else {
-            return ASPresentationAnchor()
+        let scenes = UIApplication.shared.connectedScenes
+        let windowScene = scenes.first { $0.activationState == .foregroundActive } as? UIWindowScene
+            ?? scenes.first as? UIWindowScene
+        
+        if let window = windowScene?.windows.first {
+            return window
         }
-        return window
+        
+        if let scene = windowScene {
+            return UIWindow(windowScene: scene)
+        }
+        
+        // This is a last resort to avoid deprecated init()
+        // In a real environment, we should have a valid window scene.
+        fatalError("No window scene available for authentication presentation")
     }
 }
 

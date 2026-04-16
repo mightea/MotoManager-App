@@ -4,6 +4,7 @@ struct MainTabView: View {
     @EnvironmentObject var authVM: AuthViewModel
     @EnvironmentObject var fleetVM: MotorcycleViewModel
     @State private var detailVM: MotorcycleDetailViewModel?
+    @State private var showingGarage = false
     
     var body: some View {
         NavigationStack {
@@ -70,7 +71,16 @@ struct MainTabView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    fleetMenu
+                    Button(action: { showingGarage = true }) {
+                        Image(systemName: "line.3.horizontal")
+                            .font(.headline)
+                            .foregroundColor(Theme.Colors.primary)
+                    }
+                }
+            }
+            .sheet(isPresented: $showingGarage) {
+                NavigationStack {
+                    GarageView()
                 }
             }
         }
@@ -80,7 +90,7 @@ struct MainTabView: View {
                 self.detailVM = MotorcycleDetailViewModel(motorcycle: selected)
             }
         }
-        .onChange(of: fleetVM.selectedMotorcycle?.id) { _ in
+        .onChange(of: fleetVM.selectedMotorcycle?.id) { oldValue, newValue in
             if let selected = fleetVM.selectedMotorcycle {
                 let dVM = MotorcycleDetailViewModel(motorcycle: selected)
                 self.detailVM = dVM
@@ -88,26 +98,6 @@ struct MainTabView: View {
                     await dVM.loadAllData()
                 }
             }
-        }
-    }
-    
-    @ViewBuilder
-    private var fleetMenu: some View {
-        Menu {
-            ForEach(fleetVM.motorcycles) { moto in
-                Button(action: { fleetVM.selectMotorcycle(moto) }) {
-                    HStack {
-                        Text("\(moto.make) \(moto.model)")
-                        if moto.id == fleetVM.selectedMotorcycle?.id {
-                            Image(systemName: "checkmark")
-                        }
-                    }
-                }
-            }
-        } label: {
-            Image(systemName: "line.3.horizontal")
-                .font(.headline)
-                .foregroundColor(Theme.Colors.primary)
         }
     }
 }

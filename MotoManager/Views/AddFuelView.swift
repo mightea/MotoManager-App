@@ -10,7 +10,7 @@ struct AddFuelView: View {
     @State private var date = Date()
     
     var body: some View {
-        NavigationView {
+        NavigationStack {
             ZStack {
                 LiquidBackgroundView().ignoresSafeArea()
                 

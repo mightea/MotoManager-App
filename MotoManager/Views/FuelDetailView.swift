@@ -87,11 +87,9 @@ struct FuelDetailView: View {
                                 }
                             }
                             
-                            Map(coordinateRegion: .constant(MKCoordinateRegion(
-                                center: CLLocationCoordinate2D(latitude: lat, longitude: lon),
-                                span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
-                            )), annotationItems: [record]) { item in
-                                MapMarker(coordinate: CLLocationCoordinate2D(latitude: lat, longitude: lon), tint: Theme.Colors.primary)
+                            Map {
+                                Marker(record.locationName ?? "Fuel Stop", coordinate: CLLocationCoordinate2D(latitude: lat, longitude: lon))
+                                    .tint(Theme.Colors.primary)
                             }
                             .frame(height: 200)
                             .cornerRadius(Theme.Radius.m)
@@ -144,7 +142,7 @@ struct DetailGridRow: View {
 
 struct FuelDetailView_Previews: PreviewProvider {
     static var previews: some View {
-        NavigationView {
+        NavigationStack {
             FuelDetailView(record: MotorcycleDetailViewModel.mock.maintenanceRecords[0])
         }
     }

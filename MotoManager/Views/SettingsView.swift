@@ -20,7 +20,7 @@ struct SettingsView: View {
                             Text(name).tag(url)
                         }
                     }
-                    .onChange(of: selectedBaseURL) { newValue in
+                    .onChange(of: selectedBaseURL) { oldValue, newValue in
                         NetworkManager.shared.baseURL = newValue
                         authVM.resetSession()
                     }
