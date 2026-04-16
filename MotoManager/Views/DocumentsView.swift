@@ -6,7 +6,15 @@ struct DocumentsView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: Theme.Spacing.m) {
-                if viewModel.documents.isEmpty && !viewModel.isLoading {
+                MotorcycleSummaryHeader(motorcycle: viewModel.motorcycle, type: .documents, viewModel: viewModel)
+                    .ignoresSafeArea(edges: .top)
+                
+                if viewModel.isLoading && viewModel.documents.isEmpty {
+                    ForEach(0..<5, id: \.self) { _ in
+                        GlassShimmerRow()
+                            .padding(.horizontal, Theme.Spacing.s)
+                    }
+                } else if viewModel.documents.isEmpty && !viewModel.isLoading {
                     EmptyStateView(title: "No Documents", message: "Upload manuals, registrations, or receipts.")
                         .padding(.top, 100)
                 } else {
@@ -31,15 +39,25 @@ struct DocumentsView: View {
                         .padding()
                         .background(.ultraThinMaterial)
                         .cornerRadius(Theme.Radius.m)
-                        .padding(.horizontal)
+                        .padding(.horizontal, Theme.Spacing.s)
                     }
                 }
             }
-            .padding(.top, Theme.Spacing.m)
             .padding(.bottom, 100)
         }
+        .ignoresSafeArea(edges: .top)
+        .background(Color.clear)
         .refreshable {
             await viewModel.loadAllData()
+        }
+    }
+}
+
+struct DocumentsView_Previews: PreviewProvider {
+    static var previews: some View {
+        ZStack {
+            LiquidBackgroundView().ignoresSafeArea()
+            DocumentsView(viewModel: .mock)
         }
     }
 }

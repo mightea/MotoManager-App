@@ -2,47 +2,37 @@ import SwiftUI
 
 struct RemoteImageView: View {
     let url: String
-    @State private var image: UIImage?
-    @State private var isLoading = false
     
     var body: some View {
-        Group {
-            if let image = image {
-                Image(uiImage: image)
-                    .resizable()
-            } else if isLoading {
+        let _ = print("RemoteImageView: Rendering URL: \(url)")
+        AsyncImage(url: URL(string: url)) { phase in
+            switch phase {
+            case .empty:
+                let _ = print("RemoteImageView: State EMPTY for \(url)")
                 ZStack {
                     Color.secondary.opacity(0.1)
                     ProgressView()
                 }
-            } else {
-                ZStack {
-                    Color.secondary.opacity(0.1)
-                    Image(systemName: "bicycle")
-                        .font(.largeTitle)
-                        .foregroundColor(.secondary.opacity(0.3))
-                }
+            case .success(let image):
+                let _ = print("RemoteImageView: State SUCCESS for \(url)")
+                image
+                    .resizable()
+            case .failure(let error):
+                let _ = print("RemoteImageView: State FAILURE for \(url) - Error: \(error.localizedDescription)")
+                fallbackImage
+            @unknown default:
+                let _ = print("RemoteImageView: State UNKNOWN for \(url)")
+                fallbackImage
             }
-        }
-        .onAppear {
-            loadImage()
         }
     }
     
-    private func loadImage() {
-        guard image == nil && !isLoading else { return }
-        
-        isLoading = true
-        Task {
-            do {
-                let data = try await NetworkManager.shared.fetchImage(url: url)
-                if let uiImage = UIImage(data: data) {
-                    self.image = uiImage
-                }
-            } catch {
-                print("Error loading image \(url): \(error)")
-            }
-            isLoading = false
+    private var fallbackImage: some View {
+        ZStack {
+            Color.secondary.opacity(0.1)
+            Image(systemName: "bicycle")
+                .font(.largeTitle)
+                .foregroundColor(.secondary.opacity(0.3))
         }
     }
 }

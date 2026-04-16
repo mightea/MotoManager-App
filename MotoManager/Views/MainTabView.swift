@@ -7,42 +7,46 @@ struct MainTabView: View {
     
     var body: some View {
         NavigationView {
-            ZStack {
-                LiquidBackgroundView().ignoresSafeArea()
-                
-                Group {
-                    if let dVM = detailVM {
-                        TabView {
-                            FuelListView(viewModel: dVM)
-                                .tabItem {
-                                    Label("Fuel", systemImage: "fuelpump.fill")
-                                }
-                            
-                            MaintenanceLogsView(viewModel: dVM)
-                                .tabItem {
-                                    Label("Service", systemImage: "wrench.and.screwdriver.fill")
-                                }
-                            
-                            TorqueSpecsView(viewModel: dVM)
-                                .tabItem {
-                                    Label("Torque", systemImage: "bolt.fill")
-                                }
-                            
-                            DocumentsView(viewModel: dVM)
-                                .tabItem {
-                                    Label("Docs", systemImage: "doc.fill")
-                                }
-                            
-                            SettingsView()
-                                .tabItem {
-                                    Label("Settings", systemImage: "gear")
-                                }
-                        }
-                    } else if fleetVM.isLoading {
-                        ProgressView("Loading fleet...")
-                    } else {
-                        EmptyFleetView()
+            Group {
+                if let dVM = detailVM {
+                    TabView {
+                        FuelListView(viewModel: dVM)
+                            .tabItem {
+                                Label("Fuel", systemImage: "fuelpump.fill")
+                            }
+                        
+                        MaintenanceLogsView(viewModel: dVM)
+                            .tabItem {
+                                Label("Service", systemImage: "wrench.and.screwdriver.fill")
+                            }
+                        
+                        TorqueSpecsView(viewModel: dVM)
+                            .tabItem {
+                                Label("Torque", systemImage: "bolt.fill")
+                            }
+                        
+                        DocumentsView(viewModel: dVM)
+                            .tabItem {
+                                Label("Docs", systemImage: "doc.fill")
+                            }
+                        
+                        SettingsView()
+                            .tabItem {
+                                Label("Settings", systemImage: "gear")
+                            }
                     }
+                    .background(LiquidBackgroundView().ignoresSafeArea())
+                    .onAppear {
+                        // Restore normal appearance
+                        let appearance = UITabBarAppearance()
+                        appearance.configureWithDefaultBackground()
+                        UITabBar.appearance().standardAppearance = appearance
+                        UITabBar.appearance().scrollEdgeAppearance = appearance
+                    }
+                } else if fleetVM.isLoading {
+                    ProgressView("Loading fleet...")
+                } else {
+                    EmptyFleetView()
                 }
             }
             .navigationTitle(fleetVM.selectedMotorcycle?.model ?? "MotoManager")

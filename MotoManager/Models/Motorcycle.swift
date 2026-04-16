@@ -33,4 +33,30 @@ struct Motorcycle: Codable, Identifiable {
         case userId, vin, engineNumber, vehicleNr, numberPlate, image, isVeteran, isArchived, firstRegistration, initialOdo, manualOdo, purchaseDate, purchasePrice, normalizedPurchasePrice, currencyCode, fuelTankSize
         case openIssues, maintenanceCount, latestOdo
     }
+    
+    static let mock = Motorcycle(
+        id: 1,
+        make: "BMW",
+        model: "R 1250 GS",
+        modelYear: "2023",
+        userId: 1,
+        vin: "W1234567890",
+        engineNumber: "E123456",
+        vehicleNr: "V123",
+        numberPlate: "M-GS 1250",
+        image: nil,
+        isVeteran: false,
+        isArchived: false,
+        firstRegistration: "2023-01-01",
+        initialOdo: 0,
+        manualOdo: nil,
+        purchaseDate: "2023-01-01",
+        purchasePrice: 18000,
+        normalizedPurchasePrice: 18000,
+        currencyCode: "EUR",
+        fuelTankSize: 20.0,
+        openIssues: 1,
+        maintenanceCount: 5,
+        latestOdo: 12500
+    )
 }

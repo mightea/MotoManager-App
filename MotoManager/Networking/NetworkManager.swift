@@ -76,11 +76,15 @@ class NetworkManager {
         let decoder = JSONDecoder()
         let responseWrapper = try decoder.decode(MotorcycleListResponse.self, from: data)
         
-        // Prepend baseURL to each image path
+        // Prepend baseURL to each image path if it's just a path
         let motorcycles = responseWrapper.motorcycles.map { m in
             var moto = m
             if let imagePath = moto.image {
-                moto.image = baseURL + imagePath
+                if !imagePath.hasPrefix("http") {
+                    let base = baseURL.hasSuffix("/") ? String(baseURL.dropLast()) : baseURL
+                    let path = imagePath.hasPrefix("/") ? imagePath : "/\(imagePath)"
+                    moto.image = base + path
+                }
             }
             return moto
         }
