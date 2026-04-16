@@ -19,13 +19,15 @@ struct MaintenanceLogsView: View {
                             .padding(.horizontal, Theme.Spacing.s)
                     }
                 } else if serviceRecords.isEmpty && !viewModel.isLoading {
-                    EmptyStateView(title: "No Service Logs", message: "Maintenance and repair logs will appear here.")
+                    EmptyStateView(title: "No Service Logs", message: "Maintenance and repair logs will appear here.", icon: "wrench.and.screwdriver.fill")
                         .padding(.top, 100)
                 } else {
                     ForEach(serviceRecords) { record in
                         HStack {
                             VStack(alignment: .leading, spacing: 4) {
-                                Text(record.description ?? record.recordType.capitalized)
+                                let displayDescription = (record.description?.isEmpty ?? true) ? (record.summary ?? record.recordType.capitalized) : record.description!
+                                
+                                Text(displayDescription)
                                     .font(.headline)
                                 Text("\(record.odo) km • \(record.date)")
                                     .font(.caption)
@@ -67,13 +69,34 @@ struct MaintenanceLogsView_Previews: PreviewProvider {
 struct EmptyStateView: View {
     let title: String
     let message: String
+    var icon: String = "bicycle.circle.fill"
+    
     var body: some View {
         VStack(spacing: Theme.Spacing.m) {
-            Image(systemName: "bicycle.circle.fill")
-                .font(.system(size: 80))
-                .foregroundColor(.secondary.opacity(0.3))
-            Text(title).font(.headline)
-            Text(message).font(.subheadline).foregroundColor(.secondary).multilineTextAlignment(.center).padding(.horizontal)
+            ZStack {
+                Circle()
+                    .fill(Theme.Colors.primary.opacity(0.05))
+                    .frame(width: 120, height: 120)
+                
+                Image(systemName: icon)
+                    .font(.system(size: 50))
+                    .foregroundColor(Theme.Colors.primary.opacity(0.6))
+                    .shadow(color: Theme.Colors.primary.opacity(0.1), radius: 10)
+            }
+            .padding(.bottom, Theme.Spacing.s)
+            
+            Text(title)
+                .font(.system(size: 22, weight: .bold, design: .rounded))
+            
+            Text(message)
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, Theme.Spacing.xl)
         }
+        .padding(Theme.Spacing.l)
+        .background(.ultraThinMaterial)
+        .cornerRadius(Theme.Radius.l)
+        .padding(.horizontal, Theme.Spacing.l)
     }
 }

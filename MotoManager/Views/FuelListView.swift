@@ -28,7 +28,7 @@ struct FuelListView: View {
                                 .padding(.horizontal, Theme.Spacing.s)
                         }
                     } else if fuelRecords.isEmpty && !viewModel.isLoading {
-                        EmptyStateView(title: "No Fuel Logs", message: "Tapping the + button to record your first fill-up.")
+                        EmptyStateView(title: "No Fuel Logs", message: "Tapping the + button to record your first fill-up.", icon: "fuelpump.fill")
                             .padding(.top, 100)
                     } else {
                         ForEach(fuelRecords) { record in
@@ -42,10 +42,10 @@ struct FuelListView: View {
                 }
                 .padding(.bottom, 100)
             }
-            .ignoresSafeArea(edges: .top)
             .refreshable {
                 await viewModel.loadAllData()
             }
+            .ignoresSafeArea(edges: .top)
             
             // FAB for Fuel
             Button(action: { showingAddFuel = true }) {

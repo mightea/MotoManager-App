@@ -15,7 +15,7 @@ struct DocumentsView: View {
                             .padding(.horizontal, Theme.Spacing.s)
                     }
                 } else if viewModel.documents.isEmpty && !viewModel.isLoading {
-                    EmptyStateView(title: "No Documents", message: "Upload manuals, registrations, or receipts.")
+                    EmptyStateView(title: "No Documents", message: "Upload manuals, registrations, or receipts.", icon: "doc.fill")
                         .padding(.top, 100)
                 } else {
                     ForEach(viewModel.documents) { doc in

@@ -15,7 +15,7 @@ struct TorqueSpecsView: View {
                             .padding(.horizontal, Theme.Spacing.s)
                     }
                 } else if viewModel.torqueSpecs.isEmpty && !viewModel.isLoading {
-                    EmptyStateView(title: "No Torque Specs", message: "Specifications for this model aren't available yet.")
+                    EmptyStateView(title: "No Torque Specs", message: "Specifications for this model aren't available yet.", icon: "bolt.fill")
                         .padding(.top, 100)
                 } else {
                     ForEach(viewModel.torqueSpecs) { spec in

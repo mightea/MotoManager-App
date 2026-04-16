@@ -29,10 +29,11 @@ struct MaintenanceRecord: Codable, Identifiable {
     let locationName: String?
     let fuelConsumption: Double?
     let tripDistance: Double?
+    let summary: String?
     let parentId: Int?
     
     enum CodingKeys: String, CodingKey {
-        case id, date, odo, motorcycleId, cost, normalizedCost, currency, description
+        case id, date, odo, motorcycleId, cost, normalizedCost, currency, description, summary
         case recordType = "type"
         case brand, model, tirePosition, tireSize, dotCode, batteryType, fluidType, viscosity, oilType, inspectionLocation, locationId, fuelType, fuelAmount, pricePerUnit, latitude, longitude, locationName, fuelConsumption, tripDistance, parentId
     }

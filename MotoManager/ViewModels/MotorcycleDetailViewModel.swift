@@ -42,6 +42,9 @@ class MotorcycleDetailViewModel: ObservableObject {
             }
             print("MotorcycleDetailViewModel: Filtered down to \(self.documents.count) documents for this bike")
             
+        } catch is CancellationError {
+            // Ignore normal Swift concurrency cancellations (e.g. from refreshable)
+            print("MotorcycleDetailViewModel: Load cancelled")
         } catch {
             print("MotorcycleDetailViewModel: ERROR: \(error.localizedDescription)")
             errorMessage = "Failed to load details: \(error.localizedDescription)"
@@ -79,9 +82,8 @@ class MotorcycleDetailViewModel: ObservableObject {
     static var mock: MotorcycleDetailViewModel {
         let vm = MotorcycleDetailViewModel(motorcycle: .mock)
         vm.maintenanceRecords = [
-            MaintenanceRecord(id: 1, date: "2023-10-15", odo: 12000, motorcycleId: 1, cost: 45.50, normalizedCost: 45.5, currency: "EUR", description: "Shell V-Power", recordType: "fuel", brand: nil, model: nil, tirePosition: nil, tireSize: nil, dotCode: nil, batteryType: nil, fluidType: nil, viscosity: nil, oilType: nil, inspectionLocation: nil, locationId: nil, fuelType: "98", fuelAmount: 18.5, pricePerUnit: 2.45, latitude: nil, longitude: nil, locationName: "Shell Munich", fuelConsumption: 5.2, tripDistance: 350, parentId: nil),
-            MaintenanceRecord(id: 1, date: "2023-10-15", odo: 12000, motorcycleId: 1, cost: 45.50, normalizedCost: 45.5, currency: "EUR", description: "Shell V-Power", recordType: "fuel", brand: nil, model: nil, tirePosition: nil, tireSize: nil, dotCode: nil, batteryType: nil, fluidType: nil, viscosity: nil, oilType: nil, inspectionLocation: nil, locationId: nil, fuelType: "98", fuelAmount: 18.5, pricePerUnit: 2.45, latitude: nil, longitude: nil, locationName: "Shell Munich", fuelConsumption: 5.2, tripDistance: 350, parentId: nil),
-            MaintenanceRecord(id: 2, date: "2023-09-01", odo: 10000, motorcycleId: 1, cost: 250.00, normalizedCost: 250.0, currency: "EUR", description: "10k Service", recordType: "service", brand: nil, model: nil, tirePosition: nil, tireSize: nil, dotCode: nil, batteryType: nil, fluidType: nil, viscosity: "15W-50", oilType: "Synthetic", inspectionLocation: nil, locationId: nil, fuelType: nil, fuelAmount: nil, pricePerUnit: nil, latitude: nil, longitude: nil, locationName: "BMW Service", fuelConsumption: nil, tripDistance: nil, parentId: nil)
+            MaintenanceRecord(id: 1, date: "2023-10-15", odo: 12000, motorcycleId: 1, cost: 45.50, normalizedCost: 45.5, currency: "EUR", description: "Shell V-Power", recordType: "fuel", brand: nil, model: nil, tirePosition: nil, tireSize: nil, dotCode: nil, batteryType: nil, fluidType: nil, viscosity: nil, oilType: nil, inspectionLocation: nil, locationId: nil, fuelType: "98", fuelAmount: 18.5, pricePerUnit: 2.45, latitude: nil, longitude: nil, locationName: "Shell Munich", fuelConsumption: 5.2, tripDistance: 350, summary: "Tankstopp bei Shell", parentId: nil),
+            MaintenanceRecord(id: 2, date: "2023-09-01", odo: 10000, motorcycleId: 1, cost: 250.00, normalizedCost: 250.0, currency: "EUR", description: "", recordType: "service", brand: nil, model: nil, tirePosition: nil, tireSize: nil, dotCode: nil, batteryType: nil, fluidType: nil, viscosity: "15W-50", oilType: "Synthetic", inspectionLocation: nil, locationId: nil, fuelType: nil, fuelAmount: nil, pricePerUnit: nil, latitude: nil, longitude: nil, locationName: "BMW Service", fuelConsumption: nil, tripDistance: nil, summary: "Regulärer 10k Service", parentId: nil)
         ]
         vm.torqueSpecs = [
             TorqueSpec(id: 1, motorcycleId: 1, category: "Engine", name: "Oil Drain Plug", torque: 42, torqueEnd: nil, variation: nil, toolSize: "17mm", description: nil, createdAt: "2023-01-01"),

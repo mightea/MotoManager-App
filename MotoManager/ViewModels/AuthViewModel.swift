@@ -1,14 +1,29 @@
 import Foundation
 import Combine
+import AuthenticationServices
 
 @MainActor
-class AuthViewModel: ObservableObject {
+class AuthViewModel: NSObject, ObservableObject {
     @Published var isAuthenticated = false
     @Published var isLoading = false
     @Published var errorMessage: String?
     
-    init() {
+    private var cancellables = Set<AnyCancellable>()
+    private var currentChallengeId: String?
+    
+    override init() {
+        super.init()
         checkAuth()
+        setupNotificationObservers()
+    }
+    
+    func setupNotificationObservers() {
+        NotificationCenter.default.publisher(for: NetworkManager.unauthorizedNotification)
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                self?.resetSession()
+            }
+            .store(in: &cancellables)
     }
     
     func checkAuth() {
@@ -33,8 +48,117 @@ class AuthViewModel: ObservableObject {
         isLoading = false
     }
     
+    func loginWithPasskey(username: String?) async {
+        isLoading = true
+        errorMessage = nil
+        
+        do {
+            let response = try await NetworkManager.shared.fetchPasskeyLoginOptions(username: username)
+            self.currentChallengeId = response.challengeId
+            
+            let publicKeyProvider = ASAuthorizationPlatformPublicKeyCredentialProvider(relyingPartyIdentifier: response.options.rpId ?? "moto.herrmann.ltd")
+            
+            // Use base64url decoding for the challenge
+            guard let challengeData = Data(base64Encoded: response.options.challenge.base64URLtoBase64()) else {
+                throw NSError(domain: "AuthError", code: 0, userInfo: [NSLocalizedDescriptionKey: "Invalid challenge data"])
+            }
+            
+            let request = publicKeyProvider.createCredentialAssertionRequest(challenge: challengeData)
+            
+            let authController = ASAuthorizationController(authorizationRequests: [request])
+            authController.delegate = self
+            authController.presentationContextProvider = self
+            authController.performRequests()
+            
+            // The rest of the flow continues in the delegate methods
+        } catch {
+            errorMessage = "Passkey failed: \(error.localizedDescription)"
+            isLoading = false
+        }
+    }
+    
     func logout() {
         NetworkManager.shared.deleteToken()
         isAuthenticated = false
+    }
+    
+    func resetSession() {
+        logout()
+        errorMessage = nil
+    }
+}
+
+// MARK: - ASAuthorizationControllerDelegate
+
+extension AuthViewModel: ASAuthorizationControllerDelegate {
+    func authorizationController(controller: ASAuthorizationController, didCompleteWithAuthorization authorization: ASAuthorization) {
+        guard let challengeId = currentChallengeId else { return }
+        
+        if let credential = authorization.credential as? ASAuthorizationPlatformPublicKeyCredentialAssertion {
+            Task {
+                do {
+                    let passkeyResponse = PasskeyResponse(
+                        id: credential.credentialID.base64URLEncodedString(),
+                        rawId: credential.credentialID.base64URLEncodedString(),
+                        type: "public-key",
+                        response: AuthenticatorAssertionResponse(
+                            authenticatorData: credential.rawAuthenticatorData.base64URLEncodedString(),
+                            clientDataJSON: credential.rawClientDataJSON.base64URLEncodedString(),
+                            signature: credential.signature.base64URLEncodedString(),
+                            userHandle: credential.userID?.base64URLEncodedString()
+                        )
+                    )
+                    
+                    _ = try await NetworkManager.shared.verifyPasskeyLogin(challengeId: challengeId, response: passkeyResponse)
+                    self.isAuthenticated = true
+                    self.isLoading = false
+                } catch {
+                    self.errorMessage = "Passkey verification failed: \(error.localizedDescription)"
+                    self.isLoading = false
+                }
+            }
+        }
+    }
+    
+    func authorizationController(controller: ASAuthorizationController, didCompleteWithError error: Error) {
+        isLoading = false
+        if (error as NSError).code != ASAuthorizationError.canceled.rawValue {
+            errorMessage = error.localizedDescription
+        }
+    }
+}
+
+// MARK: - ASAuthorizationControllerPresentationContextProviding
+
+extension AuthViewModel: ASAuthorizationControllerPresentationContextProviding {
+    func presentationAnchor(for controller: ASAuthorizationController) -> ASPresentationAnchor {
+        guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+              let window = windowScene.windows.first else {
+            return ASPresentationAnchor()
+        }
+        return window
+    }
+}
+
+// MARK: - Base64 Helpers
+
+extension String {
+    func base64URLtoBase64() -> String {
+        var base64 = self
+            .replacingOccurrences(of: "-", with: "+")
+            .replacingOccurrences(of: "_", with: "/")
+        if base64.count % 4 != 0 {
+            base64.append(String(repeating: "=", count: 4 - base64.count % 4))
+        }
+        return base64
+    }
+}
+
+extension Data {
+    func base64URLEncodedString() -> String {
+        return self.base64EncodedString()
+            .replacingOccurrences(of: "+", with: "-")
+            .replacingOccurrences(of: "/", with: "_")
+            .replacingOccurrences(of: "=", with: "")
     }
 }

@@ -8,85 +8,131 @@ struct LoginView: View {
     
     var body: some View {
         ZStack {
-            // Background
-            Theme.Colors.background.ignoresSafeArea()
+            // Immersive background
+            LiquidBackgroundView().ignoresSafeArea()
             
-            // Decorative shapes
-            Circle()
-                .fill(Theme.Colors.primary.opacity(0.1))
-                .frame(width: 300, height: 300)
-                .offset(x: -150, y: -350)
-            
-            Circle()
-                .fill(Theme.Colors.accent.opacity(0.1))
-                .frame(width: 200, height: 200)
-                .offset(x: 150, y: 350)
-            
-            VStack(spacing: Theme.Spacing.l) {
+            VStack(spacing: Theme.Spacing.xl) {
                 Spacer()
                 
-                // Header
-                VStack(spacing: Theme.Spacing.s) {
+                // Branded Header
+                VStack(spacing: Theme.Spacing.m) {
                     Image(systemName: "engine.combustion.fill")
-                        .font(.system(size: 60))
+                        .font(.system(size: 80))
                         .foregroundColor(Theme.Colors.primary)
-                        .padding(.bottom, Theme.Spacing.s)
+                        .shadow(color: Theme.Colors.primary.opacity(0.3), radius: 20)
                         .rotationEffect(.degrees(isAnimating ? 5 : -5))
                         .animation(.easeInOut(duration: 2).repeatForever(autoreverses: true), value: isAnimating)
                     
-                    Text("MotoManager")
-                        .font(.system(size: 34, weight: .bold, design: .rounded))
-                    
-                    Text("Manage your fleet with ease")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
+                    VStack(spacing: 4) {
+                        Text("MotoManager")
+                            .font(.system(size: 40, weight: .black, design: .rounded))
+                        Text("PREMIUM FLEET MANAGEMENT")
+                            .font(.system(size: 10, weight: .heavy))
+                            .tracking(3)
+                            .foregroundColor(.secondary)
+                    }
                 }
                 .padding(.bottom, Theme.Spacing.xl)
                 
-                // Form
-                VStack(spacing: Theme.Spacing.m) {
-                    TextField("Username or Email", text: $identifier)
-                        .textFieldStyle(ModernTextFieldStyle())
-                        .autocapitalization(.none)
-                        .disableAutocorrection(true)
+                // Glass-morphic Login Card
+                VStack(spacing: Theme.Spacing.l) {
+                    VStack(alignment: .leading, spacing: Theme.Spacing.s) {
+                        Label("Identifier", systemImage: "person.fill")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundColor(.secondary)
+                        
+                        TextField("Username or Email", text: $identifier)
+                            .textFieldStyle(ModernTextFieldStyle())
+                            .textContentType(.username)
+                            .autocapitalization(.none)
+                            .disableAutocorrection(true)
+                    }
                     
-                    SecureField("Password", text: $password)
-                        .textFieldStyle(ModernTextFieldStyle())
-                }
-                
-                if let error = authVM.errorMessage {
-                    HStack {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                        Text(error)
+                    VStack(alignment: .leading, spacing: Theme.Spacing.s) {
+                        Label("Password", systemImage: "lock.fill")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundColor(.secondary)
+                        
+                        SecureField("••••••••", text: $password)
+                            .textFieldStyle(ModernTextFieldStyle())
+                            .textContentType(.password)
                     }
-                    .foregroundColor(.red)
-                    .font(.caption)
-                    .padding(.horizontal)
-                    .transition(.move(edge: .top).combined(with: .opacity))
-                }
-                
-                Button(action: {
-                    Task {
-                        await authVM.login(identifier: identifier, password: password)
+                    
+                    if let error = authVM.errorMessage {
+                        HStack {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                            Text(error)
+                        }
+                        .foregroundColor(.red)
+                        .font(.system(size: 12, weight: .medium))
+                        .padding(.vertical, 4)
+                        .transition(.move(edge: .top).combined(with: .opacity))
                     }
-                }) {
-                    if authVM.isLoading {
-                        ProgressView()
-                            .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                    } else {
-                        Text("Sign In")
+                    
+                    Button(action: {
+                        Task {
+                            await authVM.login(identifier: identifier, password: password)
+                        }
+                    }) {
+                        if authVM.isLoading {
+                            ProgressView().tint(.white)
+                        } else {
+                            Text("SIGN IN")
+                        }
                     }
+                    .buttonStyle(ModernButtonStyle(isLoading: authVM.isLoading))
+                    .disabled(authVM.isLoading || identifier.isEmpty || password.isEmpty)
+                    
+                    // Passkey Option
+                    Button(action: {
+                        Task {
+                            await authVM.loginWithPasskey(username: identifier.isEmpty ? nil : identifier)
+                        }
+                    }) {
+                        HStack {
+                            Image(systemName: "person.badge.key.fill")
+                            Text("Sign in with Passkey")
+                                .fontWeight(.bold)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(Color.white.opacity(0.1))
+                        .cornerRadius(Theme.Radius.m)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: Theme.Radius.m)
+                                .stroke(Color.white.opacity(0.2), lineWidth: 1)
+                        )
+                    }
+                    .foregroundColor(.white)
+                    .disabled(authVM.isLoading)
                 }
-                .buttonStyle(ModernButtonStyle(isLoading: authVM.isLoading))
-                .disabled(authVM.isLoading || identifier.isEmpty || password.isEmpty)
+                .padding(Theme.Spacing.l)
+                .background(.ultraThinMaterial)
+                .cornerRadius(Theme.Radius.l)
+                .overlay(
+                    RoundedRectangle(cornerRadius: Theme.Radius.l)
+                        .stroke(Color.white.opacity(0.1), lineWidth: 1)
+                )
+                .shadow(color: Color.black.opacity(0.2), radius: 30, x: 0, y: 15)
                 
                 Spacer()
                 
-                Text("V 1.0.0")
-                    .font(.caption2)
-                    .foregroundColor(.secondary.opacity(0.5))
+                // Footer
+                VStack(spacing: 8) {
+                    Text("Secure Cloud Sync Enabled")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundColor(.secondary.opacity(0.8))
+                    
+                    HStack(spacing: 20) {
+                        Circle().fill(Color.green).frame(width: 6, height: 6)
+                        Text("System Operational")
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundColor(.secondary)
+                    }
+                }
+                .padding(.bottom, Theme.Spacing.m)
             }
-            .padding(Theme.Spacing.l)
+            .padding(.horizontal, Theme.Spacing.l)
         }
         .onAppear {
             isAnimating = true
