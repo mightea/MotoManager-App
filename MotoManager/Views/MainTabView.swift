@@ -2,7 +2,7 @@ import SwiftUI
 
 struct MainTabView: View {
     @EnvironmentObject var authVM: AuthViewModel
-    @StateObject private var fleetVM = MotorcycleViewModel()
+    @EnvironmentObject var fleetVM: MotorcycleViewModel
     @State private var detailVM: MotorcycleDetailViewModel?
     
     var body: some View {
@@ -42,6 +42,11 @@ struct MainTabView: View {
                         appearance.configureWithDefaultBackground()
                         UITabBar.appearance().standardAppearance = appearance
                         UITabBar.appearance().scrollEdgeAppearance = appearance
+                        
+                        // Initial load if dVM exists
+                        Task {
+                            await dVM.loadAllData()
+                        }
                     }
                 } else if fleetVM.isLoading {
                     ProgressView("Loading fleet...")
@@ -73,8 +78,9 @@ struct MainTabView: View {
             }
         }
         .onAppear {
-            Task {
-                await fleetVM.loadMotorcycles()
+            // If already loaded and selected from splash, initialize detailVM
+            if let selected = fleetVM.selectedMotorcycle {
+                self.detailVM = MotorcycleDetailViewModel(motorcycle: selected)
             }
         }
         .onChange(of: fleetVM.selectedMotorcycle?.id) { _ in

@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ContentView: View {
     @StateObject private var authVM = AuthViewModel()
+    @StateObject private var fleetVM = MotorcycleViewModel()
     @State private var showSplash = true
     
     var body: some View {
@@ -10,6 +11,7 @@ struct ContentView: View {
                 if authVM.isAuthenticated {
                     MainTabView()
                         .environmentObject(authVM)
+                        .environmentObject(fleetVM)
                 } else {
                     LoginView()
                         .environmentObject(authVM)
@@ -20,6 +22,11 @@ struct ContentView: View {
             if showSplash {
                 SplashScreenView()
                     .transition(.opacity)
+                    .task {
+                        if authVM.isAuthenticated {
+                            await fleetVM.loadMotorcycles()
+                        }
+                    }
             }
         }
         .onAppear {

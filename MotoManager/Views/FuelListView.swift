@@ -79,65 +79,68 @@ struct FuelListView_Previews: PreviewProvider {
 struct FuelRow: View {
     let record: MaintenanceRecord
     let averageConsumption: Double
-
+    
     var body: some View {
-        HStack(spacing: 16) {
-            ZStack {
-                Circle()
-                    .fill(Theme.Colors.primary.opacity(0.1))
-                    .frame(width: 44, height: 44)
-
-                consumptionIndicator
+        HStack(alignment: .center, spacing: 12) {
+            // Left Side: Date & Amount
+            VStack(alignment: .leading, spacing: 2) {
+                Text(record.date)
+                    .font(.system(size: 17, weight: .bold, design: .rounded))
+                
+                Text("\(record.fuelAmount?.formatted() ?? "0") Liters")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(.secondary)
             }
-
-            VStack(alignment: .leading, spacing: 4) {
-                HStack(spacing: 4) {
-                    Text("\(record.fuelAmount?.formatted() ?? "0") L")
-                        .font(.headline)
+            
+            Spacer()
+            
+            // Right Side: Consumption (Main) & Trip/Odo
+            VStack(alignment: .trailing, spacing: 4) {
+                HStack(spacing: 6) {
+                    consumptionIndicator
+                    
                     if let consumption = record.fuelConsumption {
-                        Text("•")
-                            .foregroundColor(.secondary.opacity(0.5))
-                        Text(String(format: "%.1f L/100", consumption))
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
+                        HStack(alignment: .firstTextBaseline, spacing: 2) {
+                            Text(String(format: "%.1f", consumption))
+                                .font(.system(size: 22, weight: .black, design: .rounded))
+                            Text("L/100")
+                                .font(.system(size: 10, weight: .heavy))
+                                .foregroundColor(.secondary.opacity(0.8))
+                        }
+                    } else {
+                        Text("--.-")
+                            .font(.system(size: 22, weight: .black, design: .rounded))
+                            .foregroundColor(.secondary.opacity(0.3))
                     }
                 }
-                Text(record.date)
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
-
-            Spacer()
-
-            VStack(alignment: .trailing, spacing: 4) {
-                if let cost = record.cost {
-                    Text("\(String(format: "%.2f", cost)) \(record.currency ?? "")")
-                        .font(.subheadline)
-                        .fontWeight(.bold)
+                
+                HStack(spacing: 6) {
+                    if let trip = record.tripDistance {
+                        Text("\(Int(trip)) km trip")
+                    }
+                    Text("•")
+                    Text("\(record.odo) km total")
                 }
-                Text("\(record.odo) km")
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
+                .font(.system(size: 11, weight: .bold))
+                .foregroundColor(.secondary.opacity(0.7))
             }
         }
-        .padding()
+        .padding(.vertical, 12)
+        .padding(.horizontal, 16)
         .background(.ultraThinMaterial)
         .cornerRadius(Theme.Radius.m)
     }
-
+    
     @ViewBuilder
     private var consumptionIndicator: some View {
         if let consumption = record.fuelConsumption, averageConsumption > 0 {
             let diff = consumption - averageConsumption
-            let isHigher = diff > 0.1 // Small threshold
+            let isHigher = diff > 0.1
             let isLower = diff < -0.1
-
-            Image(systemName: isHigher ? "arrow.up.right.circle.fill" : (isLower ? "arrow.down.right.circle.fill" : "equal.circle.fill"))
+            
+            Image(systemName: isHigher ? "arrow.up.right" : (isLower ? "arrow.down.right" : "equal"))
+                .font(.system(size: 14, weight: .black))
                 .foregroundColor(isHigher ? .orange : (isLower ? .green : .blue))
-                .font(.title2)
-        } else {
-            Image(systemName: "fuelpump.fill")
-                .foregroundColor(Theme.Colors.primary)
         }
     }
 }

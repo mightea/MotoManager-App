@@ -8,6 +8,8 @@ class MotorcycleViewModel: ObservableObject {
     @Published var isLoading = false
     @Published var errorMessage: String?
     
+    private let lastSelectedIdKey = "com.motomanager.lastSelectedId"
+    
     func loadMotorcycles() async {
         isLoading = true
         errorMessage = nil
@@ -15,8 +17,13 @@ class MotorcycleViewModel: ObservableObject {
         do {
             let fetched = try await NetworkManager.shared.fetchMotorcycles()
             self.motorcycles = fetched
-            // Default selection to the first bike if none selected
-            if selectedMotorcycle == nil, let first = fetched.first {
+            
+            // Try to restore last selection
+            let lastId = UserDefaults.standard.integer(forKey: lastSelectedIdKey)
+            if let lastMoto = fetched.first(where: { $0.id == lastId }) {
+                self.selectedMotorcycle = lastMoto
+            } else if selectedMotorcycle == nil, let first = fetched.first {
+                // Default to first bike
                 self.selectedMotorcycle = first
             }
         } catch {
@@ -28,5 +35,6 @@ class MotorcycleViewModel: ObservableObject {
     
     func selectMotorcycle(_ motorcycle: Motorcycle) {
         selectedMotorcycle = motorcycle
+        UserDefaults.standard.set(motorcycle.id, forKey: lastSelectedIdKey)
     }
 }
