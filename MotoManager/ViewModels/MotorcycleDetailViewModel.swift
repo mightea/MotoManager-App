@@ -75,22 +75,49 @@ class MotorcycleDetailViewModel: ObservableObject {
         }
     }
     
-    func addFuelRecord(odo: Int, amount: Double, cost: Double, date: Date) async -> Bool {
+    func addFuelRecord(
+        odo: Int,
+        amount: Double,
+        cost: Double,
+        pricePerUnit: Double,
+        currency: String,
+        date: Date,
+        fuelType: String,
+        locationName: String?,
+        notes: String?
+    ) async -> Bool {
         isLoading = true
         defer { isLoading = false }
-        
+
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withFullDate]
-        
-        let record: [String: Any] = [
+
+        var record: [String: Any] = [
             "date": formatter.string(from: date),
             "odo": odo,
             "type": "fuel",
             "fuelAmount": amount,
-            "cost": cost,
-            "currency": motorcycle.currencyCode ?? "EUR"
+            "fuelType": fuelType
         ]
-        
+
+        if cost > 0 || pricePerUnit > 0 {
+            record["currency"] = currency
+        }
+        if cost > 0 {
+            record["cost"] = cost
+        }
+        if pricePerUnit > 0 {
+            record["pricePerUnit"] = pricePerUnit
+        }
+
+        if let location = locationName, !location.isEmpty {
+            record["locationName"] = location
+        }
+
+        if let desc = notes, !desc.isEmpty {
+            record["description"] = desc
+        }
+
         do {
             try await NetworkManager.shared.createMaintenance(motorcycleId: motorcycle.id, record: record)
             await loadAllData() // Refresh

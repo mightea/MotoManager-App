@@ -192,6 +192,27 @@ class NetworkManager {
         return wrapper.docs
     }
     
+    func fetchCurrencies() async throws -> [Currency] {
+        guard let url = URL(string: "\(baseURL)/api/currencies") else {
+            throw URLError(.badURL)
+        }
+
+        var request = URLRequest(url: url)
+        if let token = getToken() {
+            request.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+
+        let data = try await performRequest(request)
+
+        struct CurrencyListResponse: Codable {
+            let currencies: [Currency]
+        }
+
+        let wrapper = try JSONDecoder().decode(CurrencyListResponse.self, from: data)
+        CacheStore.shared.save(wrapper.currencies, key: CacheKey.currencies)
+        return wrapper.currencies
+    }
+
     /// Authenticated GET for arbitrary binary blobs (documents, attachments).
     func fetchBlob(url: String) async throws -> Data {
         guard let url = URL(string: url) else {
