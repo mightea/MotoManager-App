@@ -32,7 +32,7 @@ struct FuelListView: View {
                             .padding(.top, 100)
                     } else {
                         ForEach(fuelRecords) { record in
-                            NavigationLink(destination: FuelDetailView(record: record)) {
+                            NavigationLink(destination: FuelDetailView(record: record, viewModel: viewModel)) {
                                 FuelRow(record: record, averageConsumption: averageConsumption)
                                     .padding(.horizontal, Theme.Spacing.s)
                             }

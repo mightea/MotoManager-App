@@ -2,6 +2,7 @@ import SwiftUI
 
 struct AddFuelView: View {
     @ObservedObject var viewModel: MotorcycleDetailViewModel
+    let existingRecord: MaintenanceRecord?
     @Environment(\.dismiss) var dismiss
 
     enum PriceMode: String, CaseIterable {
@@ -22,14 +23,43 @@ struct AddFuelView: View {
 
     private let fuelTypes = ["95", "98", "E10"]
 
-    init(viewModel: MotorcycleDetailViewModel) {
+    init(viewModel: MotorcycleDetailViewModel, existingRecord: MaintenanceRecord? = nil) {
         self.viewModel = viewModel
-        _currency = State(initialValue: Self.defaultCurrency(for: viewModel))
+        self.existingRecord = existingRecord
+
         _currencies = State(initialValue: CacheStore.shared.load([Currency].self, key: CacheKey.currencies) ?? [])
 
-        let currentOdo = viewModel.motorcycle.latestOdo ?? viewModel.motorcycle.initialOdo
-        _odo = State(initialValue: "\(currentOdo)")
+        if let record = existingRecord {
+            _odo = State(initialValue: "\(record.odo)")
+            _amount = State(initialValue: record.fuelAmount.map { Self.numberString($0) } ?? "")
+            _fuelType = State(initialValue: record.fuelType ?? "98")
+            _locationName = State(initialValue: record.locationName ?? "")
+            _notes = State(initialValue: record.description ?? "")
+            _currency = State(initialValue: record.currency ?? Self.defaultCurrency(for: viewModel))
+
+            let formatter = ISO8601DateFormatter()
+            formatter.formatOptions = [.withFullDate]
+            _date = State(initialValue: formatter.date(from: record.date) ?? Date())
+
+            if let perUnit = record.pricePerUnit, perUnit > 0 {
+                _priceMode = State(initialValue: .perLiter)
+                _priceInput = State(initialValue: Self.numberString(perUnit))
+            } else if let cost = record.cost, cost > 0 {
+                _priceMode = State(initialValue: .total)
+                _priceInput = State(initialValue: Self.numberString(cost))
+            }
+        } else {
+            let currentOdo = viewModel.motorcycle.latestOdo ?? viewModel.motorcycle.initialOdo
+            _odo = State(initialValue: "\(currentOdo)")
+            _currency = State(initialValue: Self.defaultCurrency(for: viewModel))
+        }
     }
+
+    private static func numberString(_ value: Double) -> String {
+        String(format: "%g", value)
+    }
+
+    private var isEditing: Bool { existingRecord != nil }
 
     /// Preselect the currency the user most likely wants: latest fuel record's
     /// currency first, falling back to the motorcycle's default, then EUR.
@@ -124,7 +154,7 @@ struct AddFuelView: View {
                     .padding()
                 }
             }
-            .navigationTitle("Add Fuel")
+            .navigationTitle(isEditing ? "Edit Fuel" : "Add Fuel")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
@@ -340,7 +370,7 @@ struct AddFuelView: View {
             if viewModel.isLoading {
                 ProgressView().tint(.white)
             } else {
-                Text("Save Fuel Record")
+                Text(isEditing ? "Save Changes" : "Save Fuel Record")
             }
         }
         .buttonStyle(ModernButtonStyle(isLoading: viewModel.isLoading))
@@ -364,18 +394,36 @@ struct AddFuelView: View {
     private func save() {
         Task {
             let odoInt = Int(odo) ?? 0
+            let trimmedLocation = locationName.isEmpty ? nil : locationName
+            let trimmedNotes = notes.isEmpty ? nil : notes
 
-            let succeeded = await viewModel.addFuelRecord(
-                odo: odoInt,
-                amount: amountValue,
-                cost: totalCost,
-                pricePerUnit: pricePerLiter,
-                currency: currency,
-                date: date,
-                fuelType: fuelType,
-                locationName: locationName.isEmpty ? nil : locationName,
-                notes: notes.isEmpty ? nil : notes
-            )
+            let succeeded: Bool
+            if let record = existingRecord {
+                succeeded = await viewModel.updateFuelRecord(
+                    recordId: record.id,
+                    odo: odoInt,
+                    amount: amountValue,
+                    cost: totalCost,
+                    pricePerUnit: pricePerLiter,
+                    currency: currency,
+                    date: date,
+                    fuelType: fuelType,
+                    locationName: trimmedLocation,
+                    notes: trimmedNotes
+                )
+            } else {
+                succeeded = await viewModel.addFuelRecord(
+                    odo: odoInt,
+                    amount: amountValue,
+                    cost: totalCost,
+                    pricePerUnit: pricePerLiter,
+                    currency: currency,
+                    date: date,
+                    fuelType: fuelType,
+                    locationName: trimmedLocation,
+                    notes: trimmedNotes
+                )
+            }
 
             if succeeded {
                 dismiss()

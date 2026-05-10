@@ -231,16 +231,33 @@ class NetworkManager {
         guard let url = URL(string: "\(baseURL)/api/motorcycles/\(motorcycleId)/maintenance") else {
             throw URLError(.badURL)
         }
-        
+
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.addValue("application/json", forHTTPHeaderField: "Content-Type")
         if let token = getToken() {
             request.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         }
-        
+
         request.httpBody = try JSONSerialization.data(withJSONObject: record)
-        
+
+        _ = try await performRequest(request)
+    }
+
+    func updateMaintenance(motorcycleId: Int, recordId: Int, record: [String: Any]) async throws {
+        guard let url = URL(string: "\(baseURL)/api/motorcycles/\(motorcycleId)/maintenance/\(recordId)") else {
+            throw URLError(.badURL)
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "PUT"
+        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+        if let token = getToken() {
+            request.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+
+        request.httpBody = try JSONSerialization.data(withJSONObject: record)
+
         _ = try await performRequest(request)
     }
     

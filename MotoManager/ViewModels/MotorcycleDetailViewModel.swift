@@ -86,9 +86,71 @@ class MotorcycleDetailViewModel: ObservableObject {
         locationName: String?,
         notes: String?
     ) async -> Bool {
+        let payload = fuelPayload(
+            odo: odo, amount: amount, cost: cost, pricePerUnit: pricePerUnit,
+            currency: currency, date: date, fuelType: fuelType,
+            locationName: locationName, notes: notes
+        )
+
         isLoading = true
         defer { isLoading = false }
 
+        do {
+            try await NetworkManager.shared.createMaintenance(motorcycleId: motorcycle.id, record: payload)
+            await loadAllData()
+            return true
+        } catch {
+            errorMessage = "Failed to add fuel: \(error.localizedDescription)"
+            return false
+        }
+    }
+
+    func updateFuelRecord(
+        recordId: Int,
+        odo: Int,
+        amount: Double,
+        cost: Double,
+        pricePerUnit: Double,
+        currency: String,
+        date: Date,
+        fuelType: String,
+        locationName: String?,
+        notes: String?
+    ) async -> Bool {
+        let payload = fuelPayload(
+            odo: odo, amount: amount, cost: cost, pricePerUnit: pricePerUnit,
+            currency: currency, date: date, fuelType: fuelType,
+            locationName: locationName, notes: notes
+        )
+
+        isLoading = true
+        defer { isLoading = false }
+
+        do {
+            try await NetworkManager.shared.updateMaintenance(
+                motorcycleId: motorcycle.id,
+                recordId: recordId,
+                record: payload
+            )
+            await loadAllData()
+            return true
+        } catch {
+            errorMessage = "Failed to update fuel record: \(error.localizedDescription)"
+            return false
+        }
+    }
+
+    private func fuelPayload(
+        odo: Int,
+        amount: Double,
+        cost: Double,
+        pricePerUnit: Double,
+        currency: String,
+        date: Date,
+        fuelType: String,
+        locationName: String?,
+        notes: String?
+    ) -> [String: Any] {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withFullDate]
 
@@ -109,23 +171,14 @@ class MotorcycleDetailViewModel: ObservableObject {
         if pricePerUnit > 0 {
             record["pricePerUnit"] = pricePerUnit
         }
-
         if let location = locationName, !location.isEmpty {
             record["locationName"] = location
         }
-
         if let desc = notes, !desc.isEmpty {
             record["description"] = desc
         }
 
-        do {
-            try await NetworkManager.shared.createMaintenance(motorcycleId: motorcycle.id, record: record)
-            await loadAllData() // Refresh
-            return true
-        } catch {
-            errorMessage = "Failed to add fuel: \(error.localizedDescription)"
-            return false
-        }
+        return record
     }
     
     static var mock: MotorcycleDetailViewModel {
