@@ -18,15 +18,17 @@ struct ContentView: View {
                 }
             }
             .opacity(showSplash ? 0 : 1)
-            
+
             if showSplash {
                 SplashScreenView()
                     .transition(.opacity)
-                    .task {
-                        if authVM.isAuthenticated {
-                            await fleetVM.loadMotorcycles()
-                        }
-                    }
+            }
+        }
+        // Drive fleet loading from the persistent root so splash dismissal does
+        // not cancel the in-flight fetch. Re-runs on login/logout transitions.
+        .task(id: authVM.isAuthenticated) {
+            if authVM.isAuthenticated {
+                await fleetVM.loadMotorcycles()
             }
         }
         .onAppear {
