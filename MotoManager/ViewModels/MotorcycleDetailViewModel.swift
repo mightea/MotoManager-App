@@ -18,39 +18,61 @@ class MotorcycleDetailViewModel: ObservableObject {
     
     func loadAllData() async {
         print("MotorcycleDetailViewModel: Starting load for motorcycle \(motorcycle.id)")
+
+        // Hydrate from cache instantly so the UI works offline / while the network is in flight.
+        hydrateFromCache()
+
         isLoading = true
-        errorMessage = nil
-        
+
         do {
             // Run in parallel
             async let maintenanceTask = NetworkManager.shared.fetchMaintenance(motorcycleId: motorcycle.id)
             async let torqueTask = NetworkManager.shared.fetchTorqueSpecs(motorcycleId: motorcycle.id)
             async let documentsTask = NetworkManager.shared.fetchDocuments()
-            
+
             let (maintenance, torque, allDocs) = try await (maintenanceTask, torqueTask, documentsTask)
-            
+
             print("MotorcycleDetailViewModel: Received \(maintenance.count) maintenance records")
             print("MotorcycleDetailViewModel: Received \(torque.count) torque specs")
             print("MotorcycleDetailViewModel: Received \(allDocs.count) total documents")
-            
+
             self.maintenanceRecords = maintenance.sorted(by: { $0.date > $1.date })
             self.torqueSpecs = torque
-            
+
             // Filter documents for this motorcycle
             self.documents = allDocs.filter { doc in
                 doc.motorcycleIds?.contains(motorcycle.id) ?? false
             }
             print("MotorcycleDetailViewModel: Filtered down to \(self.documents.count) documents for this bike")
-            
+            errorMessage = nil
+
         } catch is CancellationError {
             // Ignore normal Swift concurrency cancellations (e.g. from refreshable)
             print("MotorcycleDetailViewModel: Load cancelled")
         } catch {
             print("MotorcycleDetailViewModel: ERROR: \(error.localizedDescription)")
-            errorMessage = "Failed to load details: \(error.localizedDescription)"
+            // Only surface an error when we have nothing cached to show.
+            if maintenanceRecords.isEmpty && torqueSpecs.isEmpty && documents.isEmpty {
+                errorMessage = "Failed to load details: \(error.localizedDescription)"
+            }
         }
-        
+
         isLoading = false
+    }
+
+    private func hydrateFromCache() {
+        if maintenanceRecords.isEmpty,
+           let cached = CacheStore.shared.load([MaintenanceRecord].self, key: CacheKey.maintenance(motorcycleId: motorcycle.id)) {
+            self.maintenanceRecords = cached.sorted(by: { $0.date > $1.date })
+        }
+        if torqueSpecs.isEmpty,
+           let cached = CacheStore.shared.load([TorqueSpec].self, key: CacheKey.torque(motorcycleId: motorcycle.id)) {
+            self.torqueSpecs = cached
+        }
+        if documents.isEmpty,
+           let cached = CacheStore.shared.load([Document].self, key: CacheKey.documents) {
+            self.documents = cached.filter { $0.motorcycleIds?.contains(motorcycle.id) ?? false }
+        }
     }
     
     func addFuelRecord(odo: Int, amount: Double, cost: Double, date: Date) async -> Bool {

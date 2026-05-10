@@ -79,6 +79,8 @@ class AuthViewModel: NSObject, ObservableObject {
     
     func logout() {
         NetworkManager.shared.deleteToken()
+        CacheStore.shared.clearAll()
+        ImageCache.shared.clearAll()
         isAuthenticated = false
     }
     

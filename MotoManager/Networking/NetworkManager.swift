@@ -112,7 +112,8 @@ class NetworkManager {
             }
             return moto
         }
-        
+
+        CacheStore.shared.save(motorcycles, key: CacheKey.motorcycles)
         return motorcycles
     }
     
@@ -137,6 +138,7 @@ class NetworkManager {
         }
         
         let wrapper = try JSONDecoder().decode(MaintenanceListResponse.self, from: data)
+        CacheStore.shared.save(wrapper.maintenanceRecords, key: CacheKey.maintenance(motorcycleId: motorcycleId))
         return wrapper.maintenanceRecords
     }
     
@@ -161,6 +163,7 @@ class NetworkManager {
         }
         
         let wrapper = try JSONDecoder().decode(TorqueSpecListResponse.self, from: data)
+        CacheStore.shared.save(wrapper.torqueSpecs, key: CacheKey.torque(motorcycleId: motorcycleId))
         return wrapper.torqueSpecs
     }
     
@@ -185,6 +188,7 @@ class NetworkManager {
         }
         
         let wrapper = try JSONDecoder().decode(DocWrapper.self, from: data)
+        CacheStore.shared.save(wrapper.docs, key: CacheKey.documents)
         return wrapper.docs
     }
     
