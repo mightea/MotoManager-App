@@ -20,7 +20,7 @@ struct AddFuelView: View {
     @State private var notes: String = ""
     @State private var date = Date()
 
-    private let fuelTypes = ["95", "98", "E10", "Diesel"]
+    private let fuelTypes = ["95", "98", "E10"]
 
     init(viewModel: MotorcycleDetailViewModel) {
         self.viewModel = viewModel
@@ -95,6 +95,18 @@ struct AddFuelView: View {
             .task {
                 await refreshCurrencies()
             }
+            .onChange(of: odo) { _, newValue in
+                let sanitized = newValue.filter { $0.isNumber }
+                if sanitized != newValue { odo = sanitized }
+            }
+            .onChange(of: amount) { _, newValue in
+                let sanitized = sanitizeDecimal(newValue)
+                if sanitized != newValue { amount = sanitized }
+            }
+            .onChange(of: priceInput) { _, newValue in
+                let sanitized = sanitizeDecimal(newValue)
+                if sanitized != newValue { priceInput = sanitized }
+            }
         }
     }
 
@@ -102,6 +114,23 @@ struct AddFuelView: View {
         if let fresh = try? await NetworkManager.shared.fetchCurrencies() {
             currencies = fresh
         }
+    }
+
+    /// Keeps digits and at most one decimal separator (. or ,), dropping
+    /// everything else. Guards against hardware-keyboard input or pasted
+    /// strings since `.decimalPad` only controls the soft keyboard.
+    private func sanitizeDecimal(_ input: String) -> String {
+        var result = ""
+        var sawSeparator = false
+        for char in input {
+            if char.isNumber {
+                result.append(char)
+            } else if (char == "." || char == ",") && !sawSeparator {
+                result.append(char)
+                sawSeparator = true
+            }
+        }
+        return result
     }
 
     // MARK: - Sections
