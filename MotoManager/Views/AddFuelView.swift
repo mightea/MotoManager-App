@@ -9,7 +9,7 @@ struct AddFuelView: View {
         case perLiter = "Per Liter"
     }
 
-    @State private var odo: String = ""
+    @State private var odo: String
     @State private var amount: String = ""
     @State private var priceInput: String = ""
     @State private var priceMode: PriceMode = .total
@@ -26,6 +26,9 @@ struct AddFuelView: View {
         self.viewModel = viewModel
         _currency = State(initialValue: Self.defaultCurrency(for: viewModel))
         _currencies = State(initialValue: CacheStore.shared.load([Currency].self, key: CacheKey.currencies) ?? [])
+
+        let currentOdo = viewModel.motorcycle.latestOdo ?? viewModel.motorcycle.initialOdo
+        _odo = State(initialValue: "\(currentOdo)")
     }
 
     /// Preselect the currency the user most likely wants: latest fuel record's
@@ -67,6 +70,41 @@ struct AddFuelView: View {
         !odo.isEmpty && amountValue > 0 && !viewModel.isLoading
     }
 
+    private var previousFuelOdo: Int? {
+        viewModel.maintenanceRecords
+            .first(where: { $0.recordType.lowercased() == "fuel" })?
+            .odo
+    }
+
+    private var tripDistance: Int? {
+        guard let prev = previousFuelOdo,
+              let current = Int(odo),
+              current > prev else { return nil }
+        return current - prev
+    }
+
+    private var fuelConsumption: Double? {
+        guard let trip = tripDistance, trip > 0, amountValue > 0 else { return nil }
+        return (amountValue / Double(trip)) * 100
+    }
+
+    /// Always returns a string so the label slot stays reserved and the rest
+    /// of the form does not shift as the user types. Em-dash placeholder when
+    /// the value is not yet computable.
+    private var tripHint: String {
+        if let trip = tripDistance, trip > 0 {
+            return "Trip: \(trip) km since last fill"
+        }
+        return "Trip: — km since last fill"
+    }
+
+    private var consumptionHint: String {
+        if let consumption = fuelConsumption {
+            return String(format: "≈ %.1f L/100 km", consumption)
+        }
+        return "≈ — L/100 km"
+    }
+
     // MARK: - Body
 
     var body: some View {
@@ -75,12 +113,13 @@ struct AddFuelView: View {
                 LiquidBackgroundView().ignoresSafeArea()
 
                 ScrollView {
-                    VStack(spacing: Theme.Spacing.l) {
+                    VStack(spacing: Theme.Spacing.m) {
                         essentialsSection
                         priceSection
                         dateField
                         detailsSection
                         saveButton
+                            .padding(.top, Theme.Spacing.s)
                     }
                     .padding()
                 }
@@ -136,10 +175,10 @@ struct AddFuelView: View {
     // MARK: - Sections
 
     private var essentialsSection: some View {
-        VStack(spacing: Theme.Spacing.m) {
-            QuickInputField(label: "Odometer (km)", text: $odo, icon: "gauge.with.dots", keyboardType: .numberPad)
+        VStack(spacing: Theme.Spacing.s) {
+            QuickInputField(label: "Odometer (km)", text: $odo, icon: "gauge.with.dots", keyboardType: .numberPad, hint: tripHint)
 
-            QuickInputField(label: "Amount (Liters)", text: $amount, icon: "fuelpump.fill", keyboardType: .decimalPad)
+            QuickInputField(label: "Amount (Liters)", text: $amount, icon: "fuelpump.fill", keyboardType: .decimalPad, hint: consumptionHint)
 
             fuelTypePicker
         }
@@ -166,10 +205,13 @@ struct AddFuelView: View {
                 HStack {
                     Image(systemName: priceMode == .total ? "creditcard.fill" : "scalemass.fill")
                         .foregroundColor(Theme.Colors.primary)
+                        .font(.system(size: 14))
                     TextField(priceMode == .total ? "Total cost" : "Cost per liter", text: $priceInput)
                         .keyboardType(.decimalPad)
+                        .font(.system(size: 15))
                 }
-                .padding()
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
                 .background(.ultraThinMaterial)
                 .cornerRadius(Theme.Radius.m)
                 .overlay(
@@ -182,7 +224,7 @@ struct AddFuelView: View {
 
             if let hint = priceHint {
                 Text(hint)
-                    .font(.caption)
+                    .font(.caption2)
                     .foregroundColor(.secondary)
                     .padding(.leading, Theme.Spacing.s)
             }
@@ -190,7 +232,7 @@ struct AddFuelView: View {
     }
 
     private var detailsSection: some View {
-        VStack(spacing: Theme.Spacing.m) {
+        VStack(spacing: Theme.Spacing.s) {
             sectionHeader("Optional Details")
             QuickInputField(label: "Location", text: $locationName, icon: "mappin.and.ellipse")
             notesField
@@ -223,13 +265,13 @@ struct AddFuelView: View {
         } label: {
             HStack(spacing: 4) {
                 Text(currency)
-                    .font(.system(size: 14, weight: .bold))
+                    .font(.system(size: 13, weight: .bold))
                 Image(systemName: "chevron.down")
-                    .font(.system(size: 10, weight: .bold))
+                    .font(.system(size: 9, weight: .bold))
             }
             .foregroundColor(Theme.Colors.primary)
-            .padding(.horizontal, Theme.Spacing.m)
-            .padding(.vertical, 14)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 11)
             .background(.ultraThinMaterial)
             .cornerRadius(Theme.Radius.m)
             .overlay(
@@ -249,7 +291,9 @@ struct AddFuelView: View {
 
     private var dateField: some View {
         DatePicker("Date", selection: $date, displayedComponents: .date)
-            .padding()
+            .font(.system(size: 14))
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
             .background(.ultraThinMaterial)
             .cornerRadius(Theme.Radius.m)
     }
@@ -264,11 +308,14 @@ struct AddFuelView: View {
             HStack(alignment: .top) {
                 Image(systemName: "text.alignleft")
                     .foregroundColor(Theme.Colors.primary)
-                    .padding(.top, 6)
+                    .font(.system(size: 14))
+                    .padding(.top, 4)
                 TextField("Anything worth remembering?", text: $notes, axis: .vertical)
+                    .font(.system(size: 15))
                     .lineLimit(2...4)
             }
-            .padding()
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
             .background(.ultraThinMaterial)
             .cornerRadius(Theme.Radius.m)
             .overlay(
@@ -350,6 +397,7 @@ struct QuickInputField: View {
     @Binding var text: String
     let icon: String
     var keyboardType: UIKeyboardType = .default
+    var hint: String? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
@@ -361,16 +409,26 @@ struct QuickInputField: View {
             HStack {
                 Image(systemName: icon)
                     .foregroundColor(Theme.Colors.primary)
+                    .font(.system(size: 14))
                 TextField("", text: $text)
                     .keyboardType(keyboardType)
+                    .font(.system(size: 15))
             }
-            .padding()
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
             .background(.ultraThinMaterial)
             .cornerRadius(Theme.Radius.m)
             .overlay(
                 RoundedRectangle(cornerRadius: Theme.Radius.m)
                     .stroke(Color.primary.opacity(0.1), lineWidth: 1)
             )
+
+            if let hint, !hint.isEmpty {
+                Text(hint)
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+                    .padding(.leading, Theme.Spacing.s)
+            }
         }
     }
 }
