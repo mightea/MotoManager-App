@@ -1,7 +1,7 @@
 import SwiftUI
 
 enum HeaderType {
-    case fuel, service, torque, documents
+    case fuel, service, workshop
 }
 
 struct MotorcycleSummaryHeader: View {
@@ -103,16 +103,12 @@ struct MotorcycleSummaryHeader: View {
             StatView(icon: "gauge.with.dots", value: "\(motorcycle.latestOdo ?? motorcycle.initialOdo)", unit: "km", label: "Last Svc")
                 .frame(maxWidth: .infinity)
             
-        case .torque:
-            StatView(icon: "bolt.fill", value: "\(viewModel.torqueSpecs.count)", unit: "specs", label: "Available")
+        case .workshop:
+            StatView(icon: "bolt.fill", value: "\(viewModel.torqueSpecs.count)", unit: "specs", label: "Torque")
                 .frame(maxWidth: .infinity)
             StatView(icon: "wrench.fill", value: "\(uniqueToolCount)", unit: "tools", label: "Required")
                 .frame(maxWidth: .infinity)
-            
-        case .documents:
-            StatView(icon: "doc.fill", value: "\(viewModel.documents.count)", unit: "docs", label: "Vault")
-                .frame(maxWidth: .infinity)
-            StatView(icon: "lock.fill", value: motorcycle.isArchived ? "YES" : "NO", unit: "", label: "Archived")
+            StatView(icon: "doc.fill", value: "\(viewModel.documents.count)", unit: "docs", label: "Manuals")
                 .frame(maxWidth: .infinity)
         }
     }

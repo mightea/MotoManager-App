@@ -21,14 +21,9 @@ struct MainTabView: View {
                                 Label("Service", systemImage: "wrench.and.screwdriver.fill")
                             }
                         
-                        TorqueSpecsView(viewModel: dVM)
+                        WorkshopView(viewModel: dVM)
                             .tabItem {
-                                Label("Torque", systemImage: "bolt.fill")
-                            }
-                        
-                        DocumentsView(viewModel: dVM)
-                            .tabItem {
-                                Label("Docs", systemImage: "doc.fill")
+                                Label("Workshop", systemImage: "wrench.adjustable.fill")
                             }
                         
                         SettingsView()
