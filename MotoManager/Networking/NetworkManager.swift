@@ -192,16 +192,17 @@ class NetworkManager {
         return wrapper.docs
     }
     
-    func fetchImage(url: String) async throws -> Data {
+    /// Authenticated GET for arbitrary binary blobs (documents, attachments).
+    func fetchBlob(url: String) async throws -> Data {
         guard let url = URL(string: url) else {
             throw URLError(.badURL)
         }
-        
+
         var request = URLRequest(url: url)
         if let token = getToken() {
             request.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         }
-        
+
         return try await performRequest(request)
     }
     

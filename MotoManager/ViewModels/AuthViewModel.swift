@@ -81,6 +81,7 @@ class AuthViewModel: NSObject, ObservableObject {
         NetworkManager.shared.deleteToken()
         CacheStore.shared.clearAll()
         ImageCache.shared.clearAll()
+        DocumentCache.shared.clearAll()
         isAuthenticated = false
     }
     

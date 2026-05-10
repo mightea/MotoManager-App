@@ -2,6 +2,7 @@ import SwiftUI
 
 struct WorkshopView: View {
     @ObservedObject var viewModel: MotorcycleDetailViewModel
+    @State private var presentedDocument: Document?
 
     private var groupedTorqueSpecs: [(category: String, specs: [TorqueSpec])] {
         Dictionary(grouping: viewModel.torqueSpecs) { $0.category }
@@ -48,6 +49,9 @@ struct WorkshopView: View {
         .refreshable {
             await viewModel.loadAllData()
         }
+        .sheet(item: $presentedDocument) { doc in
+            DocumentViewerView(document: doc)
+        }
     }
 
     // MARK: - Documents
@@ -60,7 +64,12 @@ struct WorkshopView: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: Theme.Spacing.s) {
                     ForEach(viewModel.documents) { doc in
-                        DocumentCard(document: doc)
+                        Button {
+                            presentedDocument = doc
+                        } label: {
+                            DocumentCard(document: doc)
+                        }
+                        .buttonStyle(.plain)
                     }
                 }
                 .padding(.horizontal, Theme.Spacing.s)
