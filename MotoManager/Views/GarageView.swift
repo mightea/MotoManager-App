@@ -1,148 +1,505 @@
 import SwiftUI
 
+/// Searchable motorcycle picker bottom sheet.
+///
+/// Mirrors `motomanager-app/project/assets/sheets.jsx::MotorcyclePickerSheet`:
+/// a glass bottom sheet with a sticky title + search field, an optional
+/// "ZULETZT VERWENDET" horizontal chip row, then an alphabetical list of all
+/// bikes with the active one pinned to the top. Each row is 52 pt thumb +
+/// make/model + VETERAN badge + year/odo/plate meta. The active bike shows
+/// a blue check disc on the right.
 struct GarageView: View {
     @EnvironmentObject var fleetVM: MotorcycleViewModel
     @Environment(\.dismiss) var dismiss
-    
+    @State private var query: String = ""
+
+    private var sortedFiltered: [Motorcycle] {
+        let q = query.trim().lowercased()
+        let arr: [Motorcycle] = q.isEmpty
+            ? fleetVM.motorcycles
+            : fleetVM.motorcycles.filter { m in
+                let hay = "\(m.make) \(m.model) \(m.numberPlate ?? "") \(m.modelYear ?? "")".lowercased()
+                return hay.contains(q)
+            }
+        return arr.sorted { a, b in
+            if a.id == fleetVM.selectedMotorcycle?.id { return true }
+            if b.id == fleetVM.selectedMotorcycle?.id { return false }
+            return "\(a.make) \(a.model)".localizedCaseInsensitiveCompare("\(b.make) \(b.model)") == .orderedAscending
+        }
+    }
+
+    private var recentBikes: [Motorcycle] {
+        let activeId = fleetVM.selectedMotorcycle?.id
+        return fleetVM.recentMotorcycleIds.compactMap { id in
+            fleetVM.motorcycles.first(where: { $0.id == id && $0.id != activeId })
+        }
+    }
+
     var body: some View {
-        ZStack {
-            LiquidBackgroundView().ignoresSafeArea()
-            
+        ZStack(alignment: .top) {
+            sheetBackground
+
             ScrollView {
-                VStack(spacing: Theme.Spacing.l) {
-                    headerSection
-                    
+                VStack(spacing: 0) {
+                    Color.clear.frame(height: 1)
                     if fleetVM.motorcycles.isEmpty && !fleetVM.isLoading {
                         EmptyFleetView()
                             .padding(.top, 40)
                     } else {
-                        LazyVStack(spacing: Theme.Spacing.m) {
-                            ForEach(fleetVM.motorcycles) { motorcycle in
-                                GarageCard(motorcycle: motorcycle) {
-                                    fleetVM.selectMotorcycle(motorcycle)
-                                    dismiss()
-                                }
-                            }
-                        }
-                        .padding(.horizontal)
+                        list
                     }
-                    
-                    Spacer(minLength: 100)
                 }
+                .padding(.bottom, 24)
             }
-        }
-        .navigationTitle("My Garage")
-        .navigationBarTitleDisplayMode(.large)
-        .toolbar {
-            ToolbarItem(placement: .navigationBarTrailing) {
-                Button("Done") { dismiss() }
-                    .fontWeight(.bold)
+            .safeAreaInset(edge: .top, spacing: 0) {
+                header
             }
         }
     }
-    
-    private var headerSection: some View {
-        VStack(spacing: 8) {
-            Text("\(fleetVM.motorcycles.count) MOTORCYCLES")
-                .font(.system(size: 10, weight: .heavy))
-                .tracking(2)
-                .foregroundColor(.secondary)
-            
-            Text("Select Active Vehicle")
-                .font(.system(size: 24, weight: .bold, design: .rounded))
+
+    // MARK: - Header
+
+    private var header: some View {
+        VStack(spacing: 10) {
+            HStack(alignment: .firstTextBaseline) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Motorrad wählen")
+                        .font(.system(size: 17, weight: .bold))
+                        .foregroundColor(.white)
+                    Text(countSubtitle)
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(Theme.Glass.mutedText)
+                        .monospacedDigit()
+                }
+                Spacer(minLength: 8)
+                Button {
+                    dismiss()
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundColor(.white.opacity(0.7))
+                        .frame(width: 30, height: 30)
+                        .background(Circle().fill(Color.white.opacity(0.12)))
+                }
+                .accessibilityLabel("Schliessen")
+            }
+
+            searchField
         }
-        .padding(.top)
+        .padding(.horizontal, 16)
+        .padding(.top, 14)
+        .padding(.bottom, 10)
+        .background(headerBlur)
+    }
+
+    private var countSubtitle: String {
+        if query.trim().isEmpty {
+            let count = fleetVM.motorcycles.count
+            return "\(count) \(count == 1 ? "Motorrad" : "Motorräder")"
+        }
+        return "\(sortedFiltered.count) von \(fleetVM.motorcycles.count)"
+    }
+
+    private var headerBlur: some View {
+        LinearGradient(
+            stops: [
+                .init(color: Theme.Colors.navy900.opacity(0.92), location: 0.0),
+                .init(color: Theme.Colors.navy900.opacity(0.92), location: 0.78),
+                .init(color: Theme.Colors.navy900.opacity(0.0), location: 1.0)
+            ],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+        .background(.regularMaterial)
+        .ignoresSafeArea(edges: .top)
+    }
+
+    private var searchField: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundColor(.white.opacity(0.45))
+
+            TextField("", text: $query)
+                .placeholder(when: query.isEmpty) {
+                    Text("Marke, Modell oder Kennzeichen …")
+                        .foregroundColor(.white.opacity(0.4))
+                }
+                .font(.system(size: 15))
+                .foregroundColor(.white)
+                .textInputAutocapitalization(.none)
+                .autocorrectionDisabled()
+
+            if !query.isEmpty {
+                Button {
+                    query = ""
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 9, weight: .heavy))
+                        .foregroundColor(Theme.Colors.navy900)
+                        .frame(width: 18, height: 18)
+                        .background(Circle().fill(Color.white.opacity(0.7)))
+                }
+                .accessibilityLabel("Zurücksetzen")
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 9)
+        .background(
+            RoundedRectangle(cornerRadius: Theme.Glass.segmentRadius)
+                .fill(Color.white.opacity(0.10))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: Theme.Glass.segmentRadius)
+                .stroke(Theme.Glass.hairline, lineWidth: 0.5)
+        )
+    }
+
+    // MARK: - Body
+
+    private var list: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            if query.trim().isEmpty && !recentBikes.isEmpty {
+                recentsSection
+            }
+            allSection
+            addMotorcycleRow
+                .padding(.top, 4)
+        }
+        .padding(.horizontal, 14)
+        .padding(.top, 14)
+    }
+
+    private var recentsSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("ZULETZT VERWENDET")
+                .font(.system(size: 10, weight: .heavy))
+                .tracking(1.2)
+                .foregroundColor(Theme.Glass.mutedText)
+                .padding(.leading, 4)
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(recentBikes) { motorcycle in
+                        Button {
+                            fleetVM.selectMotorcycle(motorcycle)
+                            dismiss()
+                        } label: {
+                            RecentChip(motorcycle: motorcycle)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.horizontal, 2)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var allSection: some View {
+        if query.trim().isEmpty {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 4) {
+                    Text("ALLE MOTORRÄDER")
+                        .font(.system(size: 10, weight: .heavy))
+                        .tracking(1.2)
+                        .foregroundColor(Theme.Glass.mutedText)
+                    Text("· \(fleetVM.motorcycles.count)")
+                        .font(.system(size: 10, weight: .heavy))
+                        .tracking(1.2)
+                        .foregroundColor(Theme.Glass.mutedText)
+                        .monospacedDigit()
+                }
+                .padding(.leading, 4)
+                rowsList
+            }
+        } else if sortedFiltered.isEmpty {
+            emptyResults
+        } else {
+            rowsList
+        }
+    }
+
+    private var rowsList: some View {
+        VStack(spacing: 8) {
+            ForEach(sortedFiltered) { motorcycle in
+                Button {
+                    fleetVM.selectMotorcycle(motorcycle)
+                    dismiss()
+                } label: {
+                    GarageRow(
+                        motorcycle: motorcycle,
+                        isActive: fleetVM.selectedMotorcycle?.id == motorcycle.id
+                    )
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+
+    private var emptyResults: some View {
+        Text("Keine Motorräder gefunden für „\(query)“.")
+            .font(.system(size: 13))
+            .foregroundColor(Theme.Glass.mutedText)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 28)
+            .background(
+                RoundedRectangle(cornerRadius: Theme.Glass.fieldRadius)
+                    .fill(Color.white.opacity(0.04))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: Theme.Glass.fieldRadius)
+                    .stroke(Theme.Glass.border, lineWidth: 0.5)
+            )
+    }
+
+    private var addMotorcycleRow: some View {
+        Button {
+            // Add-motorcycle picker hook — wired when garage create lands.
+        } label: {
+            HStack(spacing: 12) {
+                ZStack {
+                    Circle()
+                        .fill(Theme.Colors.primary.opacity(0.18))
+                        .frame(width: 36, height: 36)
+                    Image(systemName: "plus")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(Theme.Colors.primary)
+                }
+                Text("Motorrad hinzufügen")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(.white.opacity(0.7))
+                Spacer(minLength: 0)
+            }
+            .padding(14)
+            .background(
+                RoundedRectangle(cornerRadius: Theme.Glass.fieldRadius)
+                    .strokeBorder(
+                        Color.white.opacity(0.18),
+                        style: StrokeStyle(lineWidth: 1.5, dash: [5, 4])
+                    )
+            )
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Motorrad hinzufügen")
+    }
+
+    private var sheetBackground: some View {
+        LinearGradient(
+            colors: [
+                Theme.Colors.navy900.opacity(0.6),
+                Theme.Colors.navy950.opacity(0.8)
+            ],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+        .ignoresSafeArea()
     }
 }
 
-struct GarageCard: View {
+// MARK: - Row
+
+private struct GarageRow: View {
     let motorcycle: Motorcycle
-    let action: () -> Void
-    @EnvironmentObject var fleetVM: MotorcycleViewModel
-    
-    var isSelected: Bool {
-        fleetVM.selectedMotorcycle?.id == motorcycle.id
-    }
-    
+    let isActive: Bool
+
     var body: some View {
-        Button(action: action) {
-            HStack(spacing: 0) {
-                // Motorcycle Image Thumbnail
-                ZStack(alignment: .bottomLeading) {
-                    if let imageUrl = motorcycle.image {
-                        RemoteImageView(url: imageUrl)
-                            .aspectRatio(contentMode: .fill)
-                            .frame(width: 120, height: 100)
-                            .clipped()
-                    } else {
-                        Theme.Colors.primary.opacity(0.2)
-                            .frame(width: 120, height: 100)
-                            .overlay(
-                                Image(systemName: "bicycle")
-                                    .font(.title)
-                                    .foregroundColor(Theme.Colors.primary)
-                            )
-                    }
-                    
-                    if isSelected {
-                        Text("ACTIVE")
-                            .font(.system(size: 8, weight: .black))
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 3)
-                            .background(Theme.Colors.primary)
-                            .foregroundColor(.white)
-                            .cornerRadius(4)
-                            .padding(6)
+        HStack(alignment: .top, spacing: 12) {
+            thumbnail
+
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 6) {
+                    Text("\(motorcycle.make) \(motorcycle.model)")
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundColor(.white)
+                        .lineLimit(1)
+                    if motorcycle.isVeteran {
+                        veteranBadge
                     }
                 }
-                
-                // Details
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(motorcycle.make.uppercased())
-                        .font(.system(size: 10, weight: .heavy))
-                        .tracking(1)
-                        .foregroundColor(Theme.Colors.primary)
-                    
-                    Text(motorcycle.model)
-                        .font(.system(size: 18, weight: .bold, design: .rounded))
-                        .foregroundColor(.primary)
-                    
-                    HStack(spacing: 12) {
-                        Label("\(motorcycle.latestOdo ?? motorcycle.initialOdo) km", systemImage: "gauge.with.dots")
-                        if let year = motorcycle.modelYear {
-                            Label("\(year)", systemImage: "calendar")
-                        }
-                    }
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundColor(.secondary)
-                }
-                .padding(.leading, Theme.Spacing.m)
-                
-                Spacer()
-                
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 14, weight: .bold))
-                    .foregroundColor(.secondary.opacity(0.5))
-                    .padding(.trailing)
+                metaLine
             }
-            .background(.ultraThinMaterial)
-            .cornerRadius(Theme.Radius.m)
-            .overlay(
-                RoundedRectangle(cornerRadius: Theme.Radius.m)
-                    .stroke(isSelected ? Theme.Colors.primary.opacity(0.5) : Color.white.opacity(0.1), lineWidth: isSelected ? 2 : 1)
-            )
-            .shadow(color: Color.black.opacity(isSelected ? 0.15 : 0.05), radius: 10, x: 0, y: 5)
+
+            Spacer(minLength: 0)
+
+            if isActive {
+                ZStack {
+                    Circle()
+                        .fill(Theme.Colors.primary)
+                        .frame(width: 24, height: 24)
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 11, weight: .heavy))
+                        .foregroundColor(.white)
+                }
+            }
         }
-        .buttonStyle(PlainButtonStyle())
-        .scaleEffect(isSelected ? 1.02 : 1.0)
-        .animation(.spring(), value: isSelected)
+        .padding(10)
+        .background(rowBackground)
+        .overlay(rowBorder)
+        .contentShape(Rectangle())
+        .accessibilityLabel("\(motorcycle.make) \(motorcycle.model)")
+        .accessibilityAddTraits(isActive ? [.isSelected] : [])
+    }
+
+    private var thumbnail: some View {
+        Group {
+            if let url = motorcycle.image {
+                RemoteImageView(url: url)
+                    .aspectRatio(contentMode: .fill)
+            } else {
+                Theme.Colors.primary.opacity(0.2)
+                    .overlay(
+                        Image(systemName: "bicycle")
+                            .font(.system(size: 18, weight: .semibold))
+                            .foregroundColor(Theme.Colors.primary)
+                    )
+            }
+        }
+        .frame(width: 52, height: 52)
+        .clipShape(RoundedRectangle(cornerRadius: 14))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14)
+                .stroke(Color.black.opacity(0.15), lineWidth: 0.5)
+        )
+    }
+
+    private var metaLine: some View {
+        let plate = motorcycle.numberPlate
+        let odo = motorcycle.latestOdo ?? motorcycle.initialOdo
+        return HStack(spacing: 6) {
+            if let year = motorcycle.modelYear, !year.isEmpty {
+                Text(String(year.prefix(4))).monospaced()
+                Text("·").opacity(0.6)
+            }
+            Text("\(odo) km").monospaced()
+            if let plate, !plate.isEmpty {
+                Text("·").opacity(0.6)
+                Text(plate).monospaced()
+            }
+        }
+        .font(.system(size: 11, weight: .medium))
+        .foregroundColor(Theme.Glass.mutedText)
+        .lineLimit(1)
+    }
+
+    private var veteranBadge: some View {
+        Text("VETERAN")
+            .font(.system(size: 9, weight: .heavy))
+            .tracking(0.4)
+            .foregroundColor(Theme.Colors.accent)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 1)
+            .background(
+                Capsule().fill(Theme.Colors.accent.opacity(0.18))
+            )
+            .overlay(
+                Capsule().stroke(Theme.Colors.accent.opacity(0.3), lineWidth: 0.5)
+            )
+    }
+
+    private var rowBackground: some View {
+        RoundedRectangle(cornerRadius: Theme.Glass.fieldRadius)
+            .fill(
+                isActive
+                    ? Theme.Colors.primary.opacity(0.18)
+                    : Color.white.opacity(0.06)
+            )
+    }
+
+    private var rowBorder: some View {
+        RoundedRectangle(cornerRadius: Theme.Glass.fieldRadius)
+            .stroke(
+                isActive
+                    ? Theme.Colors.primary.opacity(0.5)
+                    : Theme.Glass.border,
+                lineWidth: isActive ? 1 : 0.5
+            )
+    }
+}
+
+// MARK: - Recent chip
+
+private struct RecentChip: View {
+    let motorcycle: Motorcycle
+
+    var body: some View {
+        HStack(spacing: 10) {
+            thumbnail
+            VStack(alignment: .leading, spacing: 1) {
+                Text("\(motorcycle.make) \(motorcycle.model)")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundColor(.white)
+                    .lineLimit(1)
+                if let plate = motorcycle.numberPlate, !plate.isEmpty {
+                    Text(plate)
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundColor(Theme.Glass.mutedText)
+                        .monospaced()
+                }
+            }
+        }
+        .padding(.leading, 6)
+        .padding(.trailing, 14)
+        .padding(.vertical, 6)
+        .background(
+            Capsule().fill(Color.white.opacity(0.08))
+        )
+        .overlay(
+            Capsule().stroke(Theme.Glass.border, lineWidth: 0.5)
+        )
+        .frame(maxWidth: 200, alignment: .leading)
+    }
+
+    private var thumbnail: some View {
+        Group {
+            if let url = motorcycle.image {
+                RemoteImageView(url: url)
+                    .aspectRatio(contentMode: .fill)
+            } else {
+                Theme.Colors.primary.opacity(0.2)
+                    .overlay(
+                        Image(systemName: "bicycle")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundColor(Theme.Colors.primary)
+                    )
+            }
+        }
+        .frame(width: 32, height: 32)
+        .clipShape(Circle())
+        .overlay(Circle().stroke(Color.black.opacity(0.15), lineWidth: 0.5))
+    }
+}
+
+// MARK: - Helpers
+
+private extension String {
+    func trim() -> String { trimmingCharacters(in: .whitespaces) }
+}
+
+private extension View {
+    /// Conditional placeholder for TextField (TextField's prompt does not allow color customization).
+    @ViewBuilder
+    func placeholder<Content: View>(
+        when shouldShow: Bool,
+        alignment: Alignment = .leading,
+        @ViewBuilder placeholder: () -> Content
+    ) -> some View {
+        ZStack(alignment: alignment) {
+            placeholder().opacity(shouldShow ? 1 : 0)
+            self
+        }
     }
 }
 
 struct GarageView_Previews: PreviewProvider {
     static var previews: some View {
-        NavigationStack {
-            GarageView().environmentObject(MotorcycleViewModel())
-        }
+        Color.clear
+            .sheet(isPresented: .constant(true)) {
+                GarageView()
+                    .environmentObject(MotorcycleViewModel())
+                    .presentationDetents([.large])
+                    .presentationCornerRadius(Theme.Glass.sheetRadius)
+                    .presentationBackground(.regularMaterial)
+                    .presentationDragIndicator(.visible)
+            }
     }
 }

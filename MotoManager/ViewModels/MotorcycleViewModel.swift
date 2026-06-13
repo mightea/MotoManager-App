@@ -9,6 +9,12 @@ class MotorcycleViewModel: ObservableObject {
     @Published var errorMessage: String?
 
     private let lastSelectedIdKey = "com.motomanager.lastSelectedId"
+    private let recentIdsKey = "com.motomanager.recentBikeIds"
+    /// Recent motorcycle IDs in MRU order (most-recently-used first), excluding the
+    /// currently-selected bike. Capped to 5. Used by the picker's "Zuletzt verwendet".
+    var recentMotorcycleIds: [Int] {
+        UserDefaults.standard.array(forKey: recentIdsKey) as? [Int] ?? []
+    }
 
     func loadMotorcycles() async {
         // Hydrate from cache instantly so the UI is usable offline / before the network responds.
@@ -36,8 +42,17 @@ class MotorcycleViewModel: ObservableObject {
     }
 
     func selectMotorcycle(_ motorcycle: Motorcycle) {
+        let previousId = selectedMotorcycle?.id
         selectedMotorcycle = motorcycle
         UserDefaults.standard.set(motorcycle.id, forKey: lastSelectedIdKey)
+
+        // Push the previously-selected bike to the front of the recents list
+        // (the new active bike doesn't belong in "recently used").
+        if let prev = previousId, prev != motorcycle.id {
+            var recents = recentMotorcycleIds.filter { $0 != prev && $0 != motorcycle.id }
+            recents.insert(prev, at: 0)
+            UserDefaults.standard.set(Array(recents.prefix(5)), forKey: recentIdsKey)
+        }
     }
 
     private func restoreSelection() {

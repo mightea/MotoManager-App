@@ -32,7 +32,7 @@ struct ContentView: View {
             }
         }
         .onAppear {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.8) {
                 withAnimation(.easeOut(duration: 0.5)) {
                     showSplash = false
                 }

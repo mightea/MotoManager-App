@@ -3,6 +3,24 @@ import SwiftUI
 struct WorkshopView: View {
     @ObservedObject var viewModel: MotorcycleDetailViewModel
     @State private var presentedDocument: Document?
+    @State private var selectedTorqueGroup: String = "Alle"
+
+    enum DocScope: Hashable { case moto, common }
+    @State private var docScope: DocScope = .moto
+
+    private var displayedDocuments: [Document] {
+        switch docScope {
+        case .moto: return viewModel.documents
+        case .common: return viewModel.commonDocuments
+        }
+    }
+
+    private var motoLabel: String {
+        let make = viewModel.motorcycle.make
+        let model = viewModel.motorcycle.model
+        let full = "\(make) \(model)"
+        return full.count > 14 ? make : full
+    }
 
     private var groupedTorqueSpecs: [(category: String, specs: [TorqueSpec])] {
         Dictionary(grouping: viewModel.torqueSpecs) { $0.category }
@@ -10,39 +28,49 @@ struct WorkshopView: View {
             .map { (category: $0.key, specs: $0.value) }
     }
 
+    private var torqueGroups: [String] {
+        ["Alle"] + groupedTorqueSpecs.map { $0.category }
+    }
+
+    private var filteredTorque: [TorqueSpec] {
+        if selectedTorqueGroup == "Alle" { return viewModel.torqueSpecs }
+        return viewModel.torqueSpecs.filter { $0.category == selectedTorqueGroup }
+    }
+
     private var bothEmpty: Bool {
-        viewModel.torqueSpecs.isEmpty && viewModel.documents.isEmpty
+        viewModel.torqueSpecs.isEmpty
+            && viewModel.documents.isEmpty
+            && viewModel.commonDocuments.isEmpty
     }
 
     var body: some View {
         ScrollView {
-            VStack(spacing: Theme.Spacing.m) {
+            VStack(spacing: Theme.Spacing.l) {
                 MotorcycleSummaryHeader(motorcycle: viewModel.motorcycle, type: .workshop, viewModel: viewModel)
                     .ignoresSafeArea(edges: .top)
 
                 if viewModel.isLoading && bothEmpty {
-                    ForEach(0..<5, id: \.self) { _ in
-                        GlassShimmerRow()
-                            .padding(.horizontal, Theme.Spacing.s)
+                    VStack(spacing: 10) {
+                        ForEach(0..<5, id: \.self) { _ in
+                            GlassShimmerRow().padding(.horizontal, Theme.Spacing.m)
+                        }
                     }
                 } else if bothEmpty {
                     EmptyStateView(
-                        title: "Workshop Empty",
-                        message: "Torque specs and documents for this bike will appear here.",
+                        title: "Werkstatt leer",
+                        message: "Drehmomente und Dokumente erscheinen hier.",
                         icon: "wrench.adjustable.fill"
                     )
-                    .padding(.top, 100)
+                    .padding(.horizontal, Theme.Spacing.m)
+                    .padding(.top, 40)
                 } else {
-                    if !viewModel.documents.isEmpty {
-                        documentsSection
-                    }
-
-                    if !viewModel.torqueSpecs.isEmpty {
-                        torqueSection
-                    }
+                    documentsSection
+                        .padding(.horizontal, Theme.Spacing.m)
+                    torqueSection
+                        .padding(.horizontal, Theme.Spacing.m)
                 }
             }
-            .padding(.bottom, 100)
+            .padding(.bottom, 110)
         }
         .ignoresSafeArea(edges: .top)
         .background(Color.clear)
@@ -58,64 +86,137 @@ struct WorkshopView: View {
 
     private var documentsSection: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.s) {
-            sectionHeader(label: "Manuals & Documents", count: viewModel.documents.count)
-                .padding(.horizontal, Theme.Spacing.l)
+            HStack {
+                Text("Dokumente".uppercased())
+                    .font(.system(size: 11, weight: .heavy))
+                    .tracking(2)
+                    .foregroundColor(.white.opacity(0.55))
+                Spacer()
+                Text("\(displayedDocuments.count) \(displayedDocuments.count == 1 ? "Eintrag" : "Einträge")")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(.white.opacity(0.5))
+            }
+            .padding(.horizontal, 6)
 
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: Theme.Spacing.s) {
-                    ForEach(viewModel.documents) { doc in
-                        Button {
-                            presentedDocument = doc
-                        } label: {
-                            DocumentCard(document: doc)
-                        }
-                        .buttonStyle(.plain)
+            GlassSegmentedControl(
+                segments: [
+                    .init(value: .moto, label: motoLabel),
+                    .init(value: .common, label: "Allgemein")
+                ],
+                selection: $docScope
+            )
+
+            LazyVGrid(
+                columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)],
+                spacing: 10
+            ) {
+                ForEach(displayedDocuments) { doc in
+                    Button {
+                        presentedDocument = doc
+                    } label: {
+                        DocumentTile(document: doc)
                     }
+                    .buttonStyle(.plain)
                 }
-                .padding(.horizontal, Theme.Spacing.s)
+                UploadDocumentTile {
+                    // Upload picker hook — wired when document upload lands.
+                }
             }
         }
-        .padding(.top, Theme.Spacing.s)
     }
 
     // MARK: - Torque
 
     private var torqueSection: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.s) {
-            sectionHeader(label: "Torque Specifications", count: viewModel.torqueSpecs.count)
-                .padding(.horizontal, Theme.Spacing.l)
-
-            ForEach(groupedTorqueSpecs, id: \.category) { group in
-                Text(group.category.uppercased())
+            HStack {
+                Text("Drehmoment-Spezifikationen".uppercased())
                     .font(.system(size: 11, weight: .heavy))
-                    .tracking(1.5)
-                    .foregroundColor(Theme.Colors.primary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, Theme.Spacing.l)
-                    .padding(.top, Theme.Spacing.s)
+                    .tracking(2)
+                    .foregroundColor(.white.opacity(0.55))
+                Spacer()
+                Text("\(viewModel.torqueSpecs.count) \(viewModel.torqueSpecs.count == 1 ? "Spez." : "Spez.")")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(.white.opacity(0.5))
+            }
+            .padding(.horizontal, 6)
 
-                ForEach(group.specs) { spec in
-                    TorqueRow(spec: spec)
-                        .padding(.horizontal, Theme.Spacing.s)
+            if viewModel.torqueSpecs.isEmpty {
+                Text("Keine Werte erfasst.")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(.white.opacity(0.5))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 24)
+                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18))
+            } else {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 6) {
+                        ForEach(torqueGroups, id: \.self) { group in
+                            chip(group)
+                        }
+                    }
+                    .padding(.horizontal, 2)
+                }
+
+                torqueTable
+            }
+        }
+    }
+
+    private func chip(_ label: String) -> some View {
+        let active = label == selectedTorqueGroup
+        return Button {
+            withAnimation(.easeOut(duration: 0.2)) {
+                selectedTorqueGroup = label
+            }
+        } label: {
+            Text(label)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(active ? .white : .white.opacity(0.7))
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(
+                    Capsule()
+                        .fill(active ? Theme.Colors.primary : Color.white.opacity(0.10))
+                )
+                .shadow(
+                    color: active ? Theme.Colors.primary.opacity(0.35) : .clear,
+                    radius: 8, x: 0, y: 3
+                )
+        }
+    }
+
+    private var torqueTable: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Text("BAUTEIL")
+                    .font(.system(size: 9, weight: .heavy))
+                    .tracking(1.5)
+                    .foregroundColor(.white.opacity(0.5))
+                Spacer()
+                Text("DREHMOMENT")
+                    .font(.system(size: 9, weight: .heavy))
+                    .tracking(1.5)
+                    .foregroundColor(.white.opacity(0.5))
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
+            .background(Color.white.opacity(0.04))
+
+            ForEach(Array(filteredTorque.enumerated()), id: \.element.id) { index, spec in
+                TorqueRow(spec: spec, showGroup: selectedTorqueGroup == "Alle")
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+                if index < filteredTorque.count - 1 {
+                    Divider().background(Color.white.opacity(0.06))
                 }
             }
         }
-        .padding(.top, Theme.Spacing.m)
-    }
-
-    // MARK: - Helpers
-
-    private func sectionHeader(label: String, count: Int) -> some View {
-        HStack(alignment: .firstTextBaseline) {
-            Text(label.uppercased())
-                .font(.system(size: 11, weight: .heavy))
-                .tracking(2)
-                .foregroundColor(.secondary)
-            Spacer()
-            Text("\(count)")
-                .font(.system(size: 11, weight: .heavy))
-                .foregroundColor(.secondary.opacity(0.5))
-        }
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18))
+        .overlay(
+            RoundedRectangle(cornerRadius: 18)
+                .stroke(Color.white.opacity(0.08), lineWidth: 0.5)
+        )
     }
 }
 
@@ -123,38 +224,45 @@ struct WorkshopView: View {
 
 private struct TorqueRow: View {
     let spec: TorqueSpec
+    let showGroup: Bool
 
     var body: some View {
         HStack(alignment: .center) {
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 3) {
                 Text(spec.name)
-                    .font(.headline)
-                if let description = spec.description, !description.isEmpty {
-                    Text(description)
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                        .lineLimit(2)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(.white)
+                    .lineLimit(2)
+
+                HStack(spacing: 6) {
+                    if showGroup {
+                        Text(spec.category.uppercased())
+                            .font(.system(size: 9, weight: .heavy))
+                            .tracking(0.4)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 1.5)
+                            .background(Capsule().fill(Theme.Colors.primary.opacity(0.22)))
+                            .foregroundColor(Theme.Colors.primary)
+                    }
+                    if let tool = spec.toolSize, !tool.isEmpty {
+                        Text(tool)
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundColor(.white.opacity(0.6))
+                    }
+                    if let description = spec.description, !description.isEmpty {
+                        Text(description)
+                            .font(.system(size: 10))
+                            .foregroundColor(.white.opacity(0.5))
+                            .lineLimit(1)
+                    }
                 }
             }
-            Spacer()
-            VStack(alignment: .trailing, spacing: 4) {
-                Text(torqueDisplay)
-                    .font(.title3)
-                    .bold()
-                    .foregroundColor(Theme.Colors.primary)
-                if let tool = spec.toolSize {
-                    Text(tool)
-                        .font(.system(size: 10, weight: .heavy))
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(Color.secondary.opacity(0.2))
-                        .cornerRadius(4)
-                }
-            }
+            Spacer(minLength: 8)
+            Text(torqueDisplay)
+                .font(.system(size: 15, weight: .bold))
+                .monospacedDigit()
+                .foregroundColor(Theme.Colors.primary)
         }
-        .padding()
-        .background(.ultraThinMaterial)
-        .cornerRadius(Theme.Radius.m)
     }
 
     private var torqueDisplay: String {
@@ -165,43 +273,92 @@ private struct TorqueRow: View {
     }
 }
 
-// MARK: - Document card
+// MARK: - Document tile
 
-private struct DocumentCard: View {
+private struct DocumentTile: View {
     let document: Document
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Theme.Spacing.s) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(Theme.Colors.primary.opacity(0.15))
-                    .frame(width: 44, height: 44)
-                Image(systemName: "doc.text.fill")
-                    .font(.title3)
-                    .foregroundColor(Theme.Colors.primary)
+        VStack(alignment: .leading, spacing: 10) {
+            ZStack(alignment: .topLeading) {
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(Theme.Colors.accent.opacity(0.16))
+                    .frame(height: 56)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10)
+                            .stroke(Theme.Colors.accent.opacity(0.25), lineWidth: 0.5)
+                    )
+
+                Text(fileBadge)
+                    .font(.system(size: 9, weight: .black))
+                    .tracking(0.4)
+                    .foregroundColor(Theme.Colors.accent)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 3)
+                    .background(
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(Theme.Colors.accent.opacity(0.22))
+                    )
+                    .padding(8)
             }
 
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 4) {
                 Text(document.title)
                     .font(.system(size: 13, weight: .bold))
-                    .foregroundColor(.primary)
+                    .foregroundColor(.white)
                     .lineLimit(2)
                     .multilineTextAlignment(.leading)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-
                 Text(document.createdAt.prefix(10))
                     .font(.system(size: 10, weight: .medium))
-                    .foregroundColor(.secondary)
+                    .foregroundColor(.white.opacity(0.55))
             }
         }
-        .frame(width: 160, alignment: .leading)
-        .padding(Theme.Spacing.m)
-        .background(.ultraThinMaterial)
-        .cornerRadius(Theme.Radius.m)
-        .overlay(
-            RoundedRectangle(cornerRadius: Theme.Radius.m)
-                .stroke(Color.white.opacity(0.1), lineWidth: 1)
+        .padding(12)
+        .frame(maxWidth: .infinity, minHeight: 132, alignment: .topLeading)
+        .background(
+            RoundedRectangle(cornerRadius: Theme.Glass.fieldRadius)
+                .fill(Color.white.opacity(0.04))
         )
+        .overlay(
+            RoundedRectangle(cornerRadius: Theme.Glass.fieldRadius)
+                .stroke(Theme.Glass.border, lineWidth: 0.5)
+        )
+    }
+
+    private var fileBadge: String {
+        let ext = (document.filePath as NSString).pathExtension.lowercased()
+        switch ext {
+        case "pdf": return "PDF"
+        case "jpg", "jpeg", "png", "heic", "heif": return "IMG"
+        case "": return "DOC"
+        default: return ext.uppercased()
+        }
+    }
+}
+
+private struct UploadDocumentTile: View {
+    var action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 8) {
+                Image(systemName: "plus")
+                    .font(.system(size: 22, weight: .semibold))
+                Text("Hochladen")
+                    .font(.system(size: 12, weight: .semibold))
+            }
+            .foregroundColor(.white.opacity(0.55))
+            .frame(maxWidth: .infinity, minHeight: 132)
+            .background(
+                RoundedRectangle(cornerRadius: Theme.Glass.fieldRadius)
+                    .strokeBorder(
+                        Color.white.opacity(0.18),
+                        style: StrokeStyle(lineWidth: 1.5, dash: [5, 4])
+                    )
+            )
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Dokument hochladen")
     }
 }
 
