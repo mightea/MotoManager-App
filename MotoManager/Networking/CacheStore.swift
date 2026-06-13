@@ -26,7 +26,7 @@ final class CacheStore {
             let data = try encoder.encode(value)
             try data.write(to: fileURL(for: key), options: .atomic)
         } catch {
-            print("CacheStore: failed to save \(key): \(error.localizedDescription)")
+            AppLog.error("CacheStore: failed to save \(key): \(error.localizedDescription)")
         }
     }
 

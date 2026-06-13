@@ -1,8 +1,9 @@
 import SwiftUI
 
 struct GlassShimmerRow: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var phase: CGFloat = 0
-    
+
     var body: some View {
         HStack(spacing: 16) {
             Circle()
@@ -28,20 +29,25 @@ struct GlassShimmerRow: View {
         .background(.ultraThinMaterial)
         .cornerRadius(Theme.Radius.m)
         .padding(.horizontal)
-        .overlay(
-            GeometryReader { geo in
-                Color.white.opacity(0.1)
-                    .mask(
-                        Rectangle()
-                            .fill(
-                                LinearGradient(gradient: Gradient(colors: [.clear, .white.opacity(0.5), .clear]), startPoint: .leading, endPoint: .trailing)
-                            )
-                            .frame(width: 100)
-                            .offset(x: -100 + (geo.size.width + 200) * phase)
-                    )
+        .overlay {
+            // Sweeping highlight — skipped entirely when Reduce Motion is on,
+            // leaving a calm static skeleton.
+            if !reduceMotion {
+                GeometryReader { geo in
+                    Color.white.opacity(0.1)
+                        .mask(
+                            Rectangle()
+                                .fill(
+                                    LinearGradient(gradient: Gradient(colors: [.clear, .white.opacity(0.5), .clear]), startPoint: .leading, endPoint: .trailing)
+                                )
+                                .frame(width: 100)
+                                .offset(x: -100 + (geo.size.width + 200) * phase)
+                        )
+                }
             }
-        )
+        }
         .onAppear {
+            guard !reduceMotion else { return }
             withAnimation(.linear(duration: 1.5).repeatForever(autoreverses: false)) {
                 phase = 1
             }

@@ -27,7 +27,7 @@ struct DocumentViewerView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Done") { dismiss() }
+                    Button("Fertig") { dismiss() }
                         .fontWeight(.bold)
                 }
             }
@@ -40,10 +40,11 @@ struct DocumentViewerView: View {
     private var loadingState: some View {
         VStack(spacing: Theme.Spacing.m) {
             ProgressView()
-            Text("Loading document…")
+            Text("Dokument wird geladen …")
                 .font(.subheadline)
                 .foregroundColor(.secondary)
         }
+        .accessibilityElement(children: .combine)
     }
 
     private var failureState: some View {
@@ -51,13 +52,14 @@ struct DocumentViewerView: View {
             Image(systemName: "exclamationmark.triangle.fill")
                 .font(.system(size: 48))
                 .foregroundColor(.orange)
-            Text("Couldn't load document")
+            Text("Dokument konnte nicht geladen werden")
                 .font(.headline)
-            Text("Check your connection and try again.")
+            Text("Bitte Verbindung prüfen und erneut versuchen.")
                 .font(.subheadline)
                 .foregroundColor(.secondary)
         }
         .padding()
+        .accessibilityElement(children: .combine)
     }
 
     private func load() async {

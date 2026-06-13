@@ -56,7 +56,7 @@ class AuthViewModel: NSObject, ObservableObject {
             let response = try await NetworkManager.shared.fetchPasskeyLoginOptions(username: username)
             self.currentChallengeId = response.challengeId
             
-            let publicKeyProvider = ASAuthorizationPlatformPublicKeyCredentialProvider(relyingPartyIdentifier: response.options.rpId ?? "moto.herrmann.ltd")
+            let publicKeyProvider = ASAuthorizationPlatformPublicKeyCredentialProvider(relyingPartyIdentifier: response.options.rpId ?? AuthConfig.relyingPartyId)
             
             // Use base64url decoding for the challenge
             guard let challengeData = Data(base64Encoded: response.options.challenge.base64URLtoBase64()) else {
@@ -146,10 +146,13 @@ extension AuthViewModel: ASAuthorizationControllerPresentationContextProviding {
         if let scene = windowScene {
             return UIWindow(windowScene: scene)
         }
-        
-        // This is a last resort to avoid deprecated init()
-        // In a real environment, we should have a valid window scene.
-        fatalError("No window scene available for authentication presentation")
+
+        // No active window scene — surface an error and return an empty anchor so
+        // the authorization request fails gracefully instead of crashing the app.
+        AppLog.error("No window scene available for passkey presentation")
+        errorMessage = "Anmeldung konnte nicht angezeigt werden."
+        isLoading = false
+        return UIWindow(frame: .zero)
     }
 }
 

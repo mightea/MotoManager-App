@@ -8,17 +8,21 @@ class MotorcycleDetailViewModel: ObservableObject {
     @Published var maintenanceRecords: [MaintenanceRecord] = []
     @Published var torqueSpecs: [TorqueSpec] = []
     @Published var documents: [Document] = []
+    /// Documents that aren't bound to any motorcycle — surfaced as
+    /// "Allgemein" in the Workshop screen's document filter.
+    @Published var commonDocuments: [Document] = []
     
     @Published var isLoading = false
+    /// Blocking error — set only when there is nothing cached to show.
     @Published var errorMessage: String?
+    /// Non-blocking flag: a refresh failed but cached data is still on screen.
+    @Published var refreshFailed = false
     
     init(motorcycle: Motorcycle) {
         self.motorcycle = motorcycle
     }
     
     func loadAllData() async {
-        print("MotorcycleDetailViewModel: Starting load for motorcycle \(motorcycle.id)")
-
         // Hydrate from cache instantly so the UI works offline / while the network is in flight.
         hydrateFromCache()
 
@@ -32,10 +36,6 @@ class MotorcycleDetailViewModel: ObservableObject {
 
             let (maintenance, torque, allDocs) = try await (maintenanceTask, torqueTask, documentsTask)
 
-            print("MotorcycleDetailViewModel: Received \(maintenance.count) maintenance records")
-            print("MotorcycleDetailViewModel: Received \(torque.count) torque specs")
-            print("MotorcycleDetailViewModel: Received \(allDocs.count) total documents")
-
             self.maintenanceRecords = maintenance.sorted(by: { $0.date > $1.date })
             self.torqueSpecs = torque
 
@@ -43,17 +43,24 @@ class MotorcycleDetailViewModel: ObservableObject {
             self.documents = allDocs.filter { doc in
                 doc.motorcycleIds?.contains(motorcycle.id) ?? false
             }
-            print("MotorcycleDetailViewModel: Filtered down to \(self.documents.count) documents for this bike")
+            // Documents not bound to any motorcycle are surfaced under "Allgemein".
+            self.commonDocuments = allDocs.filter { doc in
+                (doc.motorcycleIds ?? []).isEmpty
+            }
+            AppLog.debug("Loaded detail data for motorcycle \(motorcycle.id)")
             errorMessage = nil
+            refreshFailed = false
 
         } catch is CancellationError {
             // Ignore normal Swift concurrency cancellations (e.g. from refreshable)
-            print("MotorcycleDetailViewModel: Load cancelled")
         } catch {
-            print("MotorcycleDetailViewModel: ERROR: \(error.localizedDescription)")
-            // Only surface an error when we have nothing cached to show.
+            AppLog.error("Failed to load detail data: \(error.localizedDescription)")
             if maintenanceRecords.isEmpty && torqueSpecs.isEmpty && documents.isEmpty {
-                errorMessage = "Failed to load details: \(error.localizedDescription)"
+                // Nothing cached to show — surface a blocking error.
+                errorMessage = error.localizedDescription
+            } else {
+                // We have cached data on screen; flag the stale refresh non-blockingly.
+                refreshFailed = true
             }
         }
 
@@ -72,6 +79,7 @@ class MotorcycleDetailViewModel: ObservableObject {
         if documents.isEmpty,
            let cached = CacheStore.shared.load([Document].self, key: CacheKey.documents) {
             self.documents = cached.filter { $0.motorcycleIds?.contains(motorcycle.id) ?? false }
+            self.commonDocuments = cached.filter { ($0.motorcycleIds ?? []).isEmpty }
         }
     }
     

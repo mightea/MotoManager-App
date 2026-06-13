@@ -1,183 +1,298 @@
 import SwiftUI
 import MapKit
 
+/// Fuel-entry detail page matching the prototype's
+/// `motomanager-app/project/assets/details/FuelDetail.jsx`.
+///
+/// Uses the shared `DetailPage` chrome. Hero shows the liters, a TANKUNG
+/// eyebrow + bike/date subline, and three stat tiles (total cost, price/L,
+/// L/100 km). Body sections cover Details, Kosten, Verbrauch and (when
+/// coordinates are present) Tankstelle with an inline map. The sticky
+/// bottom action bar offers Bearbeiten + Löschen.
 struct FuelDetailView: View {
     let recordId: Int
     @ObservedObject var viewModel: MotorcycleDetailViewModel
-
+    @Environment(\.dismiss) private var dismiss
     @State private var showingEdit = false
-    @State private var region: MKCoordinateRegion?
+    @State private var confirmingDelete = false
 
     init(record: MaintenanceRecord, viewModel: MotorcycleDetailViewModel) {
         self.recordId = record.id
         self.viewModel = viewModel
     }
 
-    /// Look up the latest version of the record from the viewmodel so the
-    /// detail view auto-refreshes after an edit without manual prop drilling.
+    /// Look up the latest record so the detail view refreshes after an edit
+    /// without prop drilling. Falls back to the unavailable state if removed.
     private var record: MaintenanceRecord? {
         viewModel.maintenanceRecords.first { $0.id == recordId }
     }
 
-    private func hasLocation(_ record: MaintenanceRecord) -> Bool {
-        record.latitude != nil && record.longitude != nil
-    }
-
     var body: some View {
-        ZStack {
-            LiquidBackgroundView().ignoresSafeArea()
-
+        Group {
             if let record {
-                content(for: record)
-            } else {
-                ContentUnavailableView(
-                    "Record not found",
-                    systemImage: "fuelpump.slash.fill",
-                    description: Text("This fuel record may have been removed.")
+                DetailPage(
+                    backLabel: "Tanken",
+                    accent: Theme.Colors.primary,
+                    eyebrow: "TANKUNG",
+                    title: titleString(for: record),
+                    subtitle: subtitle(for: record),
+                    heroContent: { heroStats(for: record) },
+                    body: { sections(for: record) },
+                    actions: { actionBar },
+                    onClose: { dismiss() }
                 )
-            }
-        }
-        .navigationTitle("Fuel Detail")
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .navigationBarTrailing) {
-                if record != nil {
-                    Button {
-                        showingEdit = true
-                    } label: {
-                        Label("Edit", systemImage: "pencil")
-                    }
-                }
+            } else {
+                unavailable
             }
         }
         .sheet(isPresented: $showingEdit) {
             if let record {
                 AddFuelView(viewModel: viewModel, existingRecord: record)
+                    .presentationDetents([.large])
+                    .presentationCornerRadius(Theme.Glass.sheetRadius)
+                    .presentationBackground(.regularMaterial)
+                    .presentationDragIndicator(.visible)
+            }
+        }
+        .alert("Tankung löschen?", isPresented: $confirmingDelete) {
+            Button("Abbrechen", role: .cancel) { }
+            Button("Löschen", role: .destructive) {
+                // Backend delete is not wired yet — keep the affordance but
+                // bail out without mutating state. Replace with a real
+                // viewModel.deleteFuelRecord call once the API lands.
+            }
+        } message: {
+            Text("Diese Tankung kann nicht wiederhergestellt werden.")
+        }
+    }
+
+    // MARK: - Hero
+
+    private func titleString(for record: MaintenanceRecord) -> String {
+        let liters = record.fuelAmount ?? 0
+        return String(format: "%.1f L", liters)
+    }
+
+    private func subtitle(for record: MaintenanceRecord) -> String {
+        let date = formatDateFull(record.date)
+        return "\(date) · \(viewModel.motorcycle.make) \(viewModel.motorcycle.model)"
+    }
+
+    @ViewBuilder
+    private func heroStats(for record: MaintenanceRecord) -> some View {
+        HStack(spacing: 8) {
+            HeroStatTile(
+                eyebrow: "Gesamtpreis",
+                value: formatCurrency(record.cost ?? 0, currency: currency(for: record)),
+                accent: Theme.Colors.primary
+            )
+            HeroStatTile(
+                eyebrow: "Preis / L",
+                value: formatCurrency(record.pricePerUnit ?? 0, currency: currency(for: record))
+            )
+            if let consumption = record.fuelConsumption {
+                HeroStatTile(
+                    eyebrow: "Verbrauch",
+                    value: String(format: "%.1f", consumption),
+                    unit: "L / 100 km",
+                    accent: consumption > 6 ? .orange : .green
+                )
+            }
+        }
+        .padding(.top, 12)
+    }
+
+    // MARK: - Sections
+
+    @ViewBuilder
+    private func sections(for record: MaintenanceRecord) -> some View {
+        DetailSection("DETAILS") {
+            DetailRow(label: "Datum", value: formatDateFull(record.date), mono: false)
+            divider
+            DetailRow(label: "Kilometerstand", value: "\(record.odo) km")
+            divider
+            DetailRow(label: "Tankmenge", value: String(format: "%.2f L", record.fuelAmount ?? 0))
+            if let type = record.fuelType, !type.isEmpty {
+                divider
+                DetailRow(label: "Kraftstoff", value: type, mono: false)
+            }
+        }
+
+        DetailSection("KOSTEN") {
+            DetailRow(
+                label: "Preis pro Liter",
+                value: formatCurrency(record.pricePerUnit ?? 0, currency: currency(for: record))
+            )
+            divider
+            DetailRow(
+                label: "Gesamtpreis",
+                value: formatCurrency(record.cost ?? 0, currency: currency(for: record)),
+                accent: Theme.Colors.primary
+            )
+            if let costPerKm = costPerKm(for: record) {
+                divider
+                DetailRow(label: "Kosten pro km", value: Formatters.costPerKilometer(costPerKm, currency: currency(for: record)))
+            }
+        }
+
+        if let consumption = record.fuelConsumption, let trip = record.tripDistance, trip > 0 {
+            DetailSection("VERBRAUCH") {
+                DetailRow(
+                    label: "Verbrauch",
+                    value: String(format: "%.1f L / 100 km", consumption),
+                    accent: consumption > 6 ? .orange : .green
+                )
+                divider
+                DetailRow(label: "Strecke seit letzter Tankung", value: "\(Int(trip)) km")
+            }
+        }
+
+        if let lat = record.latitude, let lon = record.longitude {
+            stationSection(for: record, lat: lat, lon: lon)
+        } else if let location = record.locationName, !location.isEmpty {
+            DetailSection("TANKSTELLE") {
+                DetailRow(label: "Standort", value: location, mono: false)
+            }
+        }
+
+        if let notes = record.description, !notes.isEmpty {
+            DetailSection("NOTIZEN") {
+                Text(notes)
+                    .font(.system(size: 14))
+                    .foregroundColor(.white.opacity(0.92))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 12)
             }
         }
     }
 
-    private func content(for record: MaintenanceRecord) -> some View {
-        ScrollView {
-            VStack(spacing: Theme.Spacing.l) {
-                // Hero Stats Section
-                VStack(spacing: Theme.Spacing.m) {
-                    Image(systemName: "fuelpump.circle.fill")
-                        .font(.system(size: 60))
+    private func stationSection(for record: MaintenanceRecord, lat: Double, lon: Double) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("TANKSTELLE\(record.locationName.map { " · \($0.uppercased())" } ?? "")")
+                    .font(.system(size: 10, weight: .heavy))
+                    .tracking(1.4)
+                    .foregroundColor(Theme.Glass.mutedText)
+                Spacer()
+                Button {
+                    openInMaps(lat: lat, lon: lon, name: record.locationName)
+                } label: {
+                    Text("In Karten öffnen")
+                        .font(.system(size: 11, weight: .semibold))
                         .foregroundColor(Theme.Colors.primary)
-                        .padding(.top)
-
-                    Text("\(record.fuelAmount?.formatted() ?? "0") Liters")
-                        .font(.system(size: 34, weight: .bold, design: .rounded))
-
-                    Text(record.date)
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
                 }
-                .padding(.bottom)
+            }
+            .padding(.leading, 6)
 
-                // Technical Data Grid
-                VStack(spacing: Theme.Spacing.m) {
-                    DetailGridRow(label: "Consumption", value: String(format: "%.1f L/100km", record.fuelConsumption ?? 0.0), icon: "leaf.fill", color: .green)
-                    DetailGridRow(label: "Trip Distance", value: "\(Int(record.tripDistance ?? 0)) km", icon: "arrow.triangle.turn.up.right.diamond.fill")
-                    DetailGridRow(label: "Odometer", value: "\(record.odo) km", icon: "gauge.with.dots")
-                    DetailGridRow(label: "Fuel Type", value: record.fuelType ?? "Standard", icon: "drop.fill")
+            Map(initialPosition: .region(MKCoordinateRegion(
+                center: CLLocationCoordinate2D(latitude: lat, longitude: lon),
+                latitudinalMeters: 600, longitudinalMeters: 600
+            ))) {
+                Marker(record.locationName ?? "Tankstelle", coordinate: CLLocationCoordinate2D(latitude: lat, longitude: lon))
+                    .tint(Theme.Colors.primary)
+            }
+            .frame(height: 180)
+            .clipShape(RoundedRectangle(cornerRadius: Theme.Glass.fieldRadius))
+            .overlay(
+                RoundedRectangle(cornerRadius: Theme.Glass.fieldRadius)
+                    .stroke(Theme.Glass.hairline, lineWidth: 0.5)
+            )
+
+            DetailSection {
+                if let name = record.locationName, !name.isEmpty {
+                    DetailRow(label: "Name", value: name, mono: false)
+                    divider
                 }
-                .padding()
-                .background(.ultraThinMaterial)
-                .cornerRadius(Theme.Radius.l)
+                DetailRow(label: "Koordinaten", value: String(format: "%.4f, %.4f", lat, lon))
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
 
-                // Cost Section
-                VStack(spacing: Theme.Spacing.m) {
-                    HStack {
-                        Label("Transaction", systemImage: "creditcard.fill")
-                            .font(.headline)
-                        Spacer()
-                    }
+    private func openInMaps(lat: Double, lon: Double, name: String?) {
+        let placemark = MKPlacemark(coordinate: CLLocationCoordinate2D(latitude: lat, longitude: lon))
+        let item = MKMapItem(placemark: placemark)
+        item.name = name ?? "Tankstelle"
+        item.openInMaps()
+    }
 
-                    Divider()
+    // MARK: - Action bar
 
-                    HStack {
-                        Text("Price per Unit")
-                        Spacer()
-                        Text("\(String(format: "%.2f", record.pricePerUnit ?? 0.0)) \(record.currency ?? "")")
-                            .fontWeight(.semibold)
-                    }
+    private var actionBar: some View {
+        Group {
+            DetailActionButton("Bearbeiten", systemImage: "pencil", variant: .secondary) {
+                showingEdit = true
+            }
+            DetailActionButton("Löschen", systemImage: "trash", variant: .danger) {
+                confirmingDelete = true
+            }
+        }
+    }
 
-                    HStack {
-                        Text("Total Cost")
-                        Spacer()
-                        Text("\(String(format: "%.2f", record.cost ?? 0.0)) \(record.currency ?? "")")
-                            .font(.title3)
-                            .bold()
-                            .foregroundColor(Theme.Colors.primary)
-                    }
+    // MARK: - Unavailable
+
+    private var unavailable: some View {
+        ZStack {
+            Theme.Colors.navy950.ignoresSafeArea()
+            ContentUnavailableView(
+                "Tankung nicht gefunden",
+                systemImage: "fuelpump.slash.fill",
+                description: Text("Dieser Eintrag wurde möglicherweise entfernt.")
+            )
+            .foregroundColor(.white)
+            VStack {
+                HStack {
+                    backPill
+                    Spacer()
                 }
-                .padding()
-                .background(.ultraThinMaterial)
-                .cornerRadius(Theme.Radius.l)
-
-                // Map Section
-                if hasLocation(record), let lat = record.latitude, let lon = record.longitude {
-                    VStack(alignment: .leading, spacing: Theme.Spacing.m) {
-                        HStack {
-                            Label("Location", systemImage: "mappin.and.ellipse")
-                                .font(.headline)
-                            Spacer()
-                            if let name = record.locationName {
-                                Text(name)
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            }
-                        }
-
-                        Map {
-                            Marker(record.locationName ?? "Fuel Stop", coordinate: CLLocationCoordinate2D(latitude: lat, longitude: lon))
-                                .tint(Theme.Colors.primary)
-                        }
-                        .frame(height: 200)
-                        .cornerRadius(Theme.Radius.m)
-                    }
-                    .padding()
-                    .background(.ultraThinMaterial)
-                    .cornerRadius(Theme.Radius.l)
-                } else if let location = record.locationName {
-                    HStack {
-                        Image(systemName: "mappin.and.ellipse")
-                            .foregroundColor(.red)
-                        Text(location)
-                            .font(.subheadline)
-                        Spacer()
-                    }
-                    .padding()
-                    .background(.ultraThinMaterial)
-                    .cornerRadius(Theme.Radius.m)
-                }
-
+                .padding(.horizontal, 14)
+                .padding(.top, 12)
                 Spacer()
             }
-            .padding()
+        }
+        .toolbar(.hidden, for: .navigationBar)
+        .navigationBarBackButtonHidden(true)
+    }
+
+    private var backPill: some View {
+        Button { dismiss() } label: {
+            HStack(spacing: 4) {
+                Image(systemName: "chevron.left").font(.system(size: 14, weight: .heavy))
+                Text("Tanken").font(.system(size: 14, weight: .semibold))
+            }
+            .foregroundColor(.white)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(Capsule().fill(Color.white.opacity(0.10)))
+            .overlay(Capsule().stroke(Theme.Glass.strongBorder, lineWidth: 0.5))
         }
     }
-}
 
-struct DetailGridRow: View {
-    let label: String
-    let value: String
-    let icon: String
-    var color: Color = .blue
+    // MARK: - Helpers
 
-    var body: some View {
-        HStack {
-            Image(systemName: icon)
-                .foregroundColor(color)
-                .frame(width: 24)
-            Text(label)
-                .foregroundColor(.secondary)
-            Spacer()
-            Text(value)
-                .fontWeight(.bold)
-        }
+    private var divider: some View {
+        Rectangle()
+            .fill(Theme.Glass.hairline)
+            .frame(height: 0.5)
+            .padding(.leading, 14)
+    }
+
+    private func currency(for record: MaintenanceRecord) -> String {
+        record.currency ?? viewModel.motorcycle.currencyCode ?? "EUR"
+    }
+
+    private func formatCurrency(_ value: Double, currency: String) -> String {
+        Formatters.currency(value, code: currency)
+    }
+
+    private func costPerKm(for record: MaintenanceRecord) -> Double? {
+        guard let trip = record.tripDistance, trip > 0, let cost = record.cost else { return nil }
+        return cost / trip
+    }
+
+    private func formatDateFull(_ iso: String) -> String {
+        Formatters.mediumDate(iso)
     }
 }
 

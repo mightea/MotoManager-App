@@ -2,165 +2,181 @@ import SwiftUI
 
 enum HeaderType {
     case fuel, service, workshop
+
+    var title: String {
+        switch self {
+        case .fuel: return "Tanken"
+        case .service: return "Service"
+        case .workshop: return "Werkstatt"
+        }
+    }
 }
 
+/// Immersive header used at the top of every screen.
+///
+/// Matches the prototype's **Variant C — Button switcher** (`glass.jsx::ButtonSwitcher`).
+/// The bike name stays fully visible at 24 pt (2-line clamp for long names like
+/// "BMW R 1250 GS Adventure"), the meta line shows year · plate · km, and a
+/// dedicated glass "Wechseln" pill button to the right opens the searchable
+/// picker. Settings gear sits top-right.
 struct MotorcycleSummaryHeader: View {
     let motorcycle: Motorcycle
     let type: HeaderType
     @ObservedObject var viewModel: MotorcycleDetailViewModel
-    
-    var body: some View {
-        ZStack(alignment: .bottom) {
-            // Background Image with Gradient
-            if let imageUrl = motorcycle.image {
-                RemoteImageView(url: imageUrl)
-                    .aspectRatio(contentMode: .fill)
-                    .frame(height: 280) // Increased height to flow behind nav bar
-                    .clipped()
-                    .overlay(
-                        LinearGradient(
-                            stops: [
-                                .init(color: .black.opacity(0.7), location: 0),
-                                .init(color: .black.opacity(0.1), location: 0.5),
-                                .init(color: .black.opacity(0.8), location: 1)
-                            ],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
-                    )
-            } else {
-                Theme.Colors.primary.opacity(0.8)
-                    .frame(height: 280)
-            }
-            
-            VStack(alignment: .leading, spacing: Theme.Spacing.m) {
-                Spacer() // Push content to bottom
-                
-                HStack(alignment: .top) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(motorcycle.model)
-                            .font(.system(size: 32, weight: .bold, design: .rounded))
-                            .foregroundColor(.white)
-                        Text(motorcycle.make.uppercased())
-                            .font(.caption)
-                            .fontWeight(.bold)
-                            .foregroundColor(.white.opacity(0.8))
-                            .tracking(2)
-                    }
-                    Spacer()
-                    
-                    headerBadge
-                }
-                
-                // Full-width stats
-                HStack(spacing: 0) {
-                    statsForType
-                }
-                .padding(.vertical, Theme.Spacing.m)
-                .background(.ultraThinMaterial)
-                .cornerRadius(Theme.Radius.m)
-            }
-            .padding()
-        }
-        .frame(height: 280)
-        .clipped()
-        // No horizontal padding here to allow edge-to-edge flow if desired, 
-        // but we'll apply it in the container for consistent list alignment.
-    }
-    
-    @ViewBuilder
-    private var headerBadge: some View {
-        if motorcycle.isVeteran {
-            HStack(spacing: 4) {
-                Image(systemName: "medal.fill")
-                Text("VETERAN")
-            }
-            .font(.system(size: 10, weight: .bold))
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(.ultraThinMaterial)
-            .foregroundColor(.white)
-            .cornerRadius(6)
-        }
-    }
-    
-    @ViewBuilder
-    private var statsForType: some View {
-        switch type {
-        case .fuel:
-            StatView(icon: "fuelpump.fill", value: String(format: "%.1f", averageFuelConsumption), unit: "L/100", label: "Avg Fuel")
-                .frame(maxWidth: .infinity)
-            StatView(icon: "calendar", value: "\(fuelRecordsCount)", unit: "logs", label: "Total")
-                .frame(maxWidth: .infinity)
-            StatView(icon: "gauge.with.dots", value: "\(motorcycle.latestOdo ?? motorcycle.initialOdo)", unit: "km", label: "Odometer")
-                .frame(maxWidth: .infinity)
-            
-        case .service:
-            StatView(icon: "wrench.and.screwdriver", value: "\(serviceRecordsCount)", unit: "logs", label: "History")
-                .frame(maxWidth: .infinity)
-            StatView(icon: "exclamationmark.circle", value: "\(motorcycle.openIssues ?? 0)", unit: "open", label: "Issues", color: (motorcycle.openIssues ?? 0) > 0 ? .orange : .white)
-                .frame(maxWidth: .infinity)
-            StatView(icon: "gauge.with.dots", value: "\(motorcycle.latestOdo ?? motorcycle.initialOdo)", unit: "km", label: "Last Svc")
-                .frame(maxWidth: .infinity)
-            
-        case .workshop:
-            StatView(icon: "bolt.fill", value: "\(viewModel.torqueSpecs.count)", unit: "specs", label: "Torque")
-                .frame(maxWidth: .infinity)
-            StatView(icon: "wrench.fill", value: "\(uniqueToolCount)", unit: "tools", label: "Required")
-                .frame(maxWidth: .infinity)
-            StatView(icon: "doc.fill", value: "\(viewModel.documents.count)", unit: "docs", label: "Manuals")
-                .frame(maxWidth: .infinity)
-        }
-    }
-    
-    // Helper stats
-    private var fuelRecordsCount: Int {
-        viewModel.maintenanceRecords.filter { $0.recordType.lowercased() == "fuel" }.count
-    }
-    
-    private var serviceRecordsCount: Int {
-        viewModel.maintenanceRecords.filter { $0.recordType.lowercased() != "fuel" }.count
-    }
-    
-    private var averageFuelConsumption: Double {
-        let fuels = viewModel.maintenanceRecords.filter { $0.recordType.lowercased() == "fuel" }
-        guard !fuels.isEmpty else { return 0.0 }
-        let totalConsumption = fuels.compactMap { $0.fuelConsumption }.reduce(0, +)
-        let count = fuels.filter { $0.fuelConsumption != nil }.count
-        return count > 0 ? totalConsumption / Double(count) : 0.0
-    }
-    
-    private var uniqueToolCount: Int {
-        Set(viewModel.torqueSpecs.compactMap { $0.toolSize }).count
-    }
-}
 
-struct StatView: View {
-    let icon: String
-    let value: String
-    let unit: String
-    let label: String
-    var color: Color = .white
-    
+    @Environment(\.chromeActions) private var chrome
+
     var body: some View {
-        VStack(alignment: .center, spacing: 2) {
-            Text(label.uppercased())
-                .font(.system(size: 8, weight: .heavy))
-                .foregroundColor(.white.opacity(0.7))
-            
-            HStack(alignment: .firstTextBaseline, spacing: 4) {
-                Image(systemName: icon)
-                    .font(.system(size: 12))
-                    .foregroundColor(.white.opacity(0.8))
-                
-                Text(value)
-                    .font(.system(size: 18, weight: .bold, design: .rounded))
-                    .foregroundColor(color)
-                
-                Text(unit)
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundColor(.white.opacity(0.7))
+        ZStack(alignment: .bottomLeading) {
+            backgroundImage
+            darkeningOverlay
+
+            VStack(alignment: .leading, spacing: 0) {
+                topActions
+                Spacer(minLength: 0)
+                bikeBlock
+            }
+            .padding(.horizontal, 14)
+            .padding(.top, 54)
+            .padding(.bottom, 14)
+        }
+        .frame(height: 180)
+        .clipped()
+    }
+
+    // MARK: - Background
+
+    @ViewBuilder
+    private var backgroundImage: some View {
+        if let url = motorcycle.image {
+            RemoteImageView(url: url)
+                .aspectRatio(contentMode: .fill)
+                .frame(height: 180)
+                .clipped()
+        } else {
+            Theme.Colors.primary.opacity(0.8)
+                .frame(height: 180)
+        }
+    }
+
+    private var darkeningOverlay: some View {
+        LinearGradient(
+            stops: [
+                .init(color: .black.opacity(0.40), location: 0.0),
+                .init(color: .black.opacity(0.10), location: 0.38),
+                .init(color: .black.opacity(0.78), location: 1.0)
+            ],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+    }
+
+    // MARK: - Top row (gear only)
+
+    private var topActions: some View {
+        HStack {
+            Spacer()
+            Button(action: chrome.openSettings) {
+                Image(systemName: "gearshape.fill")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .frame(width: 44, height: 44)
+                    .background(Color.white.opacity(0.18), in: Circle())
+                    .overlay(Circle().stroke(Color.white.opacity(0.28), lineWidth: 0.5))
+                    .shadow(color: .black.opacity(0.25), radius: 6, x: 0, y: 2)
+            }
+            .accessibilityLabel("Einstellungen")
+        }
+    }
+
+    // MARK: - Bike block
+
+    private var bikeBlock: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            // Eyebrow + VETERAN badge
+            HStack(spacing: 6) {
+                Text(type.title.uppercased())
+                    .font(.system(size: 10, weight: .heavy))
+                    .tracking(2)
+                    .foregroundColor(.white.opacity(0.75))
+                    .shadow(color: .black.opacity(0.5), radius: 2, x: 0, y: 1)
+                if motorcycle.isVeteran {
+                    veteranBadge
+                }
+            }
+
+            HStack(alignment: .bottom, spacing: 10) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("\(motorcycle.make) \(motorcycle.model)")
+                        .font(.system(size: 24, weight: .heavy))
+                        .foregroundColor(.white)
+                        .lineLimit(2)
+                        .multilineTextAlignment(.leading)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .shadow(color: .black.opacity(0.4), radius: 3, x: 0, y: 1)
+
+                    metaLine
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+                wechselnButton
             }
         }
+    }
+
+    private var metaLine: some View {
+        HStack(spacing: 6) {
+            if let year = motorcycle.modelYear?.prefix(4), !year.isEmpty {
+                Text(String(year)).monospaced()
+                Text("·").opacity(0.6)
+            }
+            if let plate = motorcycle.numberPlate, !plate.isEmpty {
+                Text(plate).monospaced()
+                Text("·").opacity(0.6)
+            }
+            Text("\(motorcycle.latestOdo ?? motorcycle.initialOdo) km")
+                .monospaced()
+        }
+        .font(.system(size: 11, weight: .semibold))
+        .foregroundColor(.white.opacity(0.78))
+        .shadow(color: .black.opacity(0.5), radius: 2, x: 0, y: 1)
+        .lineLimit(1)
+    }
+
+    private var wechselnButton: some View {
+        Button(action: chrome.openGarage) {
+            HStack(spacing: 6) {
+                Image(systemName: "arrow.up.arrow.down")
+                    .font(.system(size: 11, weight: .heavy))
+                Text("Wechseln")
+                    .font(.system(size: 12, weight: .heavy))
+            }
+            .foregroundColor(.white)
+            .padding(.leading, 10)
+            .padding(.trailing, 12)
+            .padding(.vertical, 8)
+            .background(
+                Capsule().fill(Color.black.opacity(0.42))
+            )
+            .overlay(
+                Capsule().stroke(Color.white.opacity(0.3), lineWidth: 0.5)
+            )
+            .shadow(color: .black.opacity(0.25), radius: 6, x: 0, y: 2)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Motorrad wechseln")
+    }
+
+    private var veteranBadge: some View {
+        Text("VETERAN")
+            .font(.system(size: 9, weight: .black))
+            .foregroundColor(.white)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(
+                Capsule()
+                    .fill(Theme.Colors.accent.opacity(0.92))
+                    .overlay(Capsule().stroke(Color.white.opacity(0.25), lineWidth: 0.5))
+            )
     }
 }

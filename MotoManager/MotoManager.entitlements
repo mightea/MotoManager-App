@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!--
+	  Associated Domains for passkey / WebAuthn login.
+	  The `webcredentials` host MUST equal the relying-party id (rpId) the server
+	  issues in its passkey options AND match `AuthConfig.relyingPartyId` in code.
+	  The relying-party domain must also serve
+	  /.well-known/apple-app-site-association with a `webcredentials` entry listing
+	  this app's `<TeamID>.ltd.herrmann.MotoManager` — otherwise the assertion fails.
+	-->
+	<key>com.apple.developer.associated-domains</key>
+	<array>
+		<string>webcredentials:moto.herrmann.ltd</string>
+	</array>
+</dict>
+</plist>

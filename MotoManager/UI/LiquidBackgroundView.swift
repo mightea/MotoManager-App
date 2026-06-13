@@ -1,35 +1,34 @@
 import SwiftUI
 
+/// Navy base with three colored halo blobs — matches the motorsport design system.
+/// Halos use the primary blue, violet, and brand red; subtle and static so they
+/// give the glass primitives something to lift off without distracting.
 struct LiquidBackgroundView: View {
-    @State private var animate = false
-    
     var body: some View {
         ZStack {
-            Theme.Colors.background.ignoresSafeArea()
-            
-            // Animated blobs for the "liquid" feel
+            Theme.Colors.navy950.ignoresSafeArea()
+
+            // Blue halo — top-left
             Circle()
-                .fill(Theme.Colors.primary.opacity(0.15))
-                .frame(width: 400, height: 400)
-                .blur(radius: 60)
-                .offset(x: animate ? 100 : -100, y: animate ? -200 : -100)
-            
+                .fill(Theme.Colors.primary.opacity(0.25))
+                .frame(width: 360, height: 360)
+                .blur(radius: 90)
+                .offset(x: -120, y: -260)
+
+            // Violet halo — middle-right
             Circle()
-                .fill(Color.purple.opacity(0.1))
-                .frame(width: 300, height: 300)
-                .blur(radius: 50)
-                .offset(x: animate ? -150 : 50, y: animate ? 200 : 100)
-            
+                .fill(Theme.Colors.primaryDark.opacity(0.45))
+                .frame(width: 380, height: 380)
+                .blur(radius: 100)
+                .offset(x: 160, y: 60)
+
+            // Red halo — bottom-left
             Circle()
-                .fill(Color.cyan.opacity(0.1))
-                .frame(width: 350, height: 350)
-                .blur(radius: 70)
-                .offset(x: animate ? 50 : 150, y: animate ? -50 : 250)
+                .fill(Theme.Colors.accent.opacity(0.18))
+                .frame(width: 320, height: 320)
+                .blur(radius: 90)
+                .offset(x: -80, y: 280)
         }
-        .onAppear {
-            withAnimation(.easeInOut(duration: 7).repeatForever(autoreverses: true)) {
-                animate.toggle()
-            }
-        }
+        .accessibilityHidden(true)
     }
 }
