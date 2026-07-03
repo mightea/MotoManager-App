@@ -343,7 +343,7 @@ private struct GarageRow: View {
     private var thumbnail: some View {
         Group {
             if let url = motorcycle.image {
-                RemoteImageView(url: url)
+                RemoteImageView(url: url, maxPixelWidth: 160)
                     .aspectRatio(contentMode: .fill)
             } else {
                 Theme.Colors.primary.opacity(0.2)
@@ -452,7 +452,7 @@ private struct RecentChip: View {
     private var thumbnail: some View {
         Group {
             if let url = motorcycle.image {
-                RemoteImageView(url: url)
+                RemoteImageView(url: url, maxPixelWidth: 400)
                     .aspectRatio(contentMode: .fill)
             } else {
                 Theme.Colors.primary.opacity(0.2)

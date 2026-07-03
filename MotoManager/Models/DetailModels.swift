@@ -31,11 +31,16 @@ struct MaintenanceRecord: Codable, Identifiable {
     let tripDistance: Double?
     let summary: String?
     let parentId: Int?
-    
+    // Sync metadata (server-provided; see backend migration 011).
+    let clientId: String?
+    let updatedAt: String?
+    let deletedAt: String?
+
     enum CodingKeys: String, CodingKey {
         case id, date, odo, motorcycleId, cost, normalizedCost, currency, description, summary
         case recordType = "type"
         case brand, model, tirePosition, tireSize, dotCode, batteryType, fluidType, viscosity, oilType, inspectionLocation, locationId, fuelType, fuelAmount, pricePerUnit, latitude, longitude, locationName, fuelConsumption, tripDistance, parentId
+        case clientId, updatedAt, deletedAt
     }
 }
 
@@ -50,6 +55,10 @@ struct TorqueSpec: Codable, Identifiable {
     let toolSize: String?
     let description: String?
     let createdAt: String
+    // Sync metadata (server-provided; see backend migration 011).
+    let clientId: String?
+    let updatedAt: String?
+    let deletedAt: String?
 }
 
 struct Document: Codable, Identifiable {

@@ -98,3 +98,74 @@ struct FuelStatsTests {
         #expect(FuelStats.litersInYear(fuel, year: 2020) == 0)
     }
 }
+
+// MARK: - Sync mapping & cursor
+
+struct SyncMappingTests {
+
+    @Test func createPayloadCarriesClientIdAndFields() {
+        let r = SDMaintenanceRecord(motorcycleId: 7, date: "2026-06-16", odo: 15000, recordType: "fuel", syncState: .pendingCreate)
+        r.fuelAmount = 12.3
+        r.pricePerUnit = 1.95
+        r.cost = 23.99
+        r.currency = "CHF"
+
+        let payload = r.toPayload()
+        // clientId must be sent so retried creates are idempotent on the server.
+        #expect(payload["clientId"] as? String == r.clientId.uuidString)
+        #expect(payload["type"] as? String == "fuel")
+        #expect(payload["odo"] as? Int == 15000)
+        #expect(payload["fuelAmount"] as? Double == 12.3)
+        #expect(payload["currency"] as? String == "CHF")
+    }
+
+    @Test func applyDTOReconcilesServerIdAndClearsPending() throws {
+        // A locally-created record (no serverId) that the server has now acked.
+        let local = SDMaintenanceRecord(motorcycleId: 1, date: "2026-06-16", odo: 100, recordType: "fuel", syncState: .pendingCreate)
+        let clientId = local.clientId.uuidString
+
+        let json = """
+        {"id":555,"date":"2026-06-16","odo":100,"motorcycleId":1,"type":"fuel",
+         "fuelAmount":10.0,"clientId":"\(clientId)","updatedAt":"2026-06-16T10:00:00.000Z"}
+        """
+        let dto = try JSONDecoder().decode(MaintenanceRecord.self, from: Data(json.utf8))
+
+        local.apply(dto)
+        #expect(local.serverId == 555)
+        #expect(local.serverUpdatedAt == "2026-06-16T10:00:00.000Z")
+        #expect(local.syncState == .synced)
+    }
+
+    @Test func makeFromDTOAdoptsServerClientId() throws {
+        let json = """
+        {"id":9,"date":"2026-06-16","odo":1,"motorcycleId":2,"type":"oil",
+         "clientId":"11111111-1111-1111-1111-111111111111","updatedAt":"2026-06-16T09:00:00.000Z"}
+        """
+        let dto = try JSONDecoder().decode(MaintenanceRecord.self, from: Data(json.utf8))
+        let model = SDMaintenanceRecord.make(from: dto)
+        #expect(model.clientId == UUID(uuidString: "11111111-1111-1111-1111-111111111111"))
+        #expect(model.serverId == 9)
+        #expect(model.syncState == .synced)
+    }
+}
+
+struct SyncCursorTests {
+
+    @Test func advanceKeepsTheLexicalMax() {
+        let key = "test.cursor.\(UUID().uuidString)"
+        SyncCursor.advance(key, with: ["2026-06-16T10:00:00.000Z", "2026-06-16T12:00:00.000Z"])
+        #expect(SyncCursor.get(key) == "2026-06-16T12:00:00.000Z")
+        // An older batch must not move the cursor backwards.
+        SyncCursor.advance(key, with: ["2026-06-16T08:00:00.000Z"])
+        #expect(SyncCursor.get(key) == "2026-06-16T12:00:00.000Z")
+        UserDefaults.standard.removeObject(forKey: key)
+    }
+
+    @Test func advanceWithEmptyKeepsCursor() {
+        let key = "test.cursor.\(UUID().uuidString)"
+        SyncCursor.advance(key, with: ["2026-06-16T10:00:00.000Z"])
+        SyncCursor.advance(key, with: [])
+        #expect(SyncCursor.get(key) == "2026-06-16T10:00:00.000Z")
+        UserDefaults.standard.removeObject(forKey: key)
+    }
+}

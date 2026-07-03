@@ -1,65 +1,43 @@
 import SwiftUI
 import MapKit
 
-/// Fuel-entry detail page matching the prototype's
-/// `motomanager-app/project/assets/details/FuelDetail.jsx`.
+/// Fuel-entry detail page. Backed by a SwiftData `SDMaintenanceRecord` (offline-
+/// first), so it reflects local edits and pending-sync state immediately.
 ///
 /// Uses the shared `DetailPage` chrome. Hero shows the liters, a TANKUNG
 /// eyebrow + bike/date subline, and three stat tiles (total cost, price/L,
-/// L/100 km). Body sections cover Details, Kosten, Verbrauch and (when
-/// coordinates are present) Tankstelle with an inline map. The sticky
-/// bottom action bar offers Bearbeiten + Löschen.
+/// L/100 km). The sticky bottom action bar offers Bearbeiten + Löschen.
 struct FuelDetailView: View {
-    let recordId: Int
+    let record: SDMaintenanceRecord
     @ObservedObject var viewModel: MotorcycleDetailViewModel
     @Environment(\.dismiss) private var dismiss
     @State private var showingEdit = false
     @State private var confirmingDelete = false
 
-    init(record: MaintenanceRecord, viewModel: MotorcycleDetailViewModel) {
-        self.recordId = record.id
-        self.viewModel = viewModel
-    }
-
-    /// Look up the latest record so the detail view refreshes after an edit
-    /// without prop drilling. Falls back to the unavailable state if removed.
-    private var record: MaintenanceRecord? {
-        viewModel.maintenanceRecords.first { $0.id == recordId }
-    }
-
     var body: some View {
-        Group {
-            if let record {
-                DetailPage(
-                    backLabel: "Tanken",
-                    accent: Theme.Colors.primary,
-                    eyebrow: "TANKUNG",
-                    title: titleString(for: record),
-                    subtitle: subtitle(for: record),
-                    heroContent: { heroStats(for: record) },
-                    body: { sections(for: record) },
-                    actions: { actionBar },
-                    onClose: { dismiss() }
-                )
-            } else {
-                unavailable
-            }
-        }
+        DetailPage(
+            backLabel: "Tanken",
+            accent: Theme.Colors.primary,
+            eyebrow: record.syncState.isPending ? "TANKUNG · NICHT SYNCHRON" : "TANKUNG",
+            title: titleString,
+            subtitle: subtitle,
+            heroContent: { heroStats },
+            body: { sections },
+            actions: { actionBar },
+            onClose: { dismiss() }
+        )
         .sheet(isPresented: $showingEdit) {
-            if let record {
-                AddFuelView(viewModel: viewModel, existingRecord: record)
-                    .presentationDetents([.large])
-                    .presentationCornerRadius(Theme.Glass.sheetRadius)
-                    .presentationBackground(.regularMaterial)
-                    .presentationDragIndicator(.visible)
-            }
+            AddFuelView(viewModel: viewModel, existingRecord: record)
+                .presentationDetents([.large])
+                .presentationCornerRadius(Theme.Glass.sheetRadius)
+                .presentationBackground(.regularMaterial)
+                .presentationDragIndicator(.visible)
         }
         .alert("Tankung löschen?", isPresented: $confirmingDelete) {
             Button("Abbrechen", role: .cancel) { }
             Button("Löschen", role: .destructive) {
-                // Backend delete is not wired yet — keep the affordance but
-                // bail out without mutating state. Replace with a real
-                // viewModel.deleteFuelRecord call once the API lands.
+                viewModel.deleteFuelRecord(record)
+                dismiss()
             }
         } message: {
             Text("Diese Tankung kann nicht wiederhergestellt werden.")
@@ -68,27 +46,29 @@ struct FuelDetailView: View {
 
     // MARK: - Hero
 
-    private func titleString(for record: MaintenanceRecord) -> String {
-        let liters = record.fuelAmount ?? 0
-        return String(format: "%.1f L", liters)
+    private var titleString: String {
+        String(format: "%.1f L", record.fuelAmount ?? 0)
     }
 
-    private func subtitle(for record: MaintenanceRecord) -> String {
-        let date = formatDateFull(record.date)
-        return "\(date) · \(viewModel.motorcycle.make) \(viewModel.motorcycle.model)"
+    private var subtitle: String {
+        "\(Formatters.mediumDate(record.date)) · \(viewModel.motorcycle.make) \(viewModel.motorcycle.model)"
+    }
+
+    private var currency: String {
+        record.currency ?? viewModel.motorcycle.currencyCode ?? "EUR"
     }
 
     @ViewBuilder
-    private func heroStats(for record: MaintenanceRecord) -> some View {
+    private var heroStats: some View {
         HStack(spacing: 8) {
             HeroStatTile(
                 eyebrow: "Gesamtpreis",
-                value: formatCurrency(record.cost ?? 0, currency: currency(for: record)),
+                value: Formatters.currency(record.cost ?? 0, code: currency),
                 accent: Theme.Colors.primary
             )
             HeroStatTile(
                 eyebrow: "Preis / L",
-                value: formatCurrency(record.pricePerUnit ?? 0, currency: currency(for: record))
+                value: Formatters.currency(record.pricePerUnit ?? 0, code: currency)
             )
             if let consumption = record.fuelConsumption {
                 HeroStatTile(
@@ -105,9 +85,9 @@ struct FuelDetailView: View {
     // MARK: - Sections
 
     @ViewBuilder
-    private func sections(for record: MaintenanceRecord) -> some View {
+    private var sections: some View {
         DetailSection("DETAILS") {
-            DetailRow(label: "Datum", value: formatDateFull(record.date), mono: false)
+            DetailRow(label: "Datum", value: Formatters.mediumDate(record.date), mono: false)
             divider
             DetailRow(label: "Kilometerstand", value: "\(record.odo) km")
             divider
@@ -119,43 +99,32 @@ struct FuelDetailView: View {
         }
 
         DetailSection("KOSTEN") {
-            DetailRow(
-                label: "Preis pro Liter",
-                value: formatCurrency(record.pricePerUnit ?? 0, currency: currency(for: record))
-            )
+            DetailRow(label: "Preis pro Liter", value: Formatters.currency(record.pricePerUnit ?? 0, code: currency))
             divider
-            DetailRow(
-                label: "Gesamtpreis",
-                value: formatCurrency(record.cost ?? 0, currency: currency(for: record)),
-                accent: Theme.Colors.primary
-            )
-            if let costPerKm = costPerKm(for: record) {
+            DetailRow(label: "Gesamtpreis", value: Formatters.currency(record.cost ?? 0, code: currency), accent: Theme.Colors.primary)
+            if let costPerKm {
                 divider
-                DetailRow(label: "Kosten pro km", value: Formatters.costPerKilometer(costPerKm, currency: currency(for: record)))
+                DetailRow(label: "Kosten pro km", value: Formatters.costPerKilometer(costPerKm, currency: currency))
             }
         }
 
         if let consumption = record.fuelConsumption, let trip = record.tripDistance, trip > 0 {
             DetailSection("VERBRAUCH") {
-                DetailRow(
-                    label: "Verbrauch",
-                    value: String(format: "%.1f L / 100 km", consumption),
-                    accent: consumption > 6 ? .orange : .green
-                )
+                DetailRow(label: "Verbrauch", value: String(format: "%.1f L / 100 km", consumption), accent: consumption > 6 ? .orange : .green)
                 divider
                 DetailRow(label: "Strecke seit letzter Tankung", value: "\(Int(trip)) km")
             }
         }
 
         if let lat = record.latitude, let lon = record.longitude {
-            stationSection(for: record, lat: lat, lon: lon)
+            stationSection(lat: lat, lon: lon)
         } else if let location = record.locationName, !location.isEmpty {
             DetailSection("TANKSTELLE") {
                 DetailRow(label: "Standort", value: location, mono: false)
             }
         }
 
-        if let notes = record.description, !notes.isEmpty {
+        if let notes = record.recordDescription, !notes.isEmpty {
             DetailSection("NOTIZEN") {
                 Text(notes)
                     .font(.system(size: 14))
@@ -167,7 +136,7 @@ struct FuelDetailView: View {
         }
     }
 
-    private func stationSection(for record: MaintenanceRecord, lat: Double, lon: Double) -> some View {
+    private func stationSection(lat: Double, lon: Double) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Text("TANKSTELLE\(record.locationName.map { " · \($0.uppercased())" } ?? "")")
@@ -198,14 +167,6 @@ struct FuelDetailView: View {
                 RoundedRectangle(cornerRadius: Theme.Glass.fieldRadius)
                     .stroke(Theme.Glass.hairline, lineWidth: 0.5)
             )
-
-            DetailSection {
-                if let name = record.locationName, !name.isEmpty {
-                    DetailRow(label: "Name", value: name, mono: false)
-                    divider
-                }
-                DetailRow(label: "Koordinaten", value: String(format: "%.4f, %.4f", lat, lon))
-            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -230,45 +191,6 @@ struct FuelDetailView: View {
         }
     }
 
-    // MARK: - Unavailable
-
-    private var unavailable: some View {
-        ZStack {
-            Theme.Colors.navy950.ignoresSafeArea()
-            ContentUnavailableView(
-                "Tankung nicht gefunden",
-                systemImage: "fuelpump.slash.fill",
-                description: Text("Dieser Eintrag wurde möglicherweise entfernt.")
-            )
-            .foregroundColor(.white)
-            VStack {
-                HStack {
-                    backPill
-                    Spacer()
-                }
-                .padding(.horizontal, 14)
-                .padding(.top, 12)
-                Spacer()
-            }
-        }
-        .toolbar(.hidden, for: .navigationBar)
-        .navigationBarBackButtonHidden(true)
-    }
-
-    private var backPill: some View {
-        Button { dismiss() } label: {
-            HStack(spacing: 4) {
-                Image(systemName: "chevron.left").font(.system(size: 14, weight: .heavy))
-                Text("Tanken").font(.system(size: 14, weight: .semibold))
-            }
-            .foregroundColor(.white)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .background(Capsule().fill(Color.white.opacity(0.10)))
-            .overlay(Capsule().stroke(Theme.Glass.strongBorder, lineWidth: 0.5))
-        }
-    }
-
     // MARK: - Helpers
 
     private var divider: some View {
@@ -278,31 +200,8 @@ struct FuelDetailView: View {
             .padding(.leading, 14)
     }
 
-    private func currency(for record: MaintenanceRecord) -> String {
-        record.currency ?? viewModel.motorcycle.currencyCode ?? "EUR"
-    }
-
-    private func formatCurrency(_ value: Double, currency: String) -> String {
-        Formatters.currency(value, code: currency)
-    }
-
-    private func costPerKm(for record: MaintenanceRecord) -> Double? {
+    private var costPerKm: Double? {
         guard let trip = record.tripDistance, trip > 0, let cost = record.cost else { return nil }
         return cost / trip
-    }
-
-    private func formatDateFull(_ iso: String) -> String {
-        Formatters.mediumDate(iso)
-    }
-}
-
-struct FuelDetailView_Previews: PreviewProvider {
-    static var previews: some View {
-        NavigationStack {
-            FuelDetailView(
-                record: MotorcycleDetailViewModel.mock.maintenanceRecords[0],
-                viewModel: .mock
-            )
-        }
     }
 }

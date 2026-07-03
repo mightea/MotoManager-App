@@ -13,7 +13,7 @@ import SwiftUI
 /// from the original record and round-tripped untouched.
 struct AddFuelView: View {
     @ObservedObject var viewModel: MotorcycleDetailViewModel
-    let existingRecord: MaintenanceRecord?
+    let existingRecord: SDMaintenanceRecord?
     @Environment(\.dismiss) var dismiss
 
     private enum Field: Hashable { case odo, liters, price, total }
@@ -37,7 +37,7 @@ struct AddFuelView: View {
 
     @FocusState private var focused: Field?
 
-    init(viewModel: MotorcycleDetailViewModel, existingRecord: MaintenanceRecord? = nil) {
+    init(viewModel: MotorcycleDetailViewModel, existingRecord: SDMaintenanceRecord? = nil) {
         self.viewModel = viewModel
         self.existingRecord = existingRecord
 
@@ -48,7 +48,7 @@ struct AddFuelView: View {
             _liters = State(initialValue: record.fuelAmount.map { Self.numberString($0) } ?? "")
             _fuelType = State(initialValue: record.fuelType ?? "98")
             _locationName = State(initialValue: record.locationName ?? "")
-            _notes = State(initialValue: record.description ?? "")
+            _notes = State(initialValue: record.recordDescription ?? "")
             _currency = State(initialValue: record.currency ?? Self.defaultCurrency(for: viewModel))
 
             let formatter = ISO8601DateFormatter()
@@ -74,10 +74,7 @@ struct AddFuelView: View {
 
             // Seed price from the previous fuel entry's per-liter cost so the
             // first tap on liters auto-derives the total.
-            if let lastPerL = viewModel.maintenanceRecords
-                .first(where: { $0.recordType.lowercased() == "fuel" })?
-                .pricePerUnit, lastPerL > 0
-            {
+            if let lastPerL = viewModel.lastFuelPerLiter, lastPerL > 0 {
                 _price = State(initialValue: Self.numberString(lastPerL))
             }
         }
@@ -569,43 +566,31 @@ struct AddFuelView: View {
     // MARK: - Save
 
     private func save() {
+        let pricePerLiter = priceValue
+        let totalCost = totalValue
+
+        // Optimistic, offline-first: writes to the local store and queues sync.
+        if let record = existingRecord {
+            viewModel.updateFuelRecord(
+                record,
+                odo: odoValue, amount: litersValue, cost: totalCost, pricePerUnit: pricePerLiter,
+                currency: currency, date: date, fuelType: fuelType,
+                locationName: locationName.isEmpty ? nil : locationName,
+                notes: notes.isEmpty ? nil : notes
+            )
+        } else {
+            viewModel.createFuelRecord(
+                odo: odoValue, amount: litersValue, cost: totalCost, pricePerUnit: pricePerLiter,
+                currency: currency, date: date, fuelType: fuelType,
+                locationName: locationName.isEmpty ? nil : locationName,
+                notes: notes.isEmpty ? nil : notes
+            )
+        }
+
+        withAnimation { savedAnim = true }
         Task {
-            let pricePerLiter = priceValue
-            let totalCost = totalValue
-
-            let succeeded: Bool
-            if let record = existingRecord {
-                succeeded = await viewModel.updateFuelRecord(
-                    recordId: record.id,
-                    odo: odoValue,
-                    amount: litersValue,
-                    cost: totalCost,
-                    pricePerUnit: pricePerLiter,
-                    currency: currency,
-                    date: date,
-                    fuelType: fuelType,
-                    locationName: locationName.isEmpty ? nil : locationName,
-                    notes: notes.isEmpty ? nil : notes
-                )
-            } else {
-                succeeded = await viewModel.addFuelRecord(
-                    odo: odoValue,
-                    amount: litersValue,
-                    cost: totalCost,
-                    pricePerUnit: pricePerLiter,
-                    currency: currency,
-                    date: date,
-                    fuelType: fuelType,
-                    locationName: locationName.isEmpty ? nil : locationName,
-                    notes: notes.isEmpty ? nil : notes
-                )
-            }
-
-            if succeeded {
-                withAnimation { savedAnim = true }
-                try? await Task.sleep(nanoseconds: 900_000_000)
-                dismiss()
-            }
+            try? await Task.sleep(nanoseconds: 500_000_000)
+            dismiss()
         }
     }
 }

@@ -49,7 +49,7 @@ struct MotorcycleSummaryHeader: View {
     @ViewBuilder
     private var backgroundImage: some View {
         if let url = motorcycle.image {
-            RemoteImageView(url: url)
+            RemoteImageView(url: url, maxPixelWidth: 1200)
                 .aspectRatio(contentMode: .fill)
                 .frame(height: 180)
                 .clipped()
@@ -74,8 +74,9 @@ struct MotorcycleSummaryHeader: View {
     // MARK: - Top row (gear only)
 
     private var topActions: some View {
-        HStack {
+        HStack(spacing: 8) {
             Spacer()
+            SyncStatusPill()
             Button(action: chrome.openSettings) {
                 Image(systemName: "gearshape.fill")
                     .font(.system(size: 16, weight: .semibold))

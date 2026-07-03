@@ -155,18 +155,40 @@ class NetworkManager {
         return motorcycles
     }
 
-    func fetchMaintenance(motorcycleId: Int) async throws -> [MaintenanceRecord] {
-        let wrapper: MaintenanceListResponse = try await get("/api/motorcycles/\(motorcycleId)/maintenance")
-        CacheStore.shared.save(wrapper.maintenanceRecords, key: CacheKey.maintenance(motorcycleId: motorcycleId))
+    func fetchMaintenance(motorcycleId: Int, since: String? = nil) async throws -> [MaintenanceRecord] {
+        let wrapper: MaintenanceListResponse = try await get(syncPath(
+            "/api/motorcycles/\(motorcycleId)/maintenance", since: since))
+        // Only the full (no-since) fetch represents the complete set worth caching.
+        if since == nil {
+            CacheStore.shared.save(wrapper.maintenanceRecords, key: CacheKey.maintenance(motorcycleId: motorcycleId))
+        }
         AppLog.debug("Fetched \(wrapper.maintenanceRecords.count) maintenance records for \(motorcycleId)")
         return wrapper.maintenanceRecords
     }
 
-    func fetchTorqueSpecs(motorcycleId: Int) async throws -> [TorqueSpec] {
-        let wrapper: TorqueSpecListResponse = try await get("/api/motorcycles/\(motorcycleId)/torque-specs")
-        CacheStore.shared.save(wrapper.torqueSpecs, key: CacheKey.torque(motorcycleId: motorcycleId))
+    func fetchTorqueSpecs(motorcycleId: Int, since: String? = nil) async throws -> [TorqueSpec] {
+        let wrapper: TorqueSpecListResponse = try await get(syncPath(
+            "/api/motorcycles/\(motorcycleId)/torque-specs", since: since))
+        if since == nil {
+            CacheStore.shared.save(wrapper.torqueSpecs, key: CacheKey.torque(motorcycleId: motorcycleId))
+        }
         AppLog.debug("Fetched \(wrapper.torqueSpecs.count) torque specs for \(motorcycleId)")
         return wrapper.torqueSpecs
+    }
+
+    func fetchIssues(motorcycleId: Int, since: String? = nil) async throws -> [Issue] {
+        let wrapper: IssueListResponse = try await get(syncPath(
+            "/api/motorcycles/\(motorcycleId)/issues", since: since))
+        AppLog.debug("Fetched \(wrapper.issues.count) issues for \(motorcycleId)")
+        return wrapper.issues
+    }
+
+    /// Appends a percent-encoded `?since=` cursor when present.
+    private func syncPath(_ path: String, since: String?) -> String {
+        guard let since, let encoded = since.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) else {
+            return path
+        }
+        return "\(path)?since=\(encoded)"
     }
 
     func fetchDocuments() async throws -> [Document] {
@@ -210,10 +232,73 @@ class NetworkManager {
         _ = try await performRequest(request)
     }
 
+    // MARK: - Sync mutations
+    //
+    // These return the server's stored record (with serverId/clientId/updatedAt)
+    // so the SyncEngine can reconcile the local SwiftData row. Creates carry a
+    // clientId in the payload, making retries idempotent (backend migration 011).
+
+    func createMaintenanceRecord(motorcycleId: Int, payload: [String: Any]) async throws -> MaintenanceRecord {
+        let body = try JSONSerialization.data(withJSONObject: payload)
+        let request = try makeRequest(path: "/api/motorcycles/\(motorcycleId)/maintenance", method: "POST", authorized: true, jsonBody: body)
+        let data = try await performRequest(request)
+        return try Self.decode(MaintenanceRecordResponse.self, from: data).maintenanceRecord
+    }
+
+    func updateMaintenanceRecord(motorcycleId: Int, recordId: Int, payload: [String: Any]) async throws -> MaintenanceRecord {
+        let body = try JSONSerialization.data(withJSONObject: payload)
+        let request = try makeRequest(path: "/api/motorcycles/\(motorcycleId)/maintenance/\(recordId)", method: "PUT", authorized: true, jsonBody: body)
+        let data = try await performRequest(request)
+        return try Self.decode(MaintenanceRecordResponse.self, from: data).maintenanceRecord
+    }
+
+    func deleteMaintenanceRecord(motorcycleId: Int, recordId: Int) async throws {
+        let request = try makeRequest(path: "/api/motorcycles/\(motorcycleId)/maintenance/\(recordId)", method: "DELETE", authorized: true)
+        _ = try await performRequest(request)
+    }
+
+    func createTorqueSpec(motorcycleId: Int, payload: [String: Any]) async throws -> TorqueSpec {
+        let body = try JSONSerialization.data(withJSONObject: payload)
+        let request = try makeRequest(path: "/api/motorcycles/\(motorcycleId)/torque-specs", method: "POST", authorized: true, jsonBody: body)
+        let data = try await performRequest(request)
+        return try Self.decode(TorqueSpecResponse.self, from: data).torqueSpec
+    }
+
+    func updateTorqueSpec(motorcycleId: Int, specId: Int, payload: [String: Any]) async throws -> TorqueSpec {
+        let body = try JSONSerialization.data(withJSONObject: payload)
+        let request = try makeRequest(path: "/api/motorcycles/\(motorcycleId)/torque-specs/\(specId)", method: "PUT", authorized: true, jsonBody: body)
+        let data = try await performRequest(request)
+        return try Self.decode(TorqueSpecResponse.self, from: data).torqueSpec
+    }
+
+    func deleteTorqueSpec(motorcycleId: Int, specId: Int) async throws {
+        let request = try makeRequest(path: "/api/motorcycles/\(motorcycleId)/torque-specs/\(specId)", method: "DELETE", authorized: true)
+        _ = try await performRequest(request)
+    }
+
+    func createIssue(motorcycleId: Int, payload: [String: Any]) async throws -> Issue {
+        let body = try JSONSerialization.data(withJSONObject: payload)
+        let request = try makeRequest(path: "/api/motorcycles/\(motorcycleId)/issues", method: "POST", authorized: true, jsonBody: body)
+        let data = try await performRequest(request)
+        return try Self.decode(IssueResponse.self, from: data).issue
+    }
+
+    func updateIssue(motorcycleId: Int, issueId: Int, payload: [String: Any]) async throws -> Issue {
+        let body = try JSONSerialization.data(withJSONObject: payload)
+        let request = try makeRequest(path: "/api/motorcycles/\(motorcycleId)/issues/\(issueId)", method: "PUT", authorized: true, jsonBody: body)
+        let data = try await performRequest(request)
+        return try Self.decode(IssueResponse.self, from: data).issue
+    }
+
+    func deleteIssue(motorcycleId: Int, issueId: Int) async throws {
+        let request = try makeRequest(path: "/api/motorcycles/\(motorcycleId)/issues/\(issueId)", method: "DELETE", authorized: true)
+        _ = try await performRequest(request)
+    }
+
     // MARK: - Passkey
 
     func fetchPasskeyLoginOptions(username: String?) async throws -> PasskeyOptionsResponse {
-        var path = "/api/auth/passkey/login/options"
+        var path = "/api/auth/passkey/login-options"
         if let username,
            let encoded = username.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) {
             path += "?username=\(encoded)"
@@ -223,7 +308,7 @@ class NetworkManager {
 
     func verifyPasskeyLogin(challengeId: String, response: PasskeyResponse) async throws -> String {
         let body = try JSONEncoder().encode(PasskeyVerifyRequest(challengeId: challengeId, response: response))
-        let request = try makeRequest(path: "/api/auth/passkey/login/verify", method: "POST", authorized: false, jsonBody: body)
+        let request = try makeRequest(path: "/api/auth/passkey/login-verify", method: "POST", authorized: false, jsonBody: body)
         let data = try await performRequest(request)
         let loginResponse = try Self.decode(LoginResponse.self, from: data)
         saveToken(loginResponse.token)

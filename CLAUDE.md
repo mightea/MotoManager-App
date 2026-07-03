@@ -1,290 +1,47 @@
-# Project: MotoManager
+# MotoManager (iOS)
 
-**MotoManager** is a SwiftUI iOS app for managing a personal motorcycle fleet — fuel logs and consumption analytics, service/maintenance records, torque specs, and a document vault. It is backed by a private API at `https://moto-api.herrmann.ltd` (JWT auth, with passkey/WebAuthn support).
+**MotoManager** is a SwiftUI iOS app for managing a personal motorcycle fleet — fuel logs and consumption analytics, service/maintenance records, torque specs, and a document vault. It is backed by the Rust/Axum API in `../MotoManagerApi` (deployed at `https://moto-api.herrmann.ltd`).
 
-## Quick Reference
+> **`AGENTS.md` in this directory is the canonical, detailed guide.** Read it first. This file only summarizes the essentials and the gotchas that bite most often. Where the two ever disagree, AGENTS.md wins — but note the corrections below, which apply to both.
 
-- **Platform**: iOS 17+ / macOS 14+
-- **Language**: Swift 6.0
-- **UI Framework**: SwiftUI
-- **Architecture**: MVVM with @Observable
-- **Minimum Deployment**: iOS 17.0
-- **Package Manager**: Swift Package Manager
+## Facts (verified against `project.pbxproj`)
 
-## XcodeBuildMCP Integration
+| | |
+|---|---|
+| Platform | iOS **26.4** deployment target (iPhone + iPad) |
+| Language | Swift **5.0** language mode; `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor`, `SWIFT_APPROACHABLE_CONCURRENCY = YES` |
+| Architecture | MVVM with `ObservableObject` + `@Published` — **not** `@Observable` |
+| Dependencies | none (plain Xcode project — no SPM/CocoaPods) |
+| Build tooling | plain `xcodebuild` (there is no XcodeBuildMCP setup) |
+| Scheme / Bundle | `MotoManager` / `ltd.herrmann.MotoManager` |
 
-**IMPORTANT**: This project uses XcodeBuildMCP for all Xcode operations.
+## Auth (correction)
 
-- Build: `mcp__xcodebuildmcp__build_sim_name_proj`
-- Test: `mcp__xcodebuildmcp__test_sim_name_proj`
-- Clean: `mcp__xcodebuildmcp__clean`
+The API issues **opaque Bearer session tokens** stored server-side (14-day expiry, deleted on logout) — **not JWTs**, despite the `jwt-token` Keychain account name and older "JWT" wording in the code and AGENTS.md. The token is an opaque string; you cannot inspect its expiry client-side. Expired sessions are caught on launch: the first authorized request returns 401 → `NetworkManager.unauthorizedNotification` → `AuthViewModel` logs out. Passkey/WebAuthn login is also supported.
 
-## Project Structure
+## Post-auth shell (correction)
 
-MVVM. Source layout under `MotoManager/`:
+`Views/MainTabView.swift` is the post-auth root with **3 tabs** — Fuel (`Tanken`), Service, Workshop (`Werkstatt`) — defined by `AppTab` in `UI/GlassTabBar.swift`. (Not the 5 tabs some older docs claim.)
 
-```
-MotoManager/
-├── MotoManagerApp.swift     # @main entry point — minimal
-├── ContentView.swift        # auth gate + fleet load orchestration
-├── Models/                  # Codable structs
-├── ViewModels/              # @MainActor ObservableObjects
-├── Views/                   # SwiftUI screens
-├── Networking/              # NetworkManager + KeychainHelper
-└── UI/                      # design tokens + reusable visual primitives
-```
+## Offline-first sync — the part most likely to bite
 
-## Coding Standards
+- On-device source of truth is **SwiftData** for the three syncable write entities: `SDMaintenanceRecord`, `SDTorqueSpec`, `SDIssue` (`Persistence/`). Each carries `clientId` (stable identity + server idempotency key), `serverId`, `syncState`, and push-failure counters (`syncAttempts`/`lastSyncError`).
+- Motorcycles and documents are **not** in SwiftData — still DTOs cached via the JSON `CacheStore`.
+- `Networking/SyncEngine.swift`: push (create→update→delete, keyed by `clientId`) then pull (`?since=` per resource), last-write-wins with local-pending winning. **Invariant to preserve:** each pull `save()`s the context *before* advancing its cursor — never reorder these, or an interrupted pull will skip records permanently.
+- Poisoned records (5 failed pushes) stop retrying and surface as a tappable "retry" on `UI/SyncStatusPill.swift`.
+- Backend support is `MotoManagerApi` migration `011_sync_metadata.sql` (only `maintenanceRecords`, `torqueSpecs`, `issues` are sync-enabled).
 
-### Swift Style
+## Build & test caveat (this machine)
 
-- Use Swift 6 strict concurrency
-- Prefer `@Observable` over `ObservableObject`
-- Use `async/await` for all async operations
-- Follow Apple's Swift API Design Guidelines
-- Use `guard` for early exits
-- Prefer value types (structs) over reference types (classes)
+CLI `xcodebuild` **compiles** every file fine but the **link phase is broken** here: `ld: -objc_abi_version '-Xlinker' not supported`. So you can validate compilation from the CLI but cannot link or run tests without the IDE / a repaired Xcode. Compile-check with a concrete simulator destination:
 
-### SwiftUI Patterns
-
-- Extract views when they exceed 100 lines
-- Use `@State` for local view state only
-- Use `@Environment` for dependency injection
-- Prefer `NavigationStack` over deprecated `NavigationView`
-- Use `@Bindable` for bindings to @Observable objects
-
-### Navigation Pattern
-
-```swift
-// Use NavigationStack with type-safe routing
-enum Route: Hashable {
-    case detail(Item)
-    case settings
-}
-
-NavigationStack(path: $router.path) {
-    ContentView()
-        .navigationDestination(for: Route.self) { route in
-            // Handle routing
-        }
-}
-
-## Quick Reference
-- **Platform**: iOS 17+ / macOS 14+
-- **Language**: Swift 6.0
-- **UI Framework**: SwiftUI
-- **Architecture**: MVVM with @Observable
-- **Minimum Deployment**: iOS 17.0
-- **Package Manager**: Swift Package Manager
-
-## XcodeBuildMCP Integration
-**IMPORTANT**: This project uses XcodeBuildMCP for all Xcode operations.
-- Build: `mcp__xcodebuildmcp__build_sim_name_proj`
-- Test: `mcp__xcodebuildmcp__test_sim_name_proj`
-- Clean: `mcp__xcodebuildmcp__clean`
-
-## Project Structure
+```sh
+xcodebuild build -scheme MotoManager \
+  -destination 'platform=iOS Simulator,name=iPhone 17 Pro'
 ```
 
-## Coding Standards
+New `.swift` files under `MotoManager/` are auto-included (Xcode 26 `PBXFileSystemSynchronizedRootGroup`) — no `project.pbxproj` edit needed.
 
-### Swift Style
+## Conventions
 
-- Use Swift 6 strict concurrency
-- Prefer `@Observable` over `ObservableObject`
-- Use `async/await` for all async operations
-- Follow Apple's Swift API Design Guidelines
-- Use `guard` for early exits
-- Prefer value types (structs) over reference types (classes)
-
-### SwiftUI Patterns
-
-- Extract views when they exceed 100 lines
-- Use `@State` for local view state only
-- Use `@Environment` for dependency injection
-- Prefer `NavigationStack` over deprecated `NavigationView`
-- Use `@Bindable` for bindings to @Observable objects
-
-### Navigation Pattern
-
-```swift
-// Use NavigationStack with type-safe routing
-enum Route: Hashable {
-    case detail(Item)
-    case settings
-}
-
-NavigationStack(path: $router.path) {
-    ContentView()
-        .navigationDestination(for: Route.self) { route in
-            // Handle routing
-        }
-}
-```
-
-### Error Handling
-
-```swift
-// Always use typed errors
-enum AppError: LocalizedError {
-    case networkError(underlying: Error)
-    case validationError(message: String)
-    
-    var errorDescription: String? {
-        switch self {
-        case .networkError(let error): return error.localizedDescription
-        case .validationError(let msg): return msg
-        }
-    }
-}
-```
-
-## Testing Requirements
-
-- Unit tests for all ViewModels
-- UI tests for critical user flows
-- Use Swift Testing framework (`@Test`, `#expect`)
-- Minimum 80% code coverage for business logic
-
-## DO NOT
-
-- Write UITests during scaffolding phase
-- Use deprecated APIs (UIKit when SwiftUI suffices)
-- Create massive monolithic views
-- Use force unwrapping (`!`) without justification
-- Ignore Swift 6 concurrency warnings
-
-## Planning Workflow
-
-When starting new features:
-
-1. Read the PRD from `docs/PRD.md`
-2. Create feature spec in `docs/specs/[feature-name].md`
-3. Use `ultrathink` for architectural decisions
-4. Use Plan Mode (`Shift+Tab`) for implementation strategy
-5. Implement incrementally with tests
-
-## Memory Imports
-
-@import docs/PRD.md
-@import docs/ARCHITECTURE.md
-@import docs/ROADMAP.md
-
-```
-
-### Nested CLAUDE.md for Feature Directories
-
-Create `.claude/CLAUDE.md` or `Features/[FeatureName]/CLAUDE.md`:
-
-```markdown
-# [Feature Name] Module
-
-## Purpose
-[Description of what this feature does]
-
-## Architecture
-- Uses MVVM with @Observable ViewModels
-- Parent stores create child stores for modal presentations
-
-## Navigation Pattern
-### Sheet-Based Navigation
-**Pattern**: Parent stores create optional child stores for modal presentations
-**Rules**:
-1. Parent ViewModel holds `@Published var childViewModel: ChildViewModel?`
-2. View observes and presents sheet when non-nil
-3. Dismissal sets childViewModel to nil
-
-### Example
-```swift
-@Observable
-final class ParentViewModel {
-    var detailViewModel: DetailViewModel?
-    
-    func showDetail(for item: Item) {
-        detailViewModel = DetailViewModel(item: item)
-    }
-}
-```
-
-## Testing
-
-Run tests: `mcp__xcodebuildmcp__swift_package_test`
-
-```
-
----
-
-## 4. PRD-Driven Development Workflow
-
-### Directory Structure for PRD Workflow
-
-```
-
-docs/
-├── PRD.md                      # Main Product Requirements Document
-├── ARCHITECTURE.md             # System architecture decisions
-├── specs/                      # Feature specifications
-│   └── template.md
-└── tasks/                      # Task breakdowns
-    ├── 000-sample.md
-    └── [feature]-tasks.md
-
-```
-
-### PRD Template (`docs/PRD.md`)
-
-```markdown
-# Product Requirements Document: [App Name]
-
-## Executive Summary
-[Brief description of the product and its primary value proposition]
-
-## Problem Statement
-[What problem does this solve? Who experiences this problem?]
-
-## Target Users
-- **Primary**: [Description]
-- **Secondary**: [Description]
-
-## Success Metrics
-| Metric | Target | Measurement |
-|--------|--------|-------------|
-| User Retention | 40% D7 | Analytics |
-| App Rating | 4.5+ | App Store |
-| Crash-Free Rate | 99.5% | Crashlytics |
-
-## Core Features
-
-### Feature 1: [Name]
-**Priority**: P0 (Must Have)
-**Description**: [Detailed description]
-**User Stories**:
-- As a [user type], I want [action] so that [benefit]
-
-**Acceptance Criteria**:
-- [ ] Criterion 1
-- [ ] Criterion 2
-
-**Technical Requirements**:
-- iOS 17+ required
-- Offline support needed
-- Data persistence via SwiftData
-
-### Feature 2: [Name]
-[Continue pattern...]
-
-## Non-Functional Requirements
-- **Performance**: App launch < 2s, smooth 60fps scrolling
-- **Accessibility**: WCAG 2.1 AA compliance
-- **Localization**: English (primary), [other languages]
-- **Security**: Keychain for credentials, certificate pinning
-
-## Out of Scope (v1.0)
-- [Feature explicitly not included]
-
-## Technical Constraints
-- Swift 6.0+ with strict concurrency
-- SwiftUI-only (no UIKit unless necessary)
-- SwiftData for persistence
-- Minimum iOS 17.0
-
+See AGENTS.md for the full list. The load-bearing ones: `NavigationStack` (never `NavigationView`); Swift Testing (never XCTest) in `MotoManagerTests/`; no new dependencies; read the base URL from `NetworkManager.shared.baseURL`; go through `NetworkManager` for the token; don't migrate ViewModels to `@Observable` piecemeal. Commits: Conventional Commits, no scope.

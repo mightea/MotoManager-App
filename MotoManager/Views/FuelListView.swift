@@ -3,17 +3,18 @@ import SwiftUI
 struct FuelListView: View {
     @ObservedObject var viewModel: MotorcycleDetailViewModel
     @State private var showingAddFuel = false
-    @State private var selectedFuelRecord: MaintenanceRecord?
+    @State private var selectedFuelRecord: SDMaintenanceRecord?
 
-    private var fuelRecords: [MaintenanceRecord] {
-        FuelStats.fuelRecords(viewModel.maintenanceRecords)
+    /// Backed by SwiftData (offline-first); already filtered to fuel + non-deleted.
+    private var fuelRecords: [SDMaintenanceRecord] {
+        viewModel.fuelRecords
     }
 
     private var averageConsumption: Double {
         FuelStats.averageConsumption(fuelRecords)
     }
 
-    private var lastEntry: MaintenanceRecord? { fuelRecords.first }
+    private var lastEntry: SDMaintenanceRecord? { fuelRecords.first }
 
     private var yearLiters: Double {
         FuelStats.litersInYear(fuelRecords, year: Calendar.current.component(.year, from: Date()))
@@ -183,8 +184,9 @@ struct FuelListView: View {
                     .stroke(Color.white.opacity(0.08), lineWidth: 0.5)
             )
         } else {
-            VStack(spacing: 0) {
-                ForEach(Array(fuelRecords.enumerated()), id: \.element.id) { index, record in
+            // Lazy so a long fuel history renders rows on demand instead of all up front.
+            LazyVStack(spacing: 0) {
+                ForEach(Array(fuelRecords.enumerated()), id: \.element.clientId) { index, record in
                     Button {
                         selectedFuelRecord = record
                     } label: {
@@ -212,7 +214,7 @@ struct FuelListView: View {
 // MARK: - Fuel row
 
 struct FuelRow: View {
-    let record: MaintenanceRecord
+    let record: SDMaintenanceRecord
     let averageConsumption: Double
     var currency: String = "EUR"
 
@@ -224,17 +226,17 @@ struct FuelRow: View {
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
                     HStack(alignment: .firstTextBaseline, spacing: 2) {
                         Text(String(format: "%.1f", record.fuelAmount ?? 0))
-                            .font(.system(size: 14, weight: .semibold))
+                            .scaledFont(14, weight: .semibold)
                             .monospacedDigit()
                         Text("L")
-                            .font(.system(size: 11, weight: .medium))
+                            .scaledFont(11, weight: .medium)
                             .foregroundColor(.white.opacity(0.55))
                     }
                     if let pricePerUnit = record.pricePerUnit, pricePerUnit > 0 {
                         Text("·")
                             .foregroundColor(.white.opacity(0.4))
                         Text("\(Formatters.currency(pricePerUnit, code: currency))/L")
-                            .font(.system(size: 12, weight: .medium))
+                            .scaledFont(12, weight: .medium)
                             .foregroundColor(.white.opacity(0.6))
                             .monospacedDigit()
                     }
@@ -244,7 +246,7 @@ struct FuelRow: View {
                     Text("·")
                     Text("\(record.odo) km").monospacedDigit()
                 }
-                .font(.system(size: 11, weight: .medium))
+                .scaledFont(11, weight: .medium)
                 .foregroundColor(.white.opacity(0.55))
             }
 
@@ -253,13 +255,13 @@ struct FuelRow: View {
             VStack(alignment: .trailing, spacing: 2) {
                 if let cost = record.cost {
                     Text(Formatters.currency(cost, code: currency))
-                        .font(.system(size: 14, weight: .bold))
+                        .scaledFont(14, weight: .bold)
                         .monospacedDigit()
                         .foregroundColor(.white)
                 }
                 if let consumption = record.fuelConsumption {
                     Text(String(format: "%.1f L/100km", consumption))
-                        .font(.system(size: 10, weight: .semibold))
+                        .scaledFont(10, weight: .semibold)
                         .monospacedDigit()
                         .foregroundColor(consumptionColor(consumption))
                 }
@@ -296,6 +298,11 @@ struct FuelRow: View {
                 .foregroundColor(Theme.Colors.primary)
         }
         .frame(width: 36, height: 36)
+        .overlay(alignment: .topTrailing) {
+            if record.syncState.isPending {
+                PendingBadge().offset(x: 5, y: -5)
+            }
+        }
     }
 
     private func consumptionColor(_ value: Double) -> Color {

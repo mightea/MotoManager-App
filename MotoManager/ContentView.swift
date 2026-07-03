@@ -30,10 +30,10 @@ struct ContentView: View {
             if authVM.isAuthenticated {
                 await fleetVM.loadMotorcycles()
             }
-        }
-        .onAppear {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.8) {
-                withAnimation(.easeOut(duration: 0.5)) {
+            // Dismiss the splash once the initial state is actually ready, rather
+            // than after a fixed 1.8s delay regardless of how fast loading was.
+            if showSplash {
+                withAnimation(.easeOut(duration: 0.4)) {
                     showSplash = false
                 }
             }

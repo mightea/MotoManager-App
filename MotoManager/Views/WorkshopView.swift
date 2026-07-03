@@ -4,6 +4,8 @@ struct WorkshopView: View {
     @ObservedObject var viewModel: MotorcycleDetailViewModel
     @State private var presentedDocument: Document?
     @State private var selectedTorqueGroup: String = "Alle"
+    @State private var showingAddTorque = false
+    @State private var editingTorque: SDTorqueSpec?
 
     enum DocScope: Hashable { case moto, common }
     @State private var docScope: DocScope = .moto
@@ -22,8 +24,8 @@ struct WorkshopView: View {
         return full.count > 14 ? make : full
     }
 
-    private var groupedTorqueSpecs: [(category: String, specs: [TorqueSpec])] {
-        Dictionary(grouping: viewModel.torqueSpecs) { $0.category }
+    private var groupedTorqueSpecs: [(category: String, specs: [SDTorqueSpec])] {
+        Dictionary(grouping: viewModel.torque) { $0.category }
             .sorted { $0.key.localizedCaseInsensitiveCompare($1.key) == .orderedAscending }
             .map { (category: $0.key, specs: $0.value) }
     }
@@ -32,13 +34,13 @@ struct WorkshopView: View {
         ["Alle"] + groupedTorqueSpecs.map { $0.category }
     }
 
-    private var filteredTorque: [TorqueSpec] {
-        if selectedTorqueGroup == "Alle" { return viewModel.torqueSpecs }
-        return viewModel.torqueSpecs.filter { $0.category == selectedTorqueGroup }
+    private var filteredTorque: [SDTorqueSpec] {
+        if selectedTorqueGroup == "Alle" { return viewModel.torque }
+        return viewModel.torque.filter { $0.category == selectedTorqueGroup }
     }
 
     private var bothEmpty: Bool {
-        viewModel.torqueSpecs.isEmpty
+        viewModel.torque.isEmpty
             && viewModel.documents.isEmpty
             && viewModel.commonDocuments.isEmpty
     }
@@ -79,6 +81,20 @@ struct WorkshopView: View {
         }
         .sheet(item: $presentedDocument) { doc in
             DocumentViewerView(document: doc)
+        }
+        .sheet(isPresented: $showingAddTorque) {
+            AddTorqueView(viewModel: viewModel)
+                .presentationDetents([.large])
+                .presentationCornerRadius(Theme.Glass.sheetRadius)
+                .presentationBackground(.regularMaterial)
+                .presentationDragIndicator(.visible)
+        }
+        .sheet(item: $editingTorque) { spec in
+            AddTorqueView(viewModel: viewModel, existingSpec: spec)
+                .presentationDetents([.large])
+                .presentationCornerRadius(Theme.Glass.sheetRadius)
+                .presentationBackground(.regularMaterial)
+                .presentationDragIndicator(.visible)
         }
     }
 
@@ -135,19 +151,27 @@ struct WorkshopView: View {
                     .tracking(2)
                     .foregroundColor(.white.opacity(0.55))
                 Spacer()
-                Text("\(viewModel.torqueSpecs.count) \(viewModel.torqueSpecs.count == 1 ? "Spez." : "Spez.")")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundColor(.white.opacity(0.5))
+                Button { showingAddTorque = true } label: {
+                    Image(systemName: "plus")
+                        .font(.system(size: 12, weight: .heavy))
+                        .foregroundColor(.white)
+                        .frame(width: 26, height: 26)
+                        .background(Circle().fill(Theme.Colors.primary))
+                }
+                .accessibilityLabel("Drehmoment hinzufügen")
             }
             .padding(.horizontal, 6)
 
-            if viewModel.torqueSpecs.isEmpty {
-                Text("Keine Werte erfasst.")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundColor(.white.opacity(0.5))
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 24)
-                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18))
+            if viewModel.torque.isEmpty {
+                Button { showingAddTorque = true } label: {
+                    Text("Keine Werte erfasst — tippen zum Hinzufügen.")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(.white.opacity(0.6))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 24)
+                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18))
+                }
+                .buttonStyle(.plain)
             } else {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 6) {
@@ -203,10 +227,13 @@ struct WorkshopView: View {
             .padding(.vertical, 8)
             .background(Color.white.opacity(0.04))
 
-            ForEach(Array(filteredTorque.enumerated()), id: \.element.id) { index, spec in
-                TorqueRow(spec: spec, showGroup: selectedTorqueGroup == "Alle")
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 10)
+            ForEach(Array(filteredTorque.enumerated()), id: \.element.clientId) { index, spec in
+                Button { editingTorque = spec } label: {
+                    TorqueRow(spec: spec, showGroup: selectedTorqueGroup == "Alle")
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 10)
+                }
+                .buttonStyle(.plain)
                 if index < filteredTorque.count - 1 {
                     Divider().background(Color.white.opacity(0.06))
                 }
@@ -223,16 +250,19 @@ struct WorkshopView: View {
 // MARK: - Torque row
 
 private struct TorqueRow: View {
-    let spec: TorqueSpec
+    let spec: SDTorqueSpec
     let showGroup: Bool
 
     var body: some View {
         HStack(alignment: .center) {
             VStack(alignment: .leading, spacing: 3) {
-                Text(spec.name)
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundColor(.white)
-                    .lineLimit(2)
+                HStack(spacing: 6) {
+                    Text(spec.name)
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(.white)
+                        .lineLimit(2)
+                    if spec.syncState.isPending { PendingBadge() }
+                }
 
                 HStack(spacing: 6) {
                     if showGroup {
@@ -249,7 +279,7 @@ private struct TorqueRow: View {
                             .font(.system(size: 10, weight: .semibold))
                             .foregroundColor(.white.opacity(0.6))
                     }
-                    if let description = spec.description, !description.isEmpty {
+                    if let description = spec.recordDescription, !description.isEmpty {
                         Text(description)
                             .font(.system(size: 10))
                             .foregroundColor(.white.opacity(0.5))
@@ -263,6 +293,7 @@ private struct TorqueRow: View {
                 .monospacedDigit()
                 .foregroundColor(Theme.Colors.primary)
         }
+        .contentShape(Rectangle())
     }
 
     private var torqueDisplay: String {

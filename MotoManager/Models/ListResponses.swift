@@ -19,3 +19,20 @@ struct DocumentListResponse: Codable {
 struct CurrencyListResponse: Codable {
     let currencies: [Currency]
 }
+
+struct IssueListResponse: Codable {
+    let issues: [Issue]
+}
+
+// Single-item create/update responses.
+struct MaintenanceRecordResponse: Codable {
+    let maintenanceRecord: MaintenanceRecord
+}
+
+struct TorqueSpecResponse: Codable {
+    let torqueSpec: TorqueSpec
+}
+
+struct IssueResponse: Codable {
+    let issue: Issue
+}

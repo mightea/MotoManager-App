@@ -5,21 +5,24 @@ struct MaintenanceLogsView: View {
 
     enum ServiceTab: Hashable { case issues, maintenance }
     @State private var tab: ServiceTab = .maintenance
-    @State private var selectedRecord: MaintenanceRecord?
+    @State private var selectedRecord: SDMaintenanceRecord?
+    @State private var showingAddIssue = false
+    @State private var editingIssue: SDIssue?
+    @State private var showingAddMaintenance = false
 
-    private var serviceRecords: [MaintenanceRecord] {
-        viewModel.maintenanceRecords.filter { $0.recordType.lowercased() != "fuel" }
+    private var serviceRecords: [SDMaintenanceRecord] {
+        viewModel.serviceRecords
     }
 
     private var openIssuesCount: Int {
-        viewModel.motorcycle.openIssues ?? 0
+        viewModel.openIssuesCount
     }
 
     private var totalCost: Double {
         serviceRecords.compactMap { $0.cost }.reduce(0, +)
     }
 
-    private var lastEntry: MaintenanceRecord? { serviceRecords.first }
+    private var lastEntry: SDMaintenanceRecord? { serviceRecords.first }
 
     private var currency: String {
         lastEntry?.currency ?? viewModel.motorcycle.currencyCode ?? "EUR"
@@ -47,6 +50,9 @@ struct MaintenanceLogsView: View {
                     statStrip
                         .padding(.horizontal, Theme.Spacing.m)
 
+                    addMaintenanceCTA
+                        .padding(.horizontal, Theme.Spacing.m)
+
                     sectionHeader("Verlauf", count: serviceRecords.count)
                         .padding(.horizontal, Theme.Spacing.m + 6)
 
@@ -68,6 +74,47 @@ struct MaintenanceLogsView: View {
                 .presentationBackground(.regularMaterial)
                 .presentationDragIndicator(.hidden)
         }
+        .sheet(isPresented: $showingAddIssue) {
+            AddIssueView(viewModel: viewModel)
+                .presentationDetents([.large])
+                .presentationCornerRadius(Theme.Glass.sheetRadius)
+                .presentationBackground(.regularMaterial)
+                .presentationDragIndicator(.visible)
+        }
+        .sheet(item: $editingIssue) { issue in
+            AddIssueView(viewModel: viewModel, existingIssue: issue)
+                .presentationDetents([.large])
+                .presentationCornerRadius(Theme.Glass.sheetRadius)
+                .presentationBackground(.regularMaterial)
+                .presentationDragIndicator(.visible)
+        }
+        .sheet(isPresented: $showingAddMaintenance) {
+            AddMaintenanceView(viewModel: viewModel)
+                .presentationDetents([.large])
+                .presentationCornerRadius(Theme.Glass.sheetRadius)
+                .presentationBackground(.regularMaterial)
+                .presentationDragIndicator(.visible)
+        }
+    }
+
+    private var addMaintenanceCTA: some View {
+        Button { showingAddMaintenance = true } label: {
+            HStack(spacing: 10) {
+                Image(systemName: "wrench.and.screwdriver.fill")
+                    .font(.system(size: 16, weight: .semibold))
+                Text("Wartung erfassen")
+                    .font(.system(size: 15, weight: .bold))
+                Spacer(minLength: 0)
+                Image(systemName: "plus")
+                    .font(.system(size: 16, weight: .bold))
+            }
+            .foregroundColor(.white)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 14)
+            .background(Theme.Colors.primary, in: RoundedRectangle(cornerRadius: 18))
+            .shadow(color: Theme.Colors.primary.opacity(0.4), radius: 12, x: 0, y: 6)
+        }
+        .buttonStyle(.plain)
     }
 
     private var statStrip: some View {
@@ -87,11 +134,41 @@ struct MaintenanceLogsView: View {
 
     @ViewBuilder
     private var issuesContent: some View {
-        if openIssuesCount == 0 {
-            IssuesEmptyCard(motorcycle: viewModel.motorcycle)
-        } else {
-            IssuesPlaceholderCard(count: openIssuesCount)
+        VStack(spacing: Theme.Spacing.s) {
+            addIssueCTA
+            if viewModel.issues.isEmpty {
+                IssuesEmptyCard(motorcycle: viewModel.motorcycle)
+            } else {
+                VStack(spacing: 10) {
+                    ForEach(viewModel.issues, id: \.clientId) { issue in
+                        Button { editingIssue = issue } label: {
+                            IssueRow(issue: issue)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
         }
+    }
+
+    private var addIssueCTA: some View {
+        Button { showingAddIssue = true } label: {
+            HStack(spacing: 10) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.system(size: 16, weight: .semibold))
+                Text("Mangel erfassen")
+                    .font(.system(size: 15, weight: .bold))
+                Spacer(minLength: 0)
+                Image(systemName: "plus")
+                    .font(.system(size: 16, weight: .bold))
+            }
+            .foregroundColor(.white)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 14)
+            .background(Theme.Colors.accent, in: RoundedRectangle(cornerRadius: 18))
+            .shadow(color: Theme.Colors.accent.opacity(0.4), radius: 12, x: 0, y: 6)
+        }
+        .buttonStyle(.plain)
     }
 
     private func sectionHeader(_ label: String, count: Int) -> some View {
@@ -123,8 +200,9 @@ struct MaintenanceLogsView: View {
             )
             .padding(.top, 60)
         } else {
-            VStack(spacing: 10) {
-                ForEach(serviceRecords) { record in
+            // Lazy so a long service history renders cards on demand.
+            LazyVStack(spacing: 10) {
+                ForEach(serviceRecords, id: \.clientId) { record in
                     Button {
                         selectedRecord = record
                     } label: {
@@ -209,10 +287,86 @@ private struct IssuesPlaceholderCard: View {
     }
 }
 
+// MARK: - Issue row
+
+private struct IssueRow: View {
+    let issue: SDIssue
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(priorityColor.opacity(0.22))
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(priorityColor)
+            }
+            .frame(width: 36, height: 36)
+            .overlay(alignment: .topTrailing) {
+                if issue.syncState.isPending { PendingBadge().offset(x: 5, y: -5) }
+            }
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(issue.title)
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundColor(.white)
+                    .lineLimit(2)
+                if let notes = issue.recordDescription, !notes.isEmpty {
+                    Text(notes)
+                        .font(.system(size: 12))
+                        .foregroundColor(.white.opacity(0.65))
+                        .lineLimit(2)
+                }
+                HStack(spacing: 6) {
+                    Text(statusLabel.uppercased())
+                        .font(.system(size: 9, weight: .heavy))
+                        .tracking(0.4)
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 2)
+                        .background(Capsule().fill(priorityColor.opacity(0.22)))
+                        .foregroundColor(priorityColor)
+                    Text("·").foregroundColor(.white.opacity(0.4))
+                    Text(Formatters.mediumDate(issue.date))
+                    Text("·").foregroundColor(.white.opacity(0.4))
+                    Text("\(issue.odo) km").monospacedDigit()
+                }
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundColor(.white.opacity(0.55))
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(14)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18))
+        .overlay(
+            RoundedRectangle(cornerRadius: 18)
+                .stroke(Color.white.opacity(0.08), lineWidth: 0.5)
+        )
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(statusLabel) Mangel: \(issue.title), \(Formatters.mediumDate(issue.date)), Kilometerstand \(issue.odo)")
+    }
+
+    private var priorityColor: Color {
+        switch issue.priority.lowercased() {
+        case "high": return Theme.Colors.accent
+        case "low": return .green
+        default: return .orange
+        }
+    }
+
+    private var statusLabel: String {
+        switch issue.status.lowercased() {
+        case "in_progress": return "In Arbeit"
+        case "done": return "Erledigt"
+        default: return "Neu"
+        }
+    }
+}
+
 // MARK: - Card
 
 private struct MaintenanceCard: View {
-    let record: MaintenanceRecord
+    let record: SDMaintenanceRecord
     let currency: String
 
     var body: some View {
@@ -226,6 +380,9 @@ private struct MaintenanceCard: View {
                     .foregroundColor(kind.tint)
             }
             .frame(width: 36, height: 36)
+            .overlay(alignment: .topTrailing) {
+                if record.syncState.isPending { PendingBadge().offset(x: 5, y: -5) }
+            }
 
             VStack(alignment: .leading, spacing: 4) {
                 HStack(alignment: .firstTextBaseline) {
@@ -279,7 +436,7 @@ private struct MaintenanceCard: View {
         .accessibilityLabel(accessibilityText(for: record, kind: kind))
     }
 
-    private func accessibilityText(for record: MaintenanceRecord, kind: MaintenanceKind) -> String {
+    private func accessibilityText(for record: SDMaintenanceRecord, kind: MaintenanceKind) -> String {
         var parts: [String] = ["\(kind.label): \(displayTitle(for: record, kind: kind))"]
         parts.append("am \(Formatters.mediumDate(record.date))")
         parts.append("Kilometerstand \(record.odo)")
@@ -289,8 +446,8 @@ private struct MaintenanceCard: View {
         return parts.joined(separator: ", ")
     }
 
-    private func displayTitle(for record: MaintenanceRecord, kind: MaintenanceKind) -> String {
-        if let desc = record.description, !desc.isEmpty { return desc }
+    private func displayTitle(for record: SDMaintenanceRecord, kind: MaintenanceKind) -> String {
+        if let desc = record.recordDescription, !desc.isEmpty { return desc }
         if let summary = record.summary, !summary.isEmpty { return summary }
         return kind.label
     }

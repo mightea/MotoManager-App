@@ -95,8 +95,12 @@ class AuthViewModel: NSObject, ObservableObject {
 
 extension AuthViewModel: ASAuthorizationControllerDelegate {
     func authorizationController(controller: ASAuthorizationController, didCompleteWithAuthorization authorization: ASAuthorization) {
-        guard let challengeId = currentChallengeId else { return }
-        
+        guard let challengeId = currentChallengeId else {
+            // No challenge in flight — reset so the spinner doesn't hang.
+            isLoading = false
+            return
+        }
+
         if let credential = authorization.credential as? ASAuthorizationPlatformPublicKeyCredentialAssertion {
             Task {
                 do {
@@ -120,6 +124,10 @@ extension AuthViewModel: ASAuthorizationControllerDelegate {
                     self.isLoading = false
                 }
             }
+        } else {
+            // Unexpected credential type — don't leave the spinner running forever.
+            errorMessage = "Unerwartete Anmeldeinformationen."
+            isLoading = false
         }
     }
     

@@ -14,7 +14,6 @@ struct MainTabView: View {
 
             if let dVM = detailVM {
                 screenStack(dVM: dVM)
-                    .task { await dVM.loadAllData() }
             } else if fleetVM.isLoading {
                 ProgressView("Loading fleet...")
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -46,17 +45,17 @@ struct MainTabView: View {
                 .presentationBackground(.regularMaterial)
                 .presentationDragIndicator(.visible)
         }
-        .onAppear {
-            if let selected = fleetVM.selectedMotorcycle {
-                self.detailVM = MotorcycleDetailViewModel(motorcycle: selected)
-            }
-        }
-        .onChange(of: fleetVM.selectedMotorcycle?.id) { _, _ in
-            if let selected = fleetVM.selectedMotorcycle {
-                let dVM = MotorcycleDetailViewModel(motorcycle: selected)
-                self.detailVM = dVM
-                Task { await dVM.loadAllData() }
-            }
+        // Single load path keyed on the selected bike: fires on first appearance
+        // and on every selection change, so the detail VM is created and loaded
+        // exactly once per switch (previously onAppear + onChange + an inline
+        // .task all fired, causing duplicate fetch storms).
+        .task(id: fleetVM.selectedMotorcycle?.id) {
+            guard let selected = fleetVM.selectedMotorcycle else { return }
+            let dVM = MotorcycleDetailViewModel(motorcycle: selected)
+            self.detailVM = dVM
+            await dVM.loadAllData()
+            await SyncEngine.shared.sync(motorcycleIds: [selected.id])
+            dVM.reloadLocal()
         }
     }
 
@@ -115,7 +114,7 @@ struct MainTabView: View {
                 }
                 .ignoresSafeArea(edges: .top)
 
-                EmptyFleetView()
+                EmptyFleetView(onAdd: { showingGarage = true })
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
@@ -136,6 +135,9 @@ struct MainTabView: View {
 // MARK: - Empty fleet view
 
 struct EmptyFleetView: View {
+    /// Invoked by the primary CTA; the parent opens the garage sheet.
+    var onAdd: () -> Void = {}
+
     var body: some View {
         VStack(spacing: Theme.Spacing.xl) {
             ZStack {
@@ -161,7 +163,9 @@ struct EmptyFleetView: View {
             }
 
             VStack(spacing: Theme.Spacing.l) {
-                Button(action: {}) {
+                // Open the garage sheet, which hosts the add-motorcycle affordance,
+                // rather than doing nothing.
+                Button(action: onAdd) {
                     HStack {
                         Image(systemName: "plus.circle.fill")
                         Text("Add Your First Motorcycle")

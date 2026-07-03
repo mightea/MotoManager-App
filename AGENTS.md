@@ -69,11 +69,20 @@ Singleton at `MotoManager/Networking/NetworkManager.swift`.
 
 ## Models & Persistence
 
-- All models in `Models/` are Codable structs.
-- **No SwiftData, no CoreData.** Persistence is limited to:
-  - Keychain — JWT token only
-  - UserDefaults — base URL override, last selected motorcycle ID
+- Models in `Models/` are Codable structs used as **API DTOs** (decoded by `NetworkManager`).
+- **SwiftData is the on-device source of truth** for the syncable write entities — see `Persistence/`:
+  - `SDMaintenanceRecord`, `SDTorqueSpec`, `SDIssue` (`@Model`), each with sync metadata: `clientId: UUID` (stable identity + server idempotency key), `serverId: Int?`, `syncState`, `serverUpdatedAt`. `description` is spelled `recordDescription` to avoid the `CustomStringConvertible` clash.
+  - `SyncMapping.swift` converts DTO ⇆ `@Model` and builds the camelCase create/update payloads (always including `clientId`).
+  - `PersistenceController.shared` owns the `ModelContainer`; the VMs and `SyncEngine` share `mainContext`.
+- Motorcycles & documents are **not** in SwiftData yet — still fetched as DTOs and cached via the JSON `CacheStore` (offline reads). Keychain (JWT) and UserDefaults (base URL, last-selected id, sync cursors) are unchanged.
 - `MaintenanceRecord` is polymorphic via a `type` discriminator (`fuel`, `oil`, `tire`, `battery`, `inspection`, …). Maps `type` → `recordType` in `CodingKeys`.
+
+## Offline-first sync
+
+- **Writes are offline-first**: VM methods (`createFuelRecord`, `createIssue`, `createTorque`, `createMaintenance`, plus update/delete) write to SwiftData with a `pending*` `syncState`, then call `SyncEngine.shared.requestSync`. Deletes are tombstones (`pendingDelete`) until the server confirms.
+- `Networking/SyncEngine.swift` does **push (create→update→delete, keyed by `clientId`) then pull (`?since=` per resource)**, reconciling by `clientId` (fallback `serverId`), last-write-wins (local pending wins). `Networking/ConnectivityMonitor.swift` (`NWPathMonitor`) triggers a flush when connectivity returns; `MotoManagerApp` also flushes on foreground.
+- Status is **transparent**: `UI/SyncStatusPill.swift` in the header (offline / syncing / N pending / synced) + `UI/PendingBadge.swift` on unsynced rows.
+- Backend support lives in `MotoManagerApi` migration `011_sync_metadata.sql` (`clientId`/`updatedAt`/`deletedAt` + idempotent creates + soft-delete + `?since`). **Deploy the API before the client relies on it** (the client tolerates missing fields: falls back to `serverId` matching + full fetch).
 
 ## UI / Visual Style
 
