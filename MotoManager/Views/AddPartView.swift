@@ -18,6 +18,15 @@ struct AddPartView: View {
     @State private var savedAnim = false
     @State private var validationError: String?
 
+    // Initial stock (create mode only): a new part always starts with at
+    // least one recorded instance so the inventory never has empty parts.
+    @State private var stockQuantity = 1
+    @State private var stockPrice = ""
+    @State private var stockCurrency = "CHF"
+    @State private var stockPurchaseDate = Date()
+    @State private var stockLocation: SDStorageLocation?
+    @State private var newLocationName = ""
+
     init(viewModel: PartsViewModel, existingPart: SDPart? = nil) {
         self.viewModel = viewModel
         self.existingPart = existingPart
@@ -92,6 +101,10 @@ struct AddPartView: View {
                 .tint(Theme.Colors.primary)
                 .padding(.horizontal, 4)
 
+                if existingPart == nil {
+                    initialStockSection
+                }
+
                 if let validationError {
                     Text(validationError)
                         .font(.system(size: 12, weight: .semibold))
@@ -119,6 +132,64 @@ struct AddPartView: View {
             }
         } message: {
             Text("Bestand und Verbrauch dieses Teils werden ebenfalls entfernt.")
+        }
+    }
+
+    // MARK: - Initial stock (create mode)
+
+    private var initialStockSection: some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.l) {
+            Text("ERSTER BESTAND")
+                .font(.system(size: 11, weight: .heavy)).tracking(2)
+                .foregroundColor(.white.opacity(0.55))
+
+            field("MENGE") {
+                Stepper(value: $stockQuantity, in: 1...999) {
+                    Text("\(stockQuantity) Stück")
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundColor(.white)
+                }
+                .colorScheme(.dark)
+            }
+            HStack(spacing: Theme.Spacing.m) {
+                field("PREIS (GESAMT)") {
+                    TextField("", text: $stockPrice, prompt: Text("0").foregroundColor(.white.opacity(0.3)))
+                        .keyboardType(.decimalPad).foregroundColor(.white)
+                }
+                field("WÄHRUNG") {
+                    TextField("", text: $stockCurrency).foregroundColor(.white)
+                        .textInputAutocapitalization(.characters)
+                }
+            }
+            field("KAUFDATUM") {
+                DatePicker("", selection: $stockPurchaseDate, displayedComponents: .date)
+                    .labelsHidden().colorScheme(.dark).tint(Theme.Colors.primary)
+            }
+            field("LAGERORT") {
+                Menu {
+                    Button("Kein Lagerort") { stockLocation = nil }
+                    ForEach(viewModel.storageLocations, id: \.clientId) { location in
+                        Button(viewModel.locationPath(location) ?? location.name) {
+                            stockLocation = location
+                        }
+                    }
+                } label: {
+                    HStack {
+                        Text(stockLocation.flatMap { viewModel.locationPath($0) } ?? "Kein Lagerort")
+                            .foregroundColor(stockLocation == nil ? .white.opacity(0.35) : .white)
+                            .lineLimit(1)
+                        Spacer()
+                        Image(systemName: "chevron.up.chevron.down")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundColor(.white.opacity(0.5))
+                    }
+                }
+            }
+            field("NEUER LAGERORT (OPTIONAL)") {
+                TextField("", text: $newLocationName,
+                          prompt: Text("z. B. Regal A · Kiste 3").foregroundColor(.white.opacity(0.3)))
+                    .foregroundColor(.white)
+            }
         }
     }
 
@@ -197,10 +268,22 @@ struct AddPartView: View {
                 manufacturer: manufacturer.trimmingCharacters(in: .whitespaces),
                 description: notes, isPublic: isPublic, seriesIds: ids)
         } else {
-            viewModel.createPart(
+            let part = viewModel.createPart(
                 partNumber: trimmedNumber, name: trimmedName,
                 manufacturer: manufacturer.trimmingCharacters(in: .whitespaces),
                 description: notes, isPublic: isPublic, seriesIds: ids)
+
+            // A new part always starts with its first stock entry.
+            var location = stockLocation
+            let trimmedLocationName = newLocationName.trimmingCharacters(in: .whitespaces)
+            if !trimmedLocationName.isEmpty {
+                location = viewModel.createStorageLocation(name: trimmedLocationName, parent: stockLocation)
+            }
+            let priceValue = Double(stockPrice.replacingOccurrences(of: ",", with: "."))
+            viewModel.addStock(
+                part: part, quantity: stockQuantity, price: priceValue,
+                currency: stockCurrency.trimmingCharacters(in: .whitespaces),
+                purchaseDate: stockPurchaseDate, storageLocation: location, notes: nil)
         }
         withAnimation { savedAnim = true }
         Task {
