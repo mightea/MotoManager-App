@@ -295,6 +295,148 @@ class NetworkManager {
         _ = try await performRequest(request)
     }
 
+    // MARK: - Parts inventory (user-scoped, not motorcycle-scoped)
+
+    /// Prefix a server-relative image path ("/images/x.jpg") with the base URL.
+    private func absolutizeImage(_ path: String?) -> String? {
+        guard let path, !path.hasPrefix("http") else { return path }
+        let base = baseURL.hasSuffix("/") ? String(baseURL.dropLast()) : baseURL
+        return base + (path.hasPrefix("/") ? path : "/\(path)")
+    }
+
+    func fetchParts(since: String? = nil) async throws -> [Part] {
+        let wrapper: PartListResponse = try await get(syncPath("/api/parts", since: since))
+        AppLog.debug("Fetched \(wrapper.parts.count) parts")
+        return wrapper.parts.map { part in
+            var p = part
+            p.image = absolutizeImage(p.image)
+            return p
+        }
+    }
+
+    func createPart(payload: [String: Any]) async throws -> Part {
+        let body = try JSONSerialization.data(withJSONObject: payload)
+        let request = try makeRequest(path: "/api/parts", method: "POST", authorized: true, jsonBody: body)
+        let data = try await performRequest(request)
+        return try Self.decode(PartResponse.self, from: data).part
+    }
+
+    func updatePart(partId: Int, payload: [String: Any]) async throws -> Part {
+        let body = try JSONSerialization.data(withJSONObject: payload)
+        let request = try makeRequest(path: "/api/parts/\(partId)", method: "PUT", authorized: true, jsonBody: body)
+        let data = try await performRequest(request)
+        return try Self.decode(PartResponse.self, from: data).part
+    }
+
+    func deletePart(partId: Int) async throws {
+        let request = try makeRequest(path: "/api/parts/\(partId)", method: "DELETE", authorized: true)
+        _ = try await performRequest(request)
+    }
+
+    /// Other users' shared parts (catalog + availability only). Online-only —
+    /// results are not cached.
+    func fetchPublicParts(query: String? = nil, seriesId: Int? = nil) async throws -> [PublicPart] {
+        var items: [String] = []
+        if let query, !query.isEmpty,
+           let encoded = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) {
+            items.append("query=\(encoded)")
+        }
+        if let seriesId { items.append("seriesId=\(seriesId)") }
+        let path = "/api/parts/public" + (items.isEmpty ? "" : "?" + items.joined(separator: "&"))
+        let wrapper: PublicPartListResponse = try await get(path)
+        return wrapper.parts.map { part in
+            var p = part
+            p.image = absolutizeImage(p.image)
+            return p
+        }
+    }
+
+    func fetchPartStocks(since: String? = nil) async throws -> [PartStock] {
+        let wrapper: PartStockListResponse = try await get(syncPath("/api/part-stocks", since: since))
+        return wrapper.partStocks
+    }
+
+    func createPartStock(payload: [String: Any]) async throws -> PartStock {
+        let body = try JSONSerialization.data(withJSONObject: payload)
+        let request = try makeRequest(path: "/api/part-stocks", method: "POST", authorized: true, jsonBody: body)
+        let data = try await performRequest(request)
+        return try Self.decode(PartStockResponse.self, from: data).partStock
+    }
+
+    func updatePartStock(stockId: Int, payload: [String: Any]) async throws -> PartStock {
+        let body = try JSONSerialization.data(withJSONObject: payload)
+        let request = try makeRequest(path: "/api/part-stocks/\(stockId)", method: "PUT", authorized: true, jsonBody: body)
+        let data = try await performRequest(request)
+        return try Self.decode(PartStockResponse.self, from: data).partStock
+    }
+
+    func deletePartStock(stockId: Int) async throws {
+        let request = try makeRequest(path: "/api/part-stocks/\(stockId)", method: "DELETE", authorized: true)
+        _ = try await performRequest(request)
+    }
+
+    func fetchPartConsumptions(since: String? = nil) async throws -> [PartConsumption] {
+        let wrapper: PartConsumptionListResponse = try await get(syncPath("/api/part-consumptions", since: since))
+        return wrapper.partConsumptions
+    }
+
+    func createPartConsumption(payload: [String: Any]) async throws -> PartConsumption {
+        let body = try JSONSerialization.data(withJSONObject: payload)
+        let request = try makeRequest(path: "/api/part-consumptions", method: "POST", authorized: true, jsonBody: body)
+        let data = try await performRequest(request)
+        return try Self.decode(PartConsumptionResponse.self, from: data).partConsumption
+    }
+
+    func updatePartConsumption(consumptionId: Int, payload: [String: Any]) async throws -> PartConsumption {
+        let body = try JSONSerialization.data(withJSONObject: payload)
+        let request = try makeRequest(path: "/api/part-consumptions/\(consumptionId)", method: "PUT", authorized: true, jsonBody: body)
+        let data = try await performRequest(request)
+        return try Self.decode(PartConsumptionResponse.self, from: data).partConsumption
+    }
+
+    func deletePartConsumption(consumptionId: Int) async throws {
+        let request = try makeRequest(path: "/api/part-consumptions/\(consumptionId)", method: "DELETE", authorized: true)
+        _ = try await performRequest(request)
+    }
+
+    func fetchStorageLocations(since: String? = nil) async throws -> [StorageLocation] {
+        let wrapper: StorageLocationListResponse = try await get(syncPath("/api/storage-locations", since: since))
+        return wrapper.storageLocations
+    }
+
+    func createStorageLocation(payload: [String: Any]) async throws -> StorageLocation {
+        let body = try JSONSerialization.data(withJSONObject: payload)
+        let request = try makeRequest(path: "/api/storage-locations", method: "POST", authorized: true, jsonBody: body)
+        let data = try await performRequest(request)
+        return try Self.decode(StorageLocationResponse.self, from: data).storageLocation
+    }
+
+    func updateStorageLocation(locationId: Int, payload: [String: Any]) async throws -> StorageLocation {
+        let body = try JSONSerialization.data(withJSONObject: payload)
+        let request = try makeRequest(path: "/api/storage-locations/\(locationId)", method: "PUT", authorized: true, jsonBody: body)
+        let data = try await performRequest(request)
+        return try Self.decode(StorageLocationResponse.self, from: data).storageLocation
+    }
+
+    func deleteStorageLocation(locationId: Int) async throws {
+        let request = try makeRequest(path: "/api/storage-locations/\(locationId)", method: "DELETE", authorized: true)
+        _ = try await performRequest(request)
+    }
+
+    /// Series lookup, cached like currencies.
+    func fetchModelSeries() async throws -> [ModelSeries] {
+        let wrapper: ModelSeriesListResponse = try await get("/api/model-series")
+        CacheStore.shared.save(wrapper.modelSeries, key: CacheKey.modelSeries)
+        return wrapper.modelSeries
+    }
+
+    func createModelSeries(name: String, manufacturer: String) async throws -> ModelSeries {
+        let body = try JSONSerialization.data(withJSONObject: ["name": name, "manufacturer": manufacturer])
+        let request = try makeRequest(path: "/api/model-series", method: "POST", authorized: true, jsonBody: body)
+        let data = try await performRequest(request)
+        return try Self.decode(ModelSeriesResponse.self, from: data).modelSeries
+    }
+
     // MARK: - Passkey
 
     func fetchPasskeyLoginOptions(username: String?) async throws -> PasskeyOptionsResponse {

@@ -210,8 +210,10 @@ class MotorcycleDetailViewModel: ObservableObject {
         }
     }
 
+    /// Returns the created record so callers can link follow-up entities
+    /// (e.g. part consumptions) to its clientId.
     @discardableResult
-    func createMaintenance(type: String, odo: Int, date: Date, cost: Double, currency: String, description: String?) -> Bool {
+    func createMaintenance(type: String, odo: Int, date: Date, cost: Double, currency: String, description: String?) -> SDMaintenanceRecord {
         let record = SDMaintenanceRecord(
             motorcycleId: motorcycle.id,
             date: Self.isoDay(date),
@@ -224,7 +226,7 @@ class MotorcycleDetailViewModel: ObservableObject {
         record.recordDescription = (description?.isEmpty == false) ? description : nil
         modelContext.insert(record)
         persistAndSync()
-        return true
+        return record
     }
 
     func updateMaintenance(_ record: SDMaintenanceRecord, type: String, odo: Int, date: Date, cost: Double, currency: String, description: String?) {

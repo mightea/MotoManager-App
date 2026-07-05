@@ -8,6 +8,10 @@ enum PersistenceController {
         SDMaintenanceRecord.self,
         SDTorqueSpec.self,
         SDIssue.self,
+        SDPart.self,
+        SDPartStock.self,
+        SDPartConsumption.self,
+        SDStorageLocation.self,
     ])
 
     static let shared: ModelContainer = {

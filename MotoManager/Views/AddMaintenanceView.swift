@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftData
 
 /// Create/edit a non-fuel maintenance record (oil, tire, inspection, …).
 /// Writes optimistically to SwiftData via the view model (offline-first).
@@ -6,6 +7,11 @@ struct AddMaintenanceView: View {
     @ObservedObject var viewModel: MotorcycleDetailViewModel
     let existingRecord: SDMaintenanceRecord?
     @Environment(\.dismiss) private var dismiss
+
+    /// Parts consumed by this repair (partClientId → quantity). Create-only:
+    /// consumptions of an existing record are managed in the Teile tab.
+    @State private var usedParts: [UUID: Int] = [:]
+    @State private var availableParts: [SDPart] = []
 
     /// (value sent to the API, German label).
     static let types: [(value: String, label: String)] = [
@@ -84,12 +90,20 @@ struct AddMaintenanceView: View {
                         .lineLimit(2...5).foregroundColor(.white)
                 }
 
+                if existingRecord == nil {
+                    usedPartsSection
+                }
+
                 saveButton
                 if existingRecord != nil { deleteButton }
             }
             .padding(Theme.Spacing.l)
         }
         .background(Color.clear)
+        .onAppear {
+            availableParts = PartsInventory.availableParts(
+                in: PersistenceController.shared.mainContext)
+        }
         .alert("Eintrag löschen?", isPresented: $confirmingDelete) {
             Button("Abbrechen", role: .cancel) { }
             Button("Löschen", role: .destructive) {
@@ -128,6 +142,89 @@ struct AddMaintenanceView: View {
         }
     }
 
+    // MARK: - Verwendete Teile (consumption from the parts inventory)
+
+    @ViewBuilder
+    private var usedPartsSection: some View {
+        if !availableParts.isEmpty {
+            field("VERWENDETE TEILE") {
+                VStack(alignment: .leading, spacing: 10) {
+                    ForEach(selectedParts, id: \.clientId) { part in
+                        usedPartRow(part)
+                    }
+                    addPartMenu
+                }
+            }
+        }
+    }
+
+    private var selectedParts: [SDPart] {
+        availableParts.filter { usedParts[$0.clientId] != nil }
+    }
+
+    private var unselectedParts: [SDPart] {
+        availableParts.filter { usedParts[$0.clientId] == nil }
+    }
+
+    private func usedPartRow(_ part: SDPart) -> some View {
+        let context = PersistenceController.shared.mainContext
+        let maxQuantity = PartsInventory.onHand(for: part.clientId, in: context)
+        let quantity = usedParts[part.clientId] ?? 1
+        return HStack(spacing: 10) {
+            VStack(alignment: .leading, spacing: 1) {
+                Text(part.name)
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundColor(.white)
+                    .lineLimit(1)
+                Text("\(part.partNumber) · \(maxQuantity) auf Lager")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundColor(.white.opacity(0.5))
+            }
+            Spacer(minLength: 0)
+            Stepper(
+                value: Binding(
+                    get: { usedParts[part.clientId] ?? 1 },
+                    set: { usedParts[part.clientId] = $0 }
+                ),
+                in: 1...max(1, maxQuantity)
+            ) {
+                Text("\(quantity)×")
+                    .font(.system(size: 13, weight: .heavy))
+                    .monospacedDigit()
+                    .foregroundColor(Theme.Colors.primary)
+            }
+            .colorScheme(.dark)
+            .fixedSize()
+            Button {
+                usedParts.removeValue(forKey: part.clientId)
+            } label: {
+                Image(systemName: "xmark.circle.fill")
+                    .foregroundColor(.white.opacity(0.35))
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var addPartMenu: some View {
+        if !unselectedParts.isEmpty {
+            Menu {
+                ForEach(unselectedParts, id: \.clientId) { part in
+                    Button("\(part.name) (\(part.partNumber))") {
+                        usedParts[part.clientId] = 1
+                    }
+                }
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "plus.circle.fill")
+                        .font(.system(size: 14))
+                    Text("Teil hinzufügen")
+                        .font(.system(size: 13, weight: .bold))
+                }
+                .foregroundColor(Theme.Colors.primary)
+            }
+        }
+    }
+
     private var saveButton: some View {
         Button(action: save) {
             Text(savedAnim ? "Gespeichert ✓" : "Speichern").frame(maxWidth: .infinity)
@@ -148,12 +245,33 @@ struct AddMaintenanceView: View {
         if let r = existingRecord {
             viewModel.updateMaintenance(r, type: type, odo: odoValue, date: date, cost: costValue, currency: currency, description: notes)
         } else {
-            viewModel.createMaintenance(type: type, odo: odoValue, date: date, cost: costValue, currency: currency, description: notes)
+            let record = viewModel.createMaintenance(type: type, odo: odoValue, date: date, cost: costValue, currency: currency, description: notes)
+            recordUsedParts(for: record)
         }
         withAnimation { savedAnim = true }
         Task {
             try? await Task.sleep(nanoseconds: 400_000_000)
             dismiss()
         }
+    }
+
+    /// Book the selected parts against the freshly created repair. Linked via
+    /// the record's clientId so the SyncEngine can resolve the server id at
+    /// push time (maintenance pushes before consumptions).
+    private func recordUsedParts(for record: SDMaintenanceRecord) {
+        guard !usedParts.isEmpty else { return }
+        let context = PersistenceController.shared.mainContext
+        for part in selectedParts {
+            guard let quantity = usedParts[part.clientId] else { continue }
+            PartsInventory.recordConsumption(
+                part: part,
+                quantity: quantity,
+                date: record.date,
+                maintenanceClientId: record.clientId,
+                maintenanceServerId: record.serverId,
+                in: context
+            )
+        }
+        try? context.save()
     }
 }

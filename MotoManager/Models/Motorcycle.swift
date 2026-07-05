@@ -21,16 +21,19 @@ struct Motorcycle: Codable, Identifiable {
     let normalizedPurchasePrice: Double?
     let currencyCode: String?
     let fuelTankSize: Double?
-    
+    /// Model-series link for derived part compatibility (optional so old
+    /// cached blobs without the field still decode).
+    let seriesId: Int?
+
     // Stats if using MotorcycleWithStats
     let openIssues: Int?
     let maintenanceCount: Int?
     let latestOdo: Int?
-    
+
     enum CodingKeys: String, CodingKey {
         case id, make, model
         case modelYear = "fabricationDate"
-        case userId, vin, engineNumber, vehicleNr, numberPlate, image, isVeteran, isArchived, firstRegistration, initialOdo, manualOdo, purchaseDate, purchasePrice, normalizedPurchasePrice, currencyCode, fuelTankSize
+        case userId, vin, engineNumber, vehicleNr, numberPlate, image, isVeteran, isArchived, firstRegistration, initialOdo, manualOdo, purchaseDate, purchasePrice, normalizedPurchasePrice, currencyCode, fuelTankSize, seriesId
         case openIssues, maintenanceCount, latestOdo
     }
     
@@ -55,6 +58,7 @@ struct Motorcycle: Codable, Identifiable {
         normalizedPurchasePrice: 18000,
         currencyCode: "EUR",
         fuelTankSize: 20.0,
+        seriesId: nil,
         openIssues: 1,
         maintenanceCount: 5,
         latestOdo: 12500

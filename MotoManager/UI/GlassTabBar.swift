@@ -4,6 +4,7 @@ enum AppTab: String, CaseIterable, Identifiable {
     case fuel
     case workshop
     case service
+    case parts
 
     var id: String { rawValue }
 
@@ -12,6 +13,7 @@ enum AppTab: String, CaseIterable, Identifiable {
         case .fuel: return "Tanken"
         case .workshop: return "Werkstatt"
         case .service: return "Service"
+        case .parts: return "Teile"
         }
     }
 
@@ -20,13 +22,14 @@ enum AppTab: String, CaseIterable, Identifiable {
         case .fuel: return "fuelpump.fill"
         case .workshop: return "wrench.adjustable.fill"
         case .service: return "exclamationmark.triangle.fill"
+        case .parts: return "shippingbox.fill"
         }
     }
 }
 
-/// Floating glass pill at the bottom of the screen with three tabs.
-/// Active tab is rendered as a solid primary-coloured inner pill;
-/// inactive tabs blend with the glass surface.
+/// Floating glass pill at the bottom of the screen with the app tabs.
+/// Active tab is rendered as a solid primary-coloured inner pill with its
+/// label; inactive tabs show icon-only so four tabs fit on narrow devices.
 struct GlassTabBar: View {
     @Binding var selection: AppTab
 
@@ -56,9 +59,12 @@ struct GlassTabBar: View {
             HStack(spacing: 6) {
                 Image(systemName: tab.systemImage)
                     .font(.system(size: 15, weight: .semibold))
-                Text(tab.label)
-                    .font(.system(size: 13, weight: .semibold))
-                    .lineLimit(1)
+                if active {
+                    Text(tab.label)
+                        .font(.system(size: 13, weight: .semibold))
+                        .lineLimit(1)
+                        .fixedSize()
+                }
             }
             .foregroundStyle(active ? Color.white : Color.white.opacity(0.75))
             .frame(maxWidth: .infinity)

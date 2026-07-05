@@ -49,6 +49,7 @@ enum CacheKey {
     static let motorcycles = "motorcycles"
     static let documents = "documents"
     static let currencies = "currencies"
+    static let modelSeries = "modelSeries"
 
     static func maintenance(motorcycleId: Int) -> String { "maintenance_\(motorcycleId)" }
     static func torque(motorcycleId: Int) -> String { "torque_\(motorcycleId)" }

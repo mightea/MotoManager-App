@@ -1,0 +1,284 @@
+import Foundation
+import Combine
+import SwiftData
+
+/// Drives the "Teile" tab: the user-scoped parts inventory (SwiftData,
+/// offline-first) plus the online-only public browse and the cached series
+/// lookup. Mirrors MotorcycleDetailViewModel's write pattern: mutate SwiftData
+/// with a pending state, then persistAndSync().
+@MainActor
+class PartsViewModel: ObservableObject {
+    private let modelContext = PersistenceController.shared.mainContext
+
+    @Published var parts: [SDPart] = []
+    @Published var storageLocations: [SDStorageLocation] = []
+    @Published var series: [ModelSeries] = []
+
+    @Published var publicParts: [PublicPart] = []
+    @Published var isLoadingPublic = false
+    @Published var publicError: String?
+
+    // MARK: - Local reads
+
+    func reloadLocal() {
+        let allParts = (try? modelContext.fetch(FetchDescriptor<SDPart>(
+            sortBy: [SortDescriptor(\.name)]
+        ))) ?? []
+        parts = allParts.filter { $0.syncState != .pendingDelete }
+
+        let allLocations = (try? modelContext.fetch(FetchDescriptor<SDStorageLocation>(
+            sortBy: [SortDescriptor(\.name)]
+        ))) ?? []
+        storageLocations = allLocations.filter { $0.syncState != .pendingDelete }
+    }
+
+    func onHand(for part: SDPart) -> Int {
+        PartsInventory.onHand(for: part.clientId, in: modelContext)
+    }
+
+    func stocks(for part: SDPart) -> [SDPartStock] {
+        PartsInventory.stocks(for: part.clientId, in: modelContext)
+    }
+
+    func consumptions(for part: SDPart) -> [SDPartConsumption] {
+        PartsInventory.consumptions(for: part.clientId, in: modelContext)
+    }
+
+    func storageLocation(clientId: UUID?) -> SDStorageLocation? {
+        guard let clientId else { return nil }
+        return storageLocations.first { $0.clientId == clientId }
+    }
+
+    /// "Garage › Regal A › Kiste 3" for a leaf location (depth-capped).
+    func locationPath(_ location: SDStorageLocation?) -> String? {
+        guard let location else { return nil }
+        var names = [location.name]
+        var current = location
+        for _ in 0..<10 {
+            guard let parentId = current.parentClientId,
+                  let parent = storageLocations.first(where: { $0.clientId == parentId })
+            else { break }
+            names.insert(parent.name, at: 0)
+            current = parent
+        }
+        return names.joined(separator: " › ")
+    }
+
+    func seriesName(_ id: Int) -> String {
+        series.first(where: { $0.id == id })?.displayName ?? "Baureihe \(id)"
+    }
+
+    /// The repair a consumption is linked to, if it exists locally.
+    func maintenanceRecord(for consumption: SDPartConsumption) -> SDMaintenanceRecord? {
+        let all = (try? modelContext.fetch(FetchDescriptor<SDMaintenanceRecord>())) ?? []
+        if let mcid = consumption.maintenanceClientId {
+            return all.first { $0.clientId == mcid }
+        }
+        if let msid = consumption.maintenanceServerId {
+            return all.first { $0.serverId == msid }
+        }
+        return nil
+    }
+
+    // MARK: - Lookups & public browse (network)
+
+    /// Cache-first series load; refreshes from the network when online.
+    func loadSeries() async {
+        if series.isEmpty,
+           let cached = CacheStore.shared.load([ModelSeries].self, key: CacheKey.modelSeries) {
+            series = cached
+        }
+        if let fresh = try? await NetworkManager.shared.fetchModelSeries() {
+            series = fresh
+        }
+    }
+
+    /// Create a custom series entry (requires connectivity — the lookup is not
+    /// offline-writable by design).
+    func createSeries(name: String, manufacturer: String) async -> ModelSeries? {
+        guard let created = try? await NetworkManager.shared.createModelSeries(
+            name: name, manufacturer: manufacturer) else { return nil }
+        await loadSeries()
+        return created
+    }
+
+    func loadPublicParts(query: String? = nil, seriesId: Int? = nil) async {
+        isLoadingPublic = true
+        publicError = nil
+        do {
+            publicParts = try await NetworkManager.shared.fetchPublicParts(query: query, seriesId: seriesId)
+        } catch {
+            publicError = error.localizedDescription
+        }
+        isLoadingPublic = false
+    }
+
+    // MARK: - Part writes (offline-first via SwiftData + SyncEngine)
+
+    @discardableResult
+    func createPart(
+        partNumber: String, name: String, manufacturer: String,
+        description: String?, isPublic: Bool, seriesIds: [Int]
+    ) -> SDPart {
+        let part = SDPart(
+            partNumber: partNumber,
+            name: name,
+            manufacturer: manufacturer.isEmpty ? "BMW" : manufacturer,
+            partDescription: (description?.isEmpty == false) ? description : nil,
+            isPublic: isPublic,
+            seriesIds: seriesIds,
+            syncState: .pendingCreate
+        )
+        modelContext.insert(part)
+        persistAndSync()
+        return part
+    }
+
+    func updatePart(
+        _ part: SDPart,
+        partNumber: String, name: String, manufacturer: String,
+        description: String?, isPublic: Bool, seriesIds: [Int]
+    ) {
+        part.partNumber = partNumber
+        part.name = name
+        part.manufacturer = manufacturer.isEmpty ? "BMW" : manufacturer
+        part.partDescription = (description?.isEmpty == false) ? description : nil
+        part.isPublic = isPublic
+        part.seriesIds = seriesIds
+        if part.syncState != .pendingCreate { part.syncState = .pendingUpdate }
+        part.updatedAtLocal = Date()
+        persistAndSync()
+    }
+
+    func deletePart(_ part: SDPart) {
+        // The server soft-cascades a part delete onto its stocks and
+        // consumptions, so those must NOT push their own deletes (they would
+        // 404 against already-tombstoned rows). Remove them locally only.
+        for stock in PartsInventory.stocks(for: part.clientId, in: modelContext) {
+            modelContext.delete(stock)
+        }
+        for consumption in PartsInventory.consumptions(for: part.clientId, in: modelContext) {
+            modelContext.delete(consumption)
+        }
+        if part.serverId == nil {
+            modelContext.delete(part)
+        } else {
+            part.syncState = .pendingDelete
+            part.updatedAtLocal = Date()
+        }
+        persistAndSync()
+    }
+
+    // MARK: - Stock writes
+
+    @discardableResult
+    func addStock(
+        part: SDPart, quantity: Int, price: Double?, currency: String?,
+        purchaseDate: Date, storageLocation: SDStorageLocation?, notes: String?
+    ) -> SDPartStock {
+        let stock = SDPartStock(
+            partClientId: part.clientId,
+            partServerId: part.serverId,
+            quantity: max(1, quantity),
+            syncState: .pendingCreate
+        )
+        stock.price = price
+        stock.currency = price != nil ? currency : nil
+        stock.purchaseDate = Self.isoDay(purchaseDate)
+        stock.storageLocationClientId = storageLocation?.clientId
+        stock.storageLocationServerId = storageLocation?.serverId
+        stock.notes = (notes?.isEmpty == false) ? notes : nil
+        modelContext.insert(stock)
+        persistAndSync()
+        return stock
+    }
+
+    func updateStock(
+        _ stock: SDPartStock, quantity: Int, price: Double?, currency: String?,
+        purchaseDate: Date, storageLocation: SDStorageLocation?, notes: String?
+    ) {
+        stock.quantity = max(1, quantity)
+        stock.price = price
+        stock.currency = price != nil ? currency : nil
+        stock.purchaseDate = Self.isoDay(purchaseDate)
+        stock.storageLocationClientId = storageLocation?.clientId
+        stock.storageLocationServerId = storageLocation?.serverId
+        stock.notes = (notes?.isEmpty == false) ? notes : nil
+        if stock.syncState != .pendingCreate { stock.syncState = .pendingUpdate }
+        stock.updatedAtLocal = Date()
+        persistAndSync()
+    }
+
+    func deleteStock(_ stock: SDPartStock) {
+        if stock.serverId == nil {
+            modelContext.delete(stock)
+        } else {
+            stock.syncState = .pendingDelete
+            stock.updatedAtLocal = Date()
+        }
+        persistAndSync()
+    }
+
+    // MARK: - Consumption writes
+
+    /// Manual consumption ("Verbrauch erfassen"), validated against on-hand.
+    /// Returns false when there is not enough stock.
+    @discardableResult
+    func addConsumption(part: SDPart, quantity: Int, date: Date, notes: String?) -> Bool {
+        let created = PartsInventory.recordConsumption(
+            part: part, quantity: quantity, date: Self.isoDay(date),
+            notes: notes, in: modelContext)
+        guard created != nil else { return false }
+        persistAndSync()
+        return true
+    }
+
+    func deleteConsumption(_ consumption: SDPartConsumption) {
+        if consumption.serverId == nil {
+            modelContext.delete(consumption)
+        } else {
+            consumption.syncState = .pendingDelete
+            consumption.updatedAtLocal = Date()
+        }
+        persistAndSync()
+    }
+
+    // MARK: - Storage location writes
+
+    @discardableResult
+    func createStorageLocation(name: String, parent: SDStorageLocation?) -> SDStorageLocation {
+        let location = SDStorageLocation(
+            name: name,
+            parentClientId: parent?.clientId,
+            parentServerId: parent?.serverId,
+            syncState: .pendingCreate
+        )
+        modelContext.insert(location)
+        persistAndSync()
+        return location
+    }
+
+    func deleteStorageLocation(_ location: SDStorageLocation) {
+        if location.serverId == nil {
+            modelContext.delete(location)
+        } else {
+            location.syncState = .pendingDelete
+            location.updatedAtLocal = Date()
+        }
+        persistAndSync()
+    }
+
+    // MARK: - Plumbing
+
+    private func persistAndSync() {
+        try? modelContext.save()
+        reloadLocal()
+        SyncEngine.shared.requestSync(motorcycleIds: [])
+    }
+
+    private static func isoDay(_ date: Date) -> String {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withFullDate]
+        return formatter.string(from: date)
+    }
+}

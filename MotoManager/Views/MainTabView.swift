@@ -4,6 +4,7 @@ struct MainTabView: View {
     @EnvironmentObject var authVM: AuthViewModel
     @EnvironmentObject var fleetVM: MotorcycleViewModel
     @State private var detailVM: MotorcycleDetailViewModel?
+    @StateObject private var partsVM = PartsViewModel()
     @State private var activeTab: AppTab = .fuel
     @State private var showingGarage = false
     @State private var showingSettings = false
@@ -86,6 +87,8 @@ struct MainTabView: View {
             WorkshopView(viewModel: dVM)
         case .service:
             MaintenanceLogsView(viewModel: dVM)
+        case .parts:
+            PartsView(viewModel: partsVM, motorcycle: dVM.motorcycle)
         }
     }
 
