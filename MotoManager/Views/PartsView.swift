@@ -128,7 +128,12 @@ struct PartsView: View {
     private var filteredParts: [SDPart] {
         var result = viewModel.parts
         if filterBySelectedBike, let seriesId = motorcycle?.seriesId {
-            result = result.filter { $0.seriesIds.contains(seriesId) }
+            // Hierarchy-aware: a part linked to the bike's Familie/Serie/Modell
+            // chain (in either direction) counts as passend.
+            result = result.filter {
+                ModelSeriesCatalog.matches(
+                    partSeriesIds: $0.seriesIds, bikeSeriesId: seriesId, in: viewModel.series)
+            }
         }
         let query = searchText.trimmingCharacters(in: .whitespaces).lowercased()
         if !query.isEmpty {

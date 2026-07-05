@@ -38,10 +38,52 @@ struct PartDecodingTests {
     }
 
     @Test func modelSeriesDisplayNamePrefixesNonBMWManufacturer() throws {
-        let bmw = ModelSeries(id: 1, name: "R 1150 GS", manufacturer: "BMW", userId: nil, createdAt: "")
-        let other = ModelSeries(id: 2, name: "XSR 700", manufacturer: "Yamaha", userId: 3, createdAt: "")
+        let bmw = ModelSeries(id: 1, name: "R 1150 GS", manufacturer: "BMW", parentId: nil, userId: nil, createdAt: "")
+        let other = ModelSeries(id: 2, name: "XSR 700", manufacturer: "Yamaha", parentId: nil, userId: 3, createdAt: "")
         #expect(bmw.displayName == "R 1150 GS")
         #expect(other.displayName == "Yamaha XSR 700")
+    }
+}
+
+// MARK: - Model catalog hierarchy
+
+struct ModelSeriesCatalogTests {
+    private func node(_ id: Int, _ name: String, _ parentId: Int?) -> ModelSeries {
+        ModelSeries(id: id, name: name, manufacturer: "BMW", parentId: parentId, userId: nil, createdAt: "")
+    }
+
+    // Familie(1) -> Serie(2) -> Modell(3); Familie(1) -> Serie(4); Familie(5)
+    private var catalog: [ModelSeries] {
+        [
+            node(1, "R-Modelle 2V", nil),
+            node(2, "R 80 GS, R 100 GS, PD (90-95)", 1),
+            node(3, "R 100 GS (ECE, 04/1990-07/1996)", 2),
+            node(4, "R 100 RS, R 100 RT (87-95)", 1),
+            node(5, "K-Modelle 3-Zyl.", nil),
+        ]
+    }
+
+    @Test func depthAndPath() {
+        #expect(ModelSeriesCatalog.depth(of: catalog[0], in: catalog) == 0)
+        #expect(ModelSeriesCatalog.depth(of: catalog[2], in: catalog) == 2)
+        #expect(ModelSeriesCatalog.path(of: catalog[2], in: catalog)
+            == "R-Modelle 2V › R 80 GS, R 100 GS, PD (90-95) › R 100 GS (ECE, 04/1990-07/1996)")
+    }
+
+    @Test func treeOrdersChildrenUnderParents() {
+        let flattened = ModelSeriesCatalog.tree(catalog).map { "\($0.depth):\($0.node.id)" }
+        // Siblings sort lexically: "K-Modelle…" < "R-Modelle…", "R 100…" < "R 80…".
+        #expect(flattened == ["0:5", "0:1", "1:4", "1:2", "2:3"])
+    }
+
+    @Test func hierarchyAwareMatching() {
+        // Bike on the Serie level: Familie link and Modell link fit, siblings don't.
+        #expect(ModelSeriesCatalog.matches(partSeriesIds: [1], bikeSeriesId: 2, in: catalog))
+        #expect(ModelSeriesCatalog.matches(partSeriesIds: [3], bikeSeriesId: 2, in: catalog))
+        #expect(!ModelSeriesCatalog.matches(partSeriesIds: [4], bikeSeriesId: 2, in: catalog))
+        #expect(!ModelSeriesCatalog.matches(partSeriesIds: [5], bikeSeriesId: 2, in: catalog))
+        // Bike on the Familie level matches everything below.
+        #expect(ModelSeriesCatalog.matches(partSeriesIds: [3], bikeSeriesId: 1, in: catalog))
     }
 }
 

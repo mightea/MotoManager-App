@@ -309,10 +309,20 @@ struct SeriesPickerView: View {
     @State private var creating = false
     @State private var createError: String?
 
-    private var filtered: [ModelSeries] {
+    /// Tree-ordered entries; the search matches the full Familie › Serie ›
+    /// Modell path so "GS" finds nodes on every level.
+    private var filtered: [(node: ModelSeries, depth: Int)] {
+        let entries = ModelSeriesCatalog.tree(viewModel.series)
         let query = searchText.trimmingCharacters(in: .whitespaces).lowercased()
-        guard !query.isEmpty else { return viewModel.series }
-        return viewModel.series.filter { $0.displayName.lowercased().contains(query) }
+        guard !query.isEmpty else { return entries }
+        return entries.filter {
+            ModelSeriesCatalog.path(of: $0.node, in: viewModel.series)
+                .lowercased().contains(query)
+        }
+    }
+
+    private var isSearching: Bool {
+        !searchText.trimmingCharacters(in: .whitespaces).isEmpty
     }
 
     var body: some View {
@@ -344,8 +354,8 @@ struct SeriesPickerView: View {
 
             ScrollView {
                 LazyVStack(spacing: 4) {
-                    ForEach(filtered) { series in
-                        seriesRow(series)
+                    ForEach(filtered, id: \.node.id) { entry in
+                        seriesRow(entry.node, depth: isSearching ? 0 : entry.depth)
                     }
                     createSection
                 }
@@ -356,28 +366,34 @@ struct SeriesPickerView: View {
         .task { await viewModel.loadSeries() }
     }
 
-    private func seriesRow(_ series: ModelSeries) -> some View {
+    private func seriesRow(_ series: ModelSeries, depth: Int) -> some View {
         let isSelected = selection.contains(series.id)
         return Button {
             if isSelected { selection.remove(series.id) } else { selection.insert(series.id) }
         } label: {
             HStack {
                 VStack(alignment: .leading, spacing: 1) {
-                    Text(series.displayName)
-                        .font(.system(size: 14, weight: .semibold))
+                    Text(isSearching
+                         ? ModelSeriesCatalog.path(of: series, in: viewModel.series)
+                         : series.displayName)
+                        .font(.system(size: 14, weight: depth == 0 ? .bold : .semibold))
                         .foregroundColor(.white)
-                    if series.userId != nil {
-                        Text("Eigene Baureihe")
-                            .font(.system(size: 10, weight: .semibold))
-                            .foregroundColor(.white.opacity(0.4))
-                    }
+                        .lineLimit(2)
+                        .multilineTextAlignment(.leading)
+                    Text(ModelSeriesCatalog.levelLabel(
+                            forDepth: ModelSeriesCatalog.depth(of: series, in: viewModel.series))
+                         + (series.userId != nil ? " · Eigene" : ""))
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundColor(.white.opacity(0.4))
                 }
                 Spacer()
                 Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
                     .font(.system(size: 18))
                     .foregroundColor(isSelected ? Theme.Colors.primary : .white.opacity(0.25))
             }
-            .padding(.horizontal, 14).padding(.vertical, 10)
+            .padding(.vertical, 10)
+            .padding(.trailing, 14)
+            .padding(.leading, 14 + CGFloat(depth) * 18)
             .background(
                 RoundedRectangle(cornerRadius: Theme.Glass.fieldRadius)
                     .fill(isSelected ? Theme.Colors.primary.opacity(0.12) : Color.white.opacity(0.04))

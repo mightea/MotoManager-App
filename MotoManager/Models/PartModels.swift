@@ -68,18 +68,113 @@ struct StorageLocation: Codable, Identifiable {
     let deletedAt: String?
 }
 
-/// Series lookup (global seed rows have `userId == nil`; custom entries carry
-/// the creator's id). Fetched and cached like `Currency`.
+/// Model-catalog node, hierarchical (realoem-style): Familie -> Serie ->
+/// Modell, max depth 3. Global seed rows have `userId == nil`; custom entries
+/// carry the creator's id. Fetched and cached like `Currency`.
 struct ModelSeries: Codable, Identifiable, Hashable {
     let id: Int
     let name: String
     let manufacturer: String
+    let parentId: Int?
     let userId: Int?
     let createdAt: String
 
     /// "R 1150 GS" for BMW (the common case), "Yamaha XSR 700" otherwise.
     var displayName: String {
         manufacturer == "BMW" ? name : "\(manufacturer) \(name)"
+    }
+}
+
+/// Tree helpers for the model catalog. All walks are depth-capped so
+/// malformed data can never hang the UI.
+enum ModelSeriesCatalog {
+    static let maxWalk = 6
+    static let levelLabels = ["Familie", "Serie", "Modell"]
+
+    static func depth(of node: ModelSeries, in all: [ModelSeries]) -> Int {
+        var depth = 0
+        var current = node
+        for _ in 0..<maxWalk {
+            guard let parent = all.first(where: { $0.id == current.parentId }) else { break }
+            depth += 1
+            current = parent
+        }
+        return depth
+    }
+
+    static func levelLabel(forDepth depth: Int) -> String {
+        levelLabels[min(depth, levelLabels.count - 1)]
+    }
+
+    /// "R-Modelle 2V › R 80 GS, R 100 GS, PD (90-95)"
+    static func path(of node: ModelSeries, in all: [ModelSeries]) -> String {
+        var names = [node.displayName]
+        var current = node
+        for _ in 0..<maxWalk {
+            guard let parent = all.first(where: { $0.id == current.parentId }) else { break }
+            names.insert(parent.displayName, at: 0)
+            current = parent
+        }
+        return names.joined(separator: " › ")
+    }
+
+    /// Depth-first flattening: children grouped under parents, siblings
+    /// sorted by name; orphans surface at root level.
+    static func tree(_ all: [ModelSeries]) -> [(node: ModelSeries, depth: Int)] {
+        let knownIds = Set(all.map(\.id))
+        var childrenOf: [Int?: [ModelSeries]] = [:]
+        for node in all {
+            let key = node.parentId.flatMap { knownIds.contains($0) ? $0 : nil }
+            childrenOf[key, default: []].append(node)
+        }
+        for key in childrenOf.keys {
+            childrenOf[key]?.sort {
+                ($0.manufacturer, $0.name) < ($1.manufacturer, $1.name)
+            }
+        }
+        var result: [(node: ModelSeries, depth: Int)] = []
+        func visit(_ parentId: Int?, _ depth: Int) {
+            guard depth < maxWalk else { return }
+            for node in childrenOf[parentId] ?? [] {
+                result.append((node, depth))
+                visit(node.id, depth + 1)
+            }
+        }
+        visit(nil, 0)
+        return result
+    }
+
+    /// Ancestors-or-self plus all descendants — the node set a link to
+    /// `seriesId` is compatible with. Mirrors the backend's matching.
+    static func compatibleIds(of seriesId: Int, in all: [ModelSeries]) -> Set<Int> {
+        var matches: Set<Int> = [seriesId]
+        var current = all.first(where: { $0.id == seriesId })
+        for _ in 0..<maxWalk {
+            guard let parentId = current?.parentId else { break }
+            matches.insert(parentId)
+            current = all.first(where: { $0.id == parentId })
+        }
+        var frontier: Set<Int> = [seriesId]
+        for _ in 0..<maxWalk {
+            let next = Set(
+                all.filter { node in
+                    guard let parentId = node.parentId else { return false }
+                    return frontier.contains(parentId) && !matches.contains(node.id)
+                }
+                .map(\.id)
+            )
+            if next.isEmpty { break }
+            matches.formUnion(next)
+            frontier = next
+        }
+        return matches
+    }
+
+    /// Does a part (linked to `partSeriesIds`) fit a bike assigned to
+    /// `bikeSeriesId`? Hierarchy-aware in both directions.
+    static func matches(partSeriesIds: [Int], bikeSeriesId: Int, in all: [ModelSeries]) -> Bool {
+        let compatible = compatibleIds(of: bikeSeriesId, in: all)
+        return partSeriesIds.contains(where: compatible.contains)
     }
 }
 
