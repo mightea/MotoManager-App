@@ -12,5 +12,9 @@
 		<string>_printer._tcp</string>
 		<string>_ipp._tcp</string>
 	</array>
+	<!-- Only standard HTTPS is used — exempt from export-compliance review,
+	     so TestFlight builds skip the manual encryption question. -->
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 </dict>
 </plist>
