@@ -6,6 +6,10 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		F6B701032F90200000000003 /* BRLMPrinterKit in Frameworks */ = {isa = PBXBuildFile; productRef = F6B701022F90200000000002 /* BRLMPrinterKit */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		F643E1BF2F901D41007719D8 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -52,6 +56,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				F6B701032F90200000000003 /* BRLMPrinterKit in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -112,6 +117,7 @@
 			);
 			name = MotoManager;
 			packageProductDependencies = (
+				F6B701022F90200000000002 /* BRLMPrinterKit */,
 			);
 			productName = MotoManager;
 			productReference = F643E1AF2F901D3F007719D8 /* MotoManager.app */;
@@ -195,6 +201,9 @@
 			);
 			mainGroup = F643E1A62F901D3F007719D8;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				F6B701012F90200000000001 /* XCRemoteSwiftPackageReference "BRLMPrinterKit" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = F643E1B02F901D3F007719D8 /* Products */;
 			projectDirPath = "";
@@ -398,6 +407,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Supporting/Info.plist;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -430,6 +440,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Supporting/Info.plist;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -572,6 +583,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		F6B701012F90200000000001 /* XCRemoteSwiftPackageReference "BRLMPrinterKit" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/envoy/BRLMPrinterKit";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 4.13.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		F6B701022F90200000000002 /* BRLMPrinterKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = F6B701012F90200000000001 /* XCRemoteSwiftPackageReference "BRLMPrinterKit" */;
+			productName = BRLMPrinterKit;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = F643E1A72F901D3F007719D8 /* Project object */;
 }

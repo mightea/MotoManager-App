@@ -1,0 +1,15 @@
+{
+  "originHash" : "bc85d3347fc64c2b1f529cedeadf9d7f2b0edc1730cea3fe5d024aca75aedc27",
+  "pins" : [
+    {
+      "identity" : "brlmprinterkit",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/envoy/BRLMPrinterKit",
+      "state" : {
+        "revision" : "a677f6ceb58f45cfb7b6b6b0d639470607d32737",
+        "version" : "4.13.0"
+      }
+    }
+  ],
+  "version" : 3
+}

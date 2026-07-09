@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Brother label printer (PT-E550W) discovery & printing over Wi-Fi.
+	     Merged with the generated Info.plist (GENERATE_INFOPLIST_FILE stays YES). -->
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>MotoManager nutzt das lokale Netzwerk, um deinen Brother-Etikettendrucker zu finden und Etiketten zu drucken.</string>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_pdl-datastream._tcp</string>
+		<string>_printer._tcp</string>
+		<string>_ipp._tcp</string>
+	</array>
+</dict>
+</plist>
