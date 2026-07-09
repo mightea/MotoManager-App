@@ -353,13 +353,16 @@ private struct PublicPartCard: View {
             }
             Spacer(minLength: 0)
 
-            Text(part.hasStock ? "Auf Lager" : "Nicht auf Lager")
+            // Availability is only shared for public parts; private ones show
+            // catalog data with a neutral badge.
+            let availability = part.hasStock
+            Text(availability == nil ? "Bestand privat" : (availability == true ? "Auf Lager" : "Nicht auf Lager"))
                 .font(.system(size: 10, weight: .heavy))
-                .foregroundColor(part.hasStock ? .white : .white.opacity(0.5))
+                .foregroundColor(availability == true ? .white : .white.opacity(0.5))
                 .padding(.horizontal, 9)
                 .padding(.vertical, 5)
                 .background(
-                    Capsule().fill(part.hasStock ? Theme.Colors.primary : Color.white.opacity(0.10))
+                    Capsule().fill(availability == true ? Theme.Colors.primary : Color.white.opacity(0.10))
                 )
         }
         .padding(14)
