@@ -12,10 +12,19 @@ struct PartDetailView: View {
     @State private var showingAddStock = false
     @State private var editingStock: SDPartStock?
     @State private var showingAddConsumption = false
+    @State private var showingPrintLabel = false
+    @State private var printingLocation: SDStorageLocation?
 
     private var onHand: Int { viewModel.onHand(for: part) }
     private var stocks: [SDPartStock] { viewModel.stocks(for: part) }
     private var consumptions: [SDPartConsumption] { viewModel.consumptions(for: part) }
+
+    /// Purchase value across all stock entries (normalized to CHF where the
+    /// server provided it). Entries keep their price after consumption, so
+    /// this is what was spent on the part — "Einkaufswert", not a live value.
+    private var totalStockValue: Double {
+        stocks.reduce(0) { $0 + ($1.normalizedPrice ?? $1.price ?? 0) }
+    }
 
     var body: some View {
         ScrollView {
@@ -57,6 +66,61 @@ struct PartDetailView: View {
                 .presentationBackground(.regularMaterial)
                 .presentationDragIndicator(.visible)
         }
+        .sheet(isPresented: $showingPrintLabel) {
+            if let content = partLabelContent {
+                PrintLabelView(content: content)
+                    .presentationDetents([.large])
+                    .presentationCornerRadius(Theme.Glass.sheetRadius)
+                    .presentationBackground(.regularMaterial)
+                    .presentationDragIndicator(.visible)
+            }
+        }
+        .sheet(item: $printingLocation) { location in
+            if let content = locationLabelContent(location) {
+                PrintLabelView(content: content)
+                    .presentationDetents([.large])
+                    .presentationCornerRadius(Theme.Glass.sheetRadius)
+                    .presentationBackground(.regularMaterial)
+                    .presentationDragIndicator(.visible)
+            }
+        }
+    }
+
+    // MARK: - Label content
+
+    /// Label for the part itself — mirrors the webapp's `part-label.tsx`.
+    /// Requires a server id (the QR links to the part's web page), so it's
+    /// unavailable while the part is still waiting to sync.
+    private var partLabelContent: LabelContent? {
+        guard let serverId = part.serverId else { return nil }
+        var subtitle = part.manufacturer
+        let fitment = part.seriesIds.map { viewModel.seriesName($0) }
+        if !fitment.isEmpty {
+            let shown = fitment.prefix(3).joined(separator: ", ")
+            let extra = fitment.count > 3 ? " +\(fitment.count - 3) weitere" : ""
+            subtitle += " · \(shown)\(extra)"
+        }
+        return LabelContent(
+            url: LabelWebLinks.partURL(serverId: serverId),
+            code: part.partNumber,
+            title: part.name,
+            subtitle: subtitle,
+            footer: "MotoManager · Teil #\(serverId)"
+        )
+    }
+
+    /// Label for a stock entry's storage location — mirrors the webapp's
+    /// `storage-location-label.tsx` (name + path, for shelves and bins).
+    private func locationLabelContent(_ location: SDStorageLocation) -> LabelContent? {
+        guard let serverId = location.serverId else { return nil }
+        let path = viewModel.locationPath(location)
+        return LabelContent(
+            url: LabelWebLinks.storageLocationURL(serverId: serverId),
+            code: nil,
+            title: location.name,
+            subtitle: path == location.name ? nil : path,
+            footer: "MotoManager · Lagerort #\(serverId)"
+        )
     }
 
     // MARK: - Header & catalog
@@ -73,6 +137,16 @@ struct PartDetailView: View {
                     .foregroundColor(.white.opacity(0.6))
             }
             Spacer()
+            Button { showingPrintLabel = true } label: {
+                Image(systemName: "printer.fill")
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundColor(.white)
+                    .frame(width: 32, height: 32)
+                    .background(Circle().fill(Color.white.opacity(0.12)))
+            }
+            .accessibilityLabel("Etikett drucken")
+            .disabled(part.serverId == nil)
+            .opacity(part.serverId == nil ? 0.4 : 1)
             Button { showingEdit = true } label: {
                 Image(systemName: "pencil")
                     .font(.system(size: 14, weight: .bold))
@@ -114,6 +188,16 @@ struct PartDetailView: View {
                     Text("AUF LAGER")
                         .font(.system(size: 8, weight: .heavy)).tracking(1.2)
                         .foregroundColor(.white.opacity(0.4))
+                    if totalStockValue > 0 {
+                        Text(Formatters.currency(totalStockValue, code: "CHF"))
+                            .font(.system(size: 12, weight: .bold))
+                            .monospacedDigit()
+                            .foregroundColor(.white.opacity(0.7))
+                            .padding(.top, 6)
+                        Text("EINKAUFSWERT")
+                            .font(.system(size: 8, weight: .heavy)).tracking(1.2)
+                            .foregroundColor(.white.opacity(0.4))
+                    }
                 }
             }
 
@@ -179,6 +263,14 @@ struct PartDetailView: View {
                         }
                         .buttonStyle(.plain)
                         .contextMenu {
+                            if let location = viewModel.storageLocation(clientId: stock.storageLocationClientId),
+                               location.serverId != nil {
+                                Button {
+                                    printingLocation = location
+                                } label: {
+                                    Label("Lagerort-Etikett drucken", systemImage: "printer")
+                                }
+                            }
                             Button(role: .destructive) {
                                 viewModel.deleteStock(stock)
                             } label: {
@@ -202,9 +294,15 @@ struct PartDetailView: View {
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 6) {
                     if let price = stock.price {
-                        Text(Formatters.currency(price, code: stock.currency ?? "CHF"))
+                        let unit = price / Double(max(1, stock.quantity))
+                        Text("\(Formatters.currency(unit, code: stock.currency ?? "CHF")) / Stk.")
                             .font(.system(size: 13, weight: .bold))
                             .foregroundColor(.white)
+                        if stock.quantity > 1 {
+                            Text("· \(Formatters.currency(price, code: stock.currency ?? "CHF")) gesamt")
+                                .font(.system(size: 12))
+                                .foregroundColor(.white.opacity(0.55))
+                        }
                     } else {
                         Text("Ohne Preis")
                             .font(.system(size: 13, weight: .semibold))
@@ -214,6 +312,13 @@ struct PartDetailView: View {
                         Text("· \(Formatters.mediumDate(date))")
                             .font(.system(size: 12))
                             .foregroundColor(.white.opacity(0.55))
+                    }
+                    if stock.isUsed {
+                        Text("GEBRAUCHT")
+                            .font(.system(size: 8, weight: .heavy)).tracking(1.0)
+                            .foregroundColor(.orange)
+                            .padding(.horizontal, 6).padding(.vertical, 2)
+                            .background(Capsule().fill(Color.orange.opacity(0.16)))
                     }
                 }
                 if let path = viewModel.locationPath(viewModel.storageLocation(clientId: stock.storageLocationClientId)) {
@@ -364,6 +469,7 @@ struct AddPartStockView: View {
     @State private var selectedLocation: SDStorageLocation?
     @State private var newLocationName = ""
     @State private var notes: String
+    @State private var isUsed: Bool
     @State private var savedAnim = false
 
     init(viewModel: PartsViewModel, part: SDPart, existingStock: SDPartStock? = nil) {
@@ -378,6 +484,7 @@ struct AddPartStockView: View {
             _purchaseDate = State(initialValue: s.purchaseDate.flatMap { f.date(from: $0) } ?? Date())
             _selectedLocation = State(initialValue: nil)
             _notes = State(initialValue: s.notes ?? "")
+            _isUsed = State(initialValue: s.isUsed)
         } else {
             _quantity = State(initialValue: 1)
             _price = State(initialValue: "")
@@ -385,6 +492,7 @@ struct AddPartStockView: View {
             _purchaseDate = State(initialValue: Date())
             _selectedLocation = State(initialValue: nil)
             _notes = State(initialValue: "")
+            _isUsed = State(initialValue: false)
         }
     }
 
@@ -428,6 +536,19 @@ struct AddPartStockView: View {
                               prompt: Text("z. B. Kauf bei Motorradteile Meyer").foregroundColor(.white.opacity(0.3)),
                               axis: .vertical)
                         .lineLimit(2...4).foregroundColor(.white)
+                }
+                field("ZUSTAND") {
+                    Toggle(isOn: $isUsed) {
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text("Gebrauchtteil")
+                                .font(.system(size: 15, weight: .semibold))
+                                .foregroundColor(.white)
+                            Text("z. B. aus einem Motorrad ausgeschlachtet")
+                                .font(.system(size: 11))
+                                .foregroundColor(.white.opacity(0.45))
+                        }
+                    }
+                    .tint(Theme.Colors.primary)
                 }
 
                 saveButton
@@ -525,11 +646,13 @@ struct AddPartStockView: View {
         if let s = existingStock {
             viewModel.updateStock(
                 s, quantity: quantity, price: priceValue, currency: currency,
-                purchaseDate: purchaseDate, storageLocation: location, notes: notes)
+                purchaseDate: purchaseDate, storageLocation: location, notes: notes,
+                isUsed: isUsed)
         } else {
             viewModel.addStock(
                 part: part, quantity: quantity, price: priceValue, currency: currency,
-                purchaseDate: purchaseDate, storageLocation: location, notes: notes)
+                purchaseDate: purchaseDate, storageLocation: location, notes: notes,
+                isUsed: isUsed)
         }
         withAnimation { savedAnim = true }
         Task {
