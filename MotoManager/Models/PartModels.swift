@@ -35,6 +35,9 @@ struct PartStock: Codable, Identifiable {
     let purchaseDate: String?
     let storageLocationId: Int?
     let notes: String?
+    /// Used/salvaged piece. Optional so decoding tolerates a backend that
+    /// predates the column; treat nil as false.
+    let isUsed: Bool?
     let createdAt: String
     // Sync metadata (server-provided; see backend migration 012).
     let clientId: String?
@@ -178,8 +181,9 @@ enum ModelSeriesCatalog {
     }
 }
 
-/// Another user's shared part as returned by `/api/parts/public`. The server
-/// whitelists catalog data + availability; prices/locations never appear.
+/// Another user's part as returned by `/api/parts/public`. Catalog data is
+/// always visible; availability and stock detail (prices, purchase dates,
+/// storage locations) are only present when the owner made the part public.
 struct PublicPart: Codable, Identifiable {
     let id: Int
     let partNumber: String
@@ -190,6 +194,18 @@ struct PublicPart: Codable, Identifiable {
     var image: String?
     let seriesIds: [Int]
     let ownerName: String
-    let hasStock: Bool
-    let totalQuantity: Int
+    let isPublic: Bool
+    let hasStock: Bool?
+    let totalQuantity: Int?
+    let stocks: [PublicStockEntry]?
+}
+
+/// A stock entry of a publicly shared part.
+struct PublicStockEntry: Codable {
+    let quantity: Int
+    let price: Double?
+    let currency: String?
+    let purchaseDate: String?
+    /// Readable path in the owner's location hierarchy ("Garage › Regal A").
+    let storageLocation: String?
 }

@@ -77,6 +77,7 @@ extension SDPartStock {
         purchaseDate = dto.purchaseDate
         storageLocationServerId = dto.storageLocationId
         notes = dto.notes
+        isUsed = dto.isUsed ?? false
         serverUpdatedAt = dto.updatedAt
         syncState = .synced
     }
@@ -86,6 +87,7 @@ extension SDPartStock {
             "clientId": clientId.uuidString,
             "partId": partServerId,
             "quantity": quantity,
+            "isUsed": isUsed,
         ]
         if let price { p["price"] = price }
         if let currency { p["currency"] = currency }

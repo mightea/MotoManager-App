@@ -174,7 +174,8 @@ class PartsViewModel: ObservableObject {
     @discardableResult
     func addStock(
         part: SDPart, quantity: Int, price: Double?, currency: String?,
-        purchaseDate: Date, storageLocation: SDStorageLocation?, notes: String?
+        purchaseDate: Date, storageLocation: SDStorageLocation?, notes: String?,
+        isUsed: Bool = false
     ) -> SDPartStock {
         let stock = SDPartStock(
             partClientId: part.clientId,
@@ -188,6 +189,7 @@ class PartsViewModel: ObservableObject {
         stock.storageLocationClientId = storageLocation?.clientId
         stock.storageLocationServerId = storageLocation?.serverId
         stock.notes = (notes?.isEmpty == false) ? notes : nil
+        stock.isUsed = isUsed
         modelContext.insert(stock)
         persistAndSync()
         return stock
@@ -195,7 +197,8 @@ class PartsViewModel: ObservableObject {
 
     func updateStock(
         _ stock: SDPartStock, quantity: Int, price: Double?, currency: String?,
-        purchaseDate: Date, storageLocation: SDStorageLocation?, notes: String?
+        purchaseDate: Date, storageLocation: SDStorageLocation?, notes: String?,
+        isUsed: Bool = false
     ) {
         stock.quantity = max(1, quantity)
         stock.price = price
@@ -204,6 +207,7 @@ class PartsViewModel: ObservableObject {
         stock.storageLocationClientId = storageLocation?.clientId
         stock.storageLocationServerId = storageLocation?.serverId
         stock.notes = (notes?.isEmpty == false) ? notes : nil
+        stock.isUsed = isUsed
         if stock.syncState != .pendingCreate { stock.syncState = .pendingUpdate }
         stock.updatedAtLocal = Date()
         persistAndSync()

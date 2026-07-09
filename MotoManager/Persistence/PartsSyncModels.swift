@@ -74,6 +74,9 @@ final class SDPartStock {
     var storageLocationClientId: UUID?
     var storageLocationServerId: Int?
     var notes: String?
+    /// Used/salvaged piece (e.g. pulled from a donor motorcycle). Default
+    /// keeps existing stores migrating lightweight.
+    var isUsed: Bool = false
 
     var syncState: SyncState
     var updatedAtLocal: Date
