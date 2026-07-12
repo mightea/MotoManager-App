@@ -6,6 +6,7 @@ struct WorkshopView: View {
     @State private var selectedTorqueGroup: String = "Alle"
     @State private var showingAddTorque = false
     @State private var editingTorque: SDTorqueSpec?
+    @State private var showingTirePressure = false
 
     enum DocScope: Hashable { case moto, common }
     @State private var docScope: DocScope = .moto
@@ -43,6 +44,7 @@ struct WorkshopView: View {
         viewModel.torque.isEmpty
             && viewModel.documents.isEmpty
             && viewModel.commonDocuments.isEmpty
+            && viewModel.tirePressure == nil
     }
 
     var body: some View {
@@ -66,6 +68,8 @@ struct WorkshopView: View {
                     .padding(.horizontal, Theme.Spacing.m)
                     .padding(.top, 40)
                 } else {
+                    tirePressureSection
+                        .padding(.horizontal, Theme.Spacing.m)
                     documentsSection
                         .padding(.horizontal, Theme.Spacing.m)
                     torqueSection
@@ -95,6 +99,50 @@ struct WorkshopView: View {
                 .presentationCornerRadius(Theme.Glass.sheetRadius)
                 .presentationBackground(.regularMaterial)
                 .presentationDragIndicator(.visible)
+        }
+        .sheet(isPresented: $showingTirePressure) {
+            AddTirePressureView(viewModel: viewModel)
+                .presentationDetents([.large])
+                .presentationCornerRadius(Theme.Glass.sheetRadius)
+                .presentationBackground(.regularMaterial)
+                .presentationDragIndicator(.visible)
+        }
+    }
+
+    // MARK: - Tire pressure
+
+    private var tirePressureSection: some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.s) {
+            HStack {
+                Text("Reifendruck".uppercased())
+                    .font(.system(size: 11, weight: .heavy))
+                    .tracking(2)
+                    .foregroundColor(.white.opacity(0.55))
+                Spacer()
+                Button { showingTirePressure = true } label: {
+                    Image(systemName: viewModel.tirePressure == nil ? "plus" : "pencil")
+                        .font(.system(size: 12, weight: .heavy))
+                        .foregroundColor(.white)
+                        .frame(width: 26, height: 26)
+                        .background(Circle().fill(Theme.Colors.primary))
+                }
+                .accessibilityLabel(viewModel.tirePressure == nil ? "Reifendruck erfassen" : "Reifendruck bearbeiten")
+            }
+            .padding(.horizontal, 6)
+
+            if let pressure = viewModel.tirePressure {
+                TirePressureTable(pressure: pressure)
+            } else {
+                Button { showingTirePressure = true } label: {
+                    Text("Keine Werte erfasst — tippen zum Hinzufügen.")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(.white.opacity(0.6))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 24)
+                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18))
+                }
+                .buttonStyle(.plain)
+            }
         }
     }
 
@@ -244,6 +292,92 @@ struct WorkshopView: View {
             RoundedRectangle(cornerRadius: 18)
                 .stroke(Color.white.opacity(0.08), lineWidth: 0.5)
         )
+    }
+}
+
+// MARK: - Tire pressure table
+
+/// Matrix of the recorded pressures: one row per tire position (Vorne /
+/// Hinten / Beiwagen), one column per recorded riding configuration —
+/// mirrors the webapp card. Column headers only render when they carry
+/// information (several configurations, or a single non-solo one).
+private struct TirePressureTable: View {
+    let pressure: TirePressure
+
+    private var configs: [PressureConfig] { pressure.recordedConfigs }
+
+    private var showHeader: Bool {
+        configs.count > 1 || configs.contains { $0 != .solo }
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            if showHeader {
+                HStack {
+                    Color.clear.frame(width: 70, height: 1)
+                    ForEach(configs) { cfg in
+                        Text(cfg.label.uppercased())
+                            .font(.system(size: 9, weight: .heavy))
+                            .tracking(1.5)
+                            .foregroundColor(.white.opacity(0.5))
+                            .frame(maxWidth: .infinity, alignment: .trailing)
+                    }
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 8)
+                .background(Color.white.opacity(0.04))
+            }
+
+            row(label: "Vorne") { $0.front }
+            Divider().background(Color.white.opacity(0.06))
+            row(label: "Hinten") { $0.rear }
+            if pressure.hasSidecarValues {
+                Divider().background(Color.white.opacity(0.06))
+                row(label: "Beiwagen") { $0.sidecar }
+            }
+        }
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18))
+        .overlay(
+            RoundedRectangle(cornerRadius: 18)
+                .stroke(Color.white.opacity(0.08), lineWidth: 0.5)
+        )
+    }
+
+    private func row(
+        label: String,
+        value: @escaping ((front: Double?, rear: Double?, sidecar: Double?)) -> Double?
+    ) -> some View {
+        HStack(alignment: .firstTextBaseline) {
+            Text(label.uppercased())
+                .font(.system(size: 9, weight: .heavy))
+                .tracking(1.5)
+                .foregroundColor(.white.opacity(0.5))
+                .frame(width: 70, alignment: .leading)
+            ForEach(configs) { cfg in
+                cell(bar: value(pressure.values(for: cfg)))
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+    }
+
+    private func cell(bar: Double?) -> some View {
+        VStack(alignment: .trailing, spacing: 2) {
+            if let bar {
+                Text(PressureUnitFormat.display(bar: bar, unit: pressure.preferredUnit))
+                    .font(.system(size: 14, weight: .bold))
+                    .monospacedDigit()
+                    .foregroundColor(Theme.Colors.primary)
+                Text(PressureUnitFormat.secondary(bar: bar, unit: pressure.preferredUnit))
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundColor(.white.opacity(0.45))
+            } else {
+                Text("—")
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundColor(.white.opacity(0.25))
+            }
+        }
     }
 }
 

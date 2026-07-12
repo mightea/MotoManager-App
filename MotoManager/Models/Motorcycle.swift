@@ -13,6 +13,9 @@ struct Motorcycle: Codable, Identifiable {
     var image: String?
     let isVeteran: Bool
     let isArchived: Bool
+    /// Sidecar rig — gates the sidecar-wheel tire pressure UI (optional so
+    /// old cached blobs without the field still decode).
+    let hasSidecar: Bool?
     let firstRegistration: String?
     let initialOdo: Int
     let manualOdo: Int?
@@ -33,7 +36,7 @@ struct Motorcycle: Codable, Identifiable {
     enum CodingKeys: String, CodingKey {
         case id, make, model
         case modelYear = "fabricationDate"
-        case userId, vin, engineNumber, vehicleNr, numberPlate, image, isVeteran, isArchived, firstRegistration, initialOdo, manualOdo, purchaseDate, purchasePrice, normalizedPurchasePrice, currencyCode, fuelTankSize, seriesId
+        case userId, vin, engineNumber, vehicleNr, numberPlate, image, isVeteran, isArchived, hasSidecar, firstRegistration, initialOdo, manualOdo, purchaseDate, purchasePrice, normalizedPurchasePrice, currencyCode, fuelTankSize, seriesId
         case openIssues, maintenanceCount, latestOdo
     }
     
@@ -50,6 +53,7 @@ struct Motorcycle: Codable, Identifiable {
         image: nil,
         isVeteran: false,
         isArchived: false,
+        hasSidecar: false,
         firstRegistration: "2023-01-01",
         initialOdo: 0,
         manualOdo: nil,

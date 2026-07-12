@@ -176,6 +176,38 @@ class NetworkManager {
         return wrapper.torqueSpecs
     }
 
+    /// Tire pressures are a 1:1 record without sync metadata — plain
+    /// fetch + cache like documents, not SwiftData/SyncEngine.
+    func fetchTirePressure(motorcycleId: Int) async throws -> TirePressure? {
+        let wrapper: TirePressureResponse = try await get("/api/motorcycles/\(motorcycleId)/tire-pressure")
+        let key = CacheKey.tirePressure(motorcycleId: motorcycleId)
+        if let pressure = wrapper.tirePressure {
+            CacheStore.shared.save(pressure, key: key)
+        } else {
+            CacheStore.shared.remove(key: key)
+        }
+        return wrapper.tirePressure
+    }
+
+    /// Full-record upsert: configurations absent from the payload are cleared.
+    func upsertTirePressure(motorcycleId: Int, payload: [String: Any]) async throws -> TirePressure {
+        let body = try JSONSerialization.data(withJSONObject: payload)
+        let request = try makeRequest(path: "/api/motorcycles/\(motorcycleId)/tire-pressure", method: "PUT", authorized: true, jsonBody: body)
+        let data = try await performRequest(request)
+        let wrapper = try Self.decode(TirePressureResponse.self, from: data)
+        guard let pressure = wrapper.tirePressure else {
+            throw APIError.decoding(underlying: NSError(domain: "TirePressure", code: 0))
+        }
+        CacheStore.shared.save(pressure, key: CacheKey.tirePressure(motorcycleId: motorcycleId))
+        return pressure
+    }
+
+    func deleteTirePressure(motorcycleId: Int) async throws {
+        let request = try makeRequest(path: "/api/motorcycles/\(motorcycleId)/tire-pressure", method: "DELETE", authorized: true)
+        _ = try await performRequest(request)
+        CacheStore.shared.remove(key: CacheKey.tirePressure(motorcycleId: motorcycleId))
+    }
+
     func fetchIssues(motorcycleId: Int, since: String? = nil) async throws -> [Issue] {
         let wrapper: IssueListResponse = try await get(syncPath(
             "/api/motorcycles/\(motorcycleId)/issues", since: since))

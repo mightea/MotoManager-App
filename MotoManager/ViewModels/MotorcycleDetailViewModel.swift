@@ -20,6 +20,8 @@ class MotorcycleDetailViewModel: ObservableObject {
 
     @Published var maintenanceRecords: [MaintenanceRecord] = []
     @Published var torqueSpecs: [TorqueSpec] = []
+    /// Recommended tire pressures (1:1 record, online-first like documents).
+    @Published var tirePressure: TirePressure?
     @Published var documents: [Document] = []
     /// Documents that aren't bound to any motorcycle — surfaced as
     /// "Allgemein" in the Workshop screen's document filter.
@@ -47,11 +49,13 @@ class MotorcycleDetailViewModel: ObservableObject {
             async let maintenanceTask = NetworkManager.shared.fetchMaintenance(motorcycleId: motorcycle.id)
             async let torqueTask = NetworkManager.shared.fetchTorqueSpecs(motorcycleId: motorcycle.id)
             async let documentsTask = NetworkManager.shared.fetchDocuments()
+            async let pressureTask = NetworkManager.shared.fetchTirePressure(motorcycleId: motorcycle.id)
 
-            let (maintenance, torque, allDocs) = try await (maintenanceTask, torqueTask, documentsTask)
+            let (maintenance, torque, allDocs, pressure) = try await (maintenanceTask, torqueTask, documentsTask, pressureTask)
 
             self.maintenanceRecords = maintenance.sorted(by: { $0.date > $1.date })
             self.torqueSpecs = torque
+            self.tirePressure = pressure
 
             // Filter documents for this motorcycle
             self.documents = allDocs.filter { doc in
@@ -95,6 +99,25 @@ class MotorcycleDetailViewModel: ObservableObject {
             self.documents = cached.filter { $0.motorcycleIds?.contains(motorcycle.id) ?? false }
             self.commonDocuments = cached.filter { ($0.motorcycleIds ?? []).isEmpty }
         }
+        if tirePressure == nil,
+           let cached = CacheStore.shared.load(TirePressure.self, key: CacheKey.tirePressure(motorcycleId: motorcycle.id)) {
+            self.tirePressure = cached
+        }
+    }
+
+    // MARK: - Tire pressure writes (online-only; the record has no sync metadata)
+
+    /// Upsert with the given payload; the server clears configurations absent
+    /// from it. Throws so the editor sheet can surface the failure.
+    func saveTirePressure(payload: [String: Any]) async throws {
+        tirePressure = try await NetworkManager.shared.upsertTirePressure(
+            motorcycleId: motorcycle.id, payload: payload)
+    }
+
+    /// Remove the whole record (used when the last configuration is deleted).
+    func deleteTirePressure() async throws {
+        try await NetworkManager.shared.deleteTirePressure(motorcycleId: motorcycle.id)
+        tirePressure = nil
     }
     
     // MARK: - Fuel writes (offline-first via SwiftData + SyncEngine)
@@ -408,6 +431,14 @@ class MotorcycleDetailViewModel: ObservableObject {
             Document(id: 1, title: "Registration Part I", filePath: "", previewPath: nil, uploadedBy: nil, ownerId: 1, isPrivate: false, createdAt: "2023-01-01", updatedAt: "2023-01-01", motorcycleIds: [1]),
             Document(id: 2, title: "Service Manual", filePath: "", previewPath: nil, uploadedBy: nil, ownerId: 1, isPrivate: false, createdAt: "2023-01-01", updatedAt: "2023-01-01", motorcycleIds: [1])
         ]
+        vm.tirePressure = TirePressure(
+            id: 1, motorcycleId: 1,
+            frontBar: 2.2, rearBar: 2.4,
+            frontPassengerBar: 2.3, rearPassengerBar: 2.8,
+            frontOffroadBar: 1.5, rearOffroadBar: 1.7,
+            sidecarBar: nil, sidecarPassengerBar: nil, sidecarOffroadBar: nil,
+            preferredUnit: "bar", createdAt: "2024-01-01", updatedAt: "2024-01-01"
+        )
         return vm
     }
 }
