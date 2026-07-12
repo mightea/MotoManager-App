@@ -113,6 +113,9 @@ final class SDTorqueSpec {
     var variation: Double?
     var toolSize: String?
     var recordDescription: String?
+    /// Values from an uncertain source; flagged for review. Default keeps this a
+    /// lightweight SwiftData migration (see `syncAttempts`).
+    var unverified: Bool = false
     var createdAt: String
 
     var syncState: SyncState
@@ -136,6 +139,7 @@ final class SDTorqueSpec {
         variation: Double? = nil,
         toolSize: String? = nil,
         recordDescription: String? = nil,
+        unverified: Bool = false,
         createdAt: String = "",
         syncState: SyncState = .pendingCreate,
         updatedAtLocal: Date = .init()
@@ -150,6 +154,7 @@ final class SDTorqueSpec {
         self.variation = variation
         self.toolSize = toolSize
         self.recordDescription = recordDescription
+        self.unverified = unverified
         self.createdAt = createdAt
         self.syncState = syncState
         self.updatedAtLocal = updatedAtLocal

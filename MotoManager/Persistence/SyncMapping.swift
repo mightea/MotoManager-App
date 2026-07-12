@@ -122,6 +122,7 @@ extension SDTorqueSpec {
         variation = dto.variation
         toolSize = dto.toolSize
         recordDescription = dto.description
+        unverified = dto.unverified ?? false
         createdAt = dto.createdAt
         serverUpdatedAt = dto.updatedAt
         syncState = .synced
@@ -138,6 +139,7 @@ extension SDTorqueSpec {
         if let variation { p["variation"] = variation }
         if let toolSize, !toolSize.isEmpty { p["toolSize"] = toolSize }
         if let recordDescription, !recordDescription.isEmpty { p["description"] = recordDescription }
+        p["unverified"] = unverified
         return p
     }
 }

@@ -14,6 +14,7 @@ struct AddTorqueView: View {
     @State private var variation: String
     @State private var toolSize: String
     @State private var notes: String
+    @State private var unverified: Bool
     @State private var confirmingDelete = false
     @State private var savedAnim = false
 
@@ -28,6 +29,7 @@ struct AddTorqueView: View {
             _variation = State(initialValue: s.variation.map(Self.num) ?? "")
             _toolSize = State(initialValue: s.toolSize ?? "")
             _notes = State(initialValue: s.recordDescription ?? "")
+            _unverified = State(initialValue: s.unverified)
         } else {
             _category = State(initialValue: "")
             _name = State(initialValue: "")
@@ -36,6 +38,7 @@ struct AddTorqueView: View {
             _variation = State(initialValue: "")
             _toolSize = State(initialValue: "")
             _notes = State(initialValue: "")
+            _unverified = State(initialValue: false)
         }
     }
 
@@ -70,6 +73,8 @@ struct AddTorqueView: View {
                     TextField("", text: $notes, prompt: Text("Optionale Details").foregroundColor(.white.opacity(0.3)), axis: .vertical)
                         .lineLimit(2...5).foregroundColor(.white)
                 }
+
+                unverifiedToggle
 
                 saveButton
                 if existingSpec != nil { deleteButton }
@@ -115,6 +120,54 @@ struct AddTorqueView: View {
         }
     }
 
+    /// Marks the spec as coming from an uncertain source; surfaced with a warning
+    /// color in the workshop list. Orange follows the app's warning convention.
+    private var unverifiedToggle: some View {
+        Button {
+            withAnimation(.easeOut(duration: 0.18)) {
+                unverified.toggle()
+            }
+        } label: {
+            HStack(spacing: 8) {
+                ZStack {
+                    Circle()
+                        .fill(unverified ? Color.orange : Color.clear)
+                        .frame(width: 18, height: 18)
+                    if unverified {
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 10, weight: .heavy))
+                            .foregroundColor(.white)
+                    } else {
+                        Circle()
+                            .stroke(Color.white.opacity(0.35), lineWidth: 1.5)
+                            .frame(width: 18, height: 18)
+                    }
+                }
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Unverifiziert")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(unverified ? Color.orange : .white)
+                    Text("Wert aus unsicherer Quelle")
+                        .font(.system(size: 11, weight: .regular))
+                        .foregroundColor(.white.opacity(0.5))
+                }
+                Spacer()
+            }
+            .padding(.horizontal, 14).padding(.vertical, 12)
+            .background(
+                RoundedRectangle(cornerRadius: Theme.Glass.fieldRadius)
+                    .fill(unverified ? Color.orange.opacity(0.16) : Color.white.opacity(0.06))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: Theme.Glass.fieldRadius)
+                    .stroke(unverified ? Color.orange.opacity(0.35) : Theme.Glass.border, lineWidth: 0.5)
+            )
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Unverifiziert")
+        .accessibilityValue(unverified ? "aktiviert" : "deaktiviert")
+    }
+
     private var saveButton: some View {
         Button(action: save) {
             Text(savedAnim ? "Gespeichert ✓" : "Speichern").frame(maxWidth: .infinity)
@@ -145,11 +198,11 @@ struct AddTorqueView: View {
         if let s = existingSpec {
             viewModel.updateTorque(s, category: cat, name: nm, torque: torqueValue,
                                    torqueEnd: Self.parse(torqueEnd), variation: Self.parse(variation),
-                                   toolSize: toolSize, description: notes)
+                                   toolSize: toolSize, description: notes, unverified: unverified)
         } else {
             viewModel.createTorque(category: cat, name: nm, torque: torqueValue,
                                    torqueEnd: Self.parse(torqueEnd), variation: Self.parse(variation),
-                                   toolSize: toolSize, description: notes)
+                                   toolSize: toolSize, description: notes, unverified: unverified)
         }
         withAnimation { savedAnim = true }
         Task {

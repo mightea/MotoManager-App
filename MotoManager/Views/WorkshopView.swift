@@ -396,6 +396,16 @@ private struct TorqueRow: View {
                         .foregroundColor(.white)
                         .lineLimit(2)
                     if spec.syncState.isPending { PendingBadge() }
+                    if spec.unverified {
+                        Label("Unverifiziert", systemImage: "exclamationmark.triangle.fill")
+                            .labelStyle(.titleAndIcon)
+                            .font(.system(size: 9, weight: .heavy))
+                            .tracking(0.4)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 1.5)
+                            .background(Capsule().fill(Color.orange.opacity(0.16)))
+                            .foregroundColor(.orange)
+                    }
                 }
 
                 HStack(spacing: 6) {
@@ -425,7 +435,7 @@ private struct TorqueRow: View {
             Text(torqueDisplay)
                 .font(.system(size: 15, weight: .bold))
                 .monospacedDigit()
-                .foregroundColor(Theme.Colors.primary)
+                .foregroundColor(spec.unverified ? .orange : Theme.Colors.primary)
         }
         .contentShape(Rectangle())
     }

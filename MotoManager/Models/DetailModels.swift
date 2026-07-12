@@ -54,6 +54,7 @@ struct TorqueSpec: Codable, Identifiable {
     let variation: Double?
     let toolSize: String?
     let description: String?
+    let unverified: Bool?
     let createdAt: String
     // Sync metadata (server-provided; see backend migration 011).
     let clientId: String?

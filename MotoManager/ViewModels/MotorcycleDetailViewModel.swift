@@ -287,7 +287,7 @@ class MotorcycleDetailViewModel: ObservableObject {
     }
 
     @discardableResult
-    func createTorque(category: String, name: String, torque value: Double, torqueEnd: Double?, variation: Double?, toolSize: String?, description: String?) -> Bool {
+    func createTorque(category: String, name: String, torque value: Double, torqueEnd: Double?, variation: Double?, toolSize: String?, description: String?, unverified: Bool) -> Bool {
         let spec = SDTorqueSpec(
             motorcycleId: motorcycle.id,
             category: category,
@@ -297,6 +297,7 @@ class MotorcycleDetailViewModel: ObservableObject {
             variation: variation,
             toolSize: (toolSize?.isEmpty == false) ? toolSize : nil,
             recordDescription: (description?.isEmpty == false) ? description : nil,
+            unverified: unverified,
             createdAt: Self.isoDay(Date()),
             syncState: .pendingCreate
         )
@@ -305,7 +306,7 @@ class MotorcycleDetailViewModel: ObservableObject {
         return true
     }
 
-    func updateTorque(_ spec: SDTorqueSpec, category: String, name: String, torque value: Double, torqueEnd: Double?, variation: Double?, toolSize: String?, description: String?) {
+    func updateTorque(_ spec: SDTorqueSpec, category: String, name: String, torque value: Double, torqueEnd: Double?, variation: Double?, toolSize: String?, description: String?, unverified: Bool) {
         spec.category = category
         spec.name = name
         spec.torque = value
@@ -313,6 +314,7 @@ class MotorcycleDetailViewModel: ObservableObject {
         spec.variation = variation
         spec.toolSize = (toolSize?.isEmpty == false) ? toolSize : nil
         spec.recordDescription = (description?.isEmpty == false) ? description : nil
+        spec.unverified = unverified
         if spec.syncState != .pendingCreate { spec.syncState = .pendingUpdate }
         spec.updatedAtLocal = Date()
         persistAndSync()
@@ -408,8 +410,8 @@ class MotorcycleDetailViewModel: ObservableObject {
             MaintenanceRecord(id: 2, date: "2023-09-01", odo: 10000, motorcycleId: 1, cost: 250.00, normalizedCost: 250.0, currency: "EUR", description: "", recordType: "service", brand: nil, model: nil, tirePosition: nil, tireSize: nil, dotCode: nil, batteryType: nil, fluidType: nil, viscosity: "15W-50", oilType: "Synthetic", inspectionLocation: nil, locationId: nil, fuelType: nil, fuelAmount: nil, pricePerUnit: nil, latitude: nil, longitude: nil, locationName: "BMW Service", fuelConsumption: nil, tripDistance: nil, summary: "Regulärer 10k Service", parentId: nil, clientId: nil, updatedAt: nil, deletedAt: nil)
         ]
         vm.torqueSpecs = [
-            TorqueSpec(id: 1, motorcycleId: 1, category: "Engine", name: "Oil Drain Plug", torque: 42, torqueEnd: nil, variation: nil, toolSize: "17mm", description: nil, createdAt: "2023-01-01", clientId: nil, updatedAt: nil, deletedAt: nil),
-            TorqueSpec(id: 2, motorcycleId: 1, category: "Wheels", name: "Rear Axle Nut", torque: 100, torqueEnd: nil, variation: nil, toolSize: "34mm", description: nil, createdAt: "2023-01-01", clientId: nil, updatedAt: nil, deletedAt: nil)
+            TorqueSpec(id: 1, motorcycleId: 1, category: "Engine", name: "Oil Drain Plug", torque: 42, torqueEnd: nil, variation: nil, toolSize: "17mm", description: nil, unverified: nil, createdAt: "2023-01-01", clientId: nil, updatedAt: nil, deletedAt: nil),
+            TorqueSpec(id: 2, motorcycleId: 1, category: "Wheels", name: "Rear Axle Nut", torque: 100, torqueEnd: nil, variation: nil, toolSize: "34mm", description: nil, unverified: nil, createdAt: "2023-01-01", clientId: nil, updatedAt: nil, deletedAt: nil)
         ]
         vm.torque = [
             {
