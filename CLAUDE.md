@@ -33,12 +33,14 @@ The API issues **opaque Bearer session tokens** stored server-side (14-day expir
 
 ## Build & test caveat (this machine)
 
-CLI `xcodebuild` **compiles** every file fine but the **link phase is broken** here: `ld: -objc_abi_version '-Xlinker' not supported`. So you can validate compilation from the CLI but cannot link or run tests without the IDE / a repaired Xcode. Compile-check with a concrete simulator destination:
+CLI `xcodebuild` fails at the **link phase** with `ld: -objc_abi_version '-Xlinker' not supported` — **but this is fixable.** The Nix dev shell exports `LD=ld` (and `LD_FOR_TARGET=ld`), which Xcode's build system honours as its linker *driver*, so the real `ld` receives clang-driver flags (`-Xlinker …`) it can't parse. **Unset `LD` and it links cleanly** (full build + tests, not just compile):
 
 ```sh
-xcodebuild build -scheme MotoManager \
+env -u LD -u LD_FOR_TARGET xcodebuild build -scheme MotoManager \
   -destination 'platform=iOS Simulator,name=iPhone 17 Pro'
 ```
+
+Same `env -u LD` wrapper works for `xcodebuild test` and `xcrun swift`. The built `.app` installs/launches via `xcrun simctl` on the booted `iPhone 17 Pro` (iOS 26.5) — bundle id `ltd.herrmann.MotoManager`. Note `idb` is **not** installed, so drive the simulator with `simctl` (install/launch/screenshot) and AppleScript / CoreGraphics HID events for taps.
 
 New `.swift` files under `MotoManager/` are auto-included (Xcode 26 `PBXFileSystemSynchronizedRootGroup`) — no `project.pbxproj` edit needed.
 

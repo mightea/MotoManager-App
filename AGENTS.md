@@ -32,15 +32,25 @@ xcodebuild -project MotoManager.xcodeproj -scheme MotoManager \
 
 ### Driving the Simulator
 
-**Building still happens in Xcode.** CLI `xcodebuild` hits this machine's broken link phase
-(`ld: -objc_abi_version '-Xlinker' not supported`), so build once in Xcode (or CI) → then
-drive the produced `.app` with `xcrun simctl`:
+**CLI builds work if you unset `LD`.** The Nix dev shell exports `LD=ld`, which Xcode uses as
+its linker driver → the real `ld` chokes on clang flags (`ld: -objc_abi_version '-Xlinker'
+not supported`). `env -u LD -u LD_FOR_TARGET` fixes it — full build/test link cleanly:
+
+```sh
+env -u LD -u LD_FOR_TARGET xcodebuild build -scheme MotoManager \
+  -destination 'platform=iOS Simulator,name=iPhone 17 Pro'
+```
+
+Then drive the produced `.app` with `xcrun simctl` (no `env -u LD` needed for these):
 
 1. `xcrun simctl boot` a device (target: **`iPhone 17 Pro`** — iOS 26.5 runtime matches the
    26.4 deploy target)
 2. `xcrun simctl install <device> <DerivedData>/…/MotoManager.app`
 3. `xcrun simctl launch <device> ltd.herrmann.MotoManager`
 4. `xcrun simctl io <device> screenshot out.png` to see the screen; `openurl` for deep links
+
+`idb` is **not** installed; for taps use AppleScript (`System Events`) or CoreGraphics HID
+mouse events, not the `idb_*` tools.
 
 ## Architecture
 
