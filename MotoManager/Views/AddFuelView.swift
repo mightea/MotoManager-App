@@ -237,9 +237,9 @@ struct AddFuelView: View {
                     showingOdoScanner = true
                 } label: {
                     Image(systemName: "camera.viewfinder")
-                        .font(.system(size: 17, weight: .semibold))
+                        .font(.system(size: 26, weight: .semibold))
                         .foregroundColor(Theme.Colors.primary)
-                        .frame(width: 44, height: 44)
+                        .frame(width: 60, height: 60)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)

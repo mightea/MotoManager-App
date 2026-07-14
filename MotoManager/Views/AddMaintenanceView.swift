@@ -76,8 +76,10 @@ struct AddMaintenanceView: View {
                             showingOdoScanner = true
                         } label: {
                             Image(systemName: "camera.viewfinder")
-                                .font(.system(size: 17, weight: .semibold))
+                                .font(.system(size: 26, weight: .semibold))
                                 .foregroundColor(Theme.Colors.primary)
+                                .frame(width: 52, height: 44)
+                                .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
                         .accessibilityLabel("Kilometerstand scannen")
