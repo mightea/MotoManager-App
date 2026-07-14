@@ -29,29 +29,45 @@ extension View {
     /// above the tab bar as background-free overlays. Two independent corner
     /// anchors so the button stays put whether or not the banner is showing.
     /// Pass no `addLabel`/`addAction` for a banner-only tab (e.g. Workshop).
+    /// An optional secondary button (e.g. the parts QR scanner) docks leading
+    /// of the primary one so "+" keeps its corner spot.
     func bottomActionBar(
         detailVM: MotorcycleDetailViewModel,
         addTint: Color = Theme.Colors.primary,
         addLabel: String? = nil,
-        addAction: (() -> Void)? = nil
+        addAction: (() -> Void)? = nil,
+        secondaryIcon: String? = nil,
+        secondaryLabel: String? = nil,
+        secondaryAction: (() -> Void)? = nil
     ) -> some View {
-        self
+        let hasSecondary = secondaryIcon != nil && secondaryLabel != nil && secondaryAction != nil
+        return self
             .overlay(alignment: .bottomLeading) {
                 RefreshBanner(viewModel: detailVM)
                     .padding(.leading, Theme.Spacing.pageH)
-                    .padding(.trailing, 88)   // never reach the trailing button
+                    .padding(.trailing, hasSecondary ? 160 : 88)   // never reach the trailing buttons
                     .padding(.bottom, 12)
             }
             .overlay(alignment: .bottomTrailing) {
-                if let addLabel, let addAction {
-                    FloatingAddButton(
-                        tint: addTint,
-                        accessibilityLabel: addLabel,
-                        action: addAction
-                    )
-                    .padding(.trailing, Theme.Spacing.pageH)
-                    .padding(.bottom, 12)
+                HStack(spacing: 12) {
+                    if let secondaryIcon, let secondaryLabel, let secondaryAction {
+                        FloatingAddButton(
+                            systemImage: secondaryIcon,
+                            tint: Color.white.opacity(0.2),
+                            accessibilityLabel: secondaryLabel,
+                            action: secondaryAction
+                        )
+                    }
+                    if let addLabel, let addAction {
+                        FloatingAddButton(
+                            tint: addTint,
+                            accessibilityLabel: addLabel,
+                            action: addAction
+                        )
+                    }
                 }
+                .padding(.trailing, Theme.Spacing.pageH)
+                .padding(.bottom, 12)
             }
     }
 }

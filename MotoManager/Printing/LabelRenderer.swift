@@ -36,6 +36,30 @@ nonisolated enum LabelWebLinks {
 
     static func partURL(serverId: Int) -> String { "\(origin)/parts/\(serverId)" }
     static func storageLocationURL(serverId: Int) -> String { "\(origin)/storage-locations/\(serverId)" }
+
+    /// Parses a scanned QR payload back into the entity its label points at.
+    /// Deliberately ignores the host: labels printed under an older or dev
+    /// `labelWebOrigin` must keep scanning after the setting changes, and the
+    /// path ids are server ids either way. Requires an http(s) URL with
+    /// exactly `/<resource>/<id>` so arbitrary QR payloads don't match.
+    static func parse(_ payload: String) -> ScannedLabel? {
+        guard let url = URL(string: payload.trimmingCharacters(in: .whitespacesAndNewlines)),
+              let scheme = url.scheme?.lowercased(), scheme == "https" || scheme == "http"
+        else { return nil }
+        let components = url.pathComponents.filter { $0 != "/" }
+        guard components.count == 2, let id = Int(components[1]), id > 0 else { return nil }
+        switch components[0] {
+        case "parts": return .part(serverId: id)
+        case "storage-locations": return .storageLocation(serverId: id)
+        default: return nil
+        }
+    }
+}
+
+/// A part or storage-location label identified from a scanned QR code.
+nonisolated enum ScannedLabel: Equatable {
+    case part(serverId: Int)
+    case storageLocation(serverId: Int)
 }
 
 /// TZe tape widths offered for printing. `printableDots` is the printable

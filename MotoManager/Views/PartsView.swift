@@ -15,6 +15,10 @@ struct PartsView: View {
     @State private var filterBySelectedBike = false
     @State private var showingAddPart = false
     @State private var selectedPart: SDPart?
+    @State private var showingScanner = false
+    @State private var pendingScan: ScannedLabel?
+    @State private var selectedLocation: SDStorageLocation?
+    @State private var showingScanNotFound = false
     @ObservedObject private var connectivity = ConnectivityMonitor.shared
 
     var body: some View {
@@ -47,11 +51,14 @@ struct PartsView: View {
             .padding(.bottom, 110)
         }
         .background(Color.clear)
-        // Add is only meaningful for the user's own inventory.
+        // Add and label scanning are only meaningful for the user's own inventory.
         .bottomActionBar(
             detailVM: detailVM,
             addLabel: tab == .mine ? "Teil hinzufügen" : nil,
-            addAction: tab == .mine ? { showingAddPart = true } : nil
+            addAction: tab == .mine ? { showingAddPart = true } : nil,
+            secondaryIcon: tab == .mine ? "qrcode.viewfinder" : nil,
+            secondaryLabel: tab == .mine ? "Etikett scannen" : nil,
+            secondaryAction: tab == .mine ? { showingScanner = true } : nil
         )
         .refreshable {
             await SyncEngine.shared.sync(motorcycleIds: [])
@@ -82,6 +89,50 @@ struct PartsView: View {
                 .presentationCornerRadius(Theme.Glass.sheetRadius)
                 .presentationBackground(.regularMaterial)
                 .presentationDragIndicator(.hidden)
+        }
+        // The scan result only gets stashed here; the part/location sheets are
+        // siblings of the scanner sheet, so presenting them must wait for its
+        // dismissal — onDismiss fires after the animation completes.
+        .sheet(isPresented: $showingScanner, onDismiss: resolvePendingScan) {
+            LabelScanSheet { pendingScan = $0 }
+                .presentationDetents([.large])
+                .presentationCornerRadius(Theme.Glass.sheetRadius)
+                .presentationBackground(.regularMaterial)
+                .presentationDragIndicator(.visible)
+        }
+        .sheet(item: $selectedLocation) { location in
+            StorageLocationDetailView(location: location, viewModel: viewModel)
+                .presentationDetents([.large])
+                .presentationCornerRadius(Theme.Glass.sheetRadius)
+                .presentationBackground(.regularMaterial)
+                .presentationDragIndicator(.hidden)
+        }
+        .alert("Etikett nicht gefunden", isPresented: $showingScanNotFound) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("Zu diesem QR-Code gibt es lokal keinen Eintrag. Möglicherweise wurde er noch nicht synchronisiert — zum Aktualisieren nach unten ziehen.")
+        }
+    }
+
+    /// Opens the scanned part/location, or the not-found alert for ids that
+    /// don't exist locally (not yet pulled, or someone else's label).
+    private func resolvePendingScan() {
+        defer { pendingScan = nil }
+        switch pendingScan {
+        case .part(let serverId):
+            if let part = viewModel.part(serverId: serverId) {
+                selectedPart = part
+            } else {
+                showingScanNotFound = true
+            }
+        case .storageLocation(let serverId):
+            if let location = viewModel.storageLocation(serverId: serverId) {
+                selectedLocation = location
+            } else {
+                showingScanNotFound = true
+            }
+        case nil:
+            break   // scanner cancelled
         }
     }
 

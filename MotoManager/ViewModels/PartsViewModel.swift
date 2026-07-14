@@ -49,6 +49,39 @@ class PartsViewModel: ObservableObject {
         return storageLocations.first { $0.clientId == clientId }
     }
 
+    /// Resolve a scanned part label (the QR encodes the server id).
+    func part(serverId: Int) -> SDPart? {
+        parts.first { $0.serverId == serverId }
+    }
+
+    /// Resolve a scanned storage-location label (the QR encodes the server id).
+    func storageLocation(serverId: Int) -> SDStorageLocation? {
+        storageLocations.first { $0.serverId == serverId }
+    }
+
+    /// Parts stocked at a location with their summed stocked quantity there
+    /// (stock only — consumptions are not location-scoped), sorted by name.
+    func stockedParts(at location: SDStorageLocation) -> [(part: SDPart, quantity: Int)] {
+        let allStocks = ((try? modelContext.fetch(FetchDescriptor<SDPartStock>())) ?? [])
+            .filter { stock in
+                guard stock.syncState != .pendingDelete else { return false }
+                // Pulled stock updates refresh storageLocationServerId but not
+                // the clientId, so match either identity.
+                return stock.storageLocationClientId == location.clientId
+                    || (stock.storageLocationServerId != nil
+                        && stock.storageLocationServerId == location.serverId)
+            }
+        var quantities: [UUID: Int] = [:]
+        for stock in allStocks {
+            quantities[stock.partClientId, default: 0] += stock.quantity
+        }
+        return quantities
+            .compactMap { partClientId, quantity in
+                parts.first { $0.clientId == partClientId }.map { (part: $0, quantity: quantity) }
+            }
+            .sorted { $0.part.name < $1.part.name }
+    }
+
     /// "Garage › Regal A › Kiste 3" for a leaf location (depth-capped).
     func locationPath(_ location: SDStorageLocation?) -> String? {
         guard let location else { return nil }
