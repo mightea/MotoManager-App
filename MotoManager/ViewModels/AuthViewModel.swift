@@ -31,6 +31,15 @@ class AuthViewModel: NSObject, ObservableObject {
             isAuthenticated = true
         }
     }
+
+    /// A connectivity failure should read as plain "Offline"; other errors keep
+    /// their descriptive prefix (e.g. "Login failed: …") so real problems stay legible.
+    private func message(for error: Error, prefix: String) -> String {
+        if case APIError.offline = error {
+            return APIError.offline.errorDescription ?? "Offline"
+        }
+        return "\(prefix): \(error.localizedDescription)"
+    }
     
     func login(identifier: String, password: String) async {
         isLoading = true
@@ -41,7 +50,7 @@ class AuthViewModel: NSObject, ObservableObject {
             _ = try await NetworkManager.shared.login(credentials: credentials)
             isAuthenticated = true
         } catch {
-            errorMessage = "Login failed: \(error.localizedDescription)"
+            errorMessage = message(for: error, prefix: "Login failed")
             isAuthenticated = false
         }
         
@@ -72,7 +81,7 @@ class AuthViewModel: NSObject, ObservableObject {
             
             // The rest of the flow continues in the delegate methods
         } catch {
-            errorMessage = "Passkey failed: \(error.localizedDescription)"
+            errorMessage = message(for: error, prefix: "Passkey failed")
             isLoading = false
         }
     }
@@ -124,7 +133,7 @@ extension AuthViewModel: ASAuthorizationControllerDelegate {
                     self.isAuthenticated = true
                     self.isLoading = false
                 } catch {
-                    self.errorMessage = "Passkey verification failed: \(error.localizedDescription)"
+                    self.errorMessage = self.message(for: error, prefix: "Passkey verification failed")
                     self.isLoading = false
                 }
             }

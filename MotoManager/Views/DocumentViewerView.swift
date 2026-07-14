@@ -10,6 +10,7 @@ struct DocumentViewerView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var fileURL: URL?
     @State private var loadFailed = false
+    @State private var loadWasOffline = false
 
     var body: some View {
         NavigationStack {
@@ -49,10 +50,10 @@ struct DocumentViewerView: View {
 
     private var failureState: some View {
         VStack(spacing: Theme.Spacing.m) {
-            Image(systemName: "exclamationmark.triangle.fill")
+            Image(systemName: loadWasOffline ? "wifi.slash" : "exclamationmark.triangle.fill")
                 .font(.system(size: 48))
                 .foregroundColor(.orange)
-            Text("Dokument konnte nicht geladen werden")
+            Text(loadWasOffline ? "Offline" : "Dokument konnte nicht geladen werden")
                 .font(.headline)
             Text("Bitte Verbindung prüfen und erneut versuchen.")
                 .font(.subheadline)
@@ -64,6 +65,7 @@ struct DocumentViewerView: View {
 
     private func load() async {
         loadFailed = false
+        loadWasOffline = false
         let urlString = resolvedURL(for: document)
 
         if let cached = DocumentCache.shared.cachedFileURL(for: urlString) {
@@ -79,6 +81,7 @@ struct DocumentViewerView: View {
                 loadFailed = true
             }
         } catch {
+            if case APIError.offline = error { loadWasOffline = true }
             loadFailed = true
         }
     }

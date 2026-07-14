@@ -78,7 +78,15 @@ class NetworkManager {
     /// Executes a request, mapping transport and HTTP errors to `APIError`.
     /// Posts `unauthorizedNotification` on 401 so the session can be cleared.
     private func performRequest(_ request: URLRequest) async throws -> Data {
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let data: Data
+        let response: URLResponse
+        do {
+            (data, response) = try await URLSession.shared.data(for: request)
+        } catch let urlError as URLError where Self.isOffline(urlError) {
+            // No connection or the backend is unreachable — surface as "Offline"
+            // rather than leaking Foundation's raw transport message.
+            throw APIError.offline
+        }
 
         guard let httpResponse = response as? HTTPURLResponse else {
             throw APIError.http(status: -1, message: nil)
@@ -108,6 +116,20 @@ class NetworkManager {
             return try JSONDecoder().decode(type, from: data)
         } catch {
             throw APIError.decoding(underlying: error)
+        }
+    }
+
+    /// Connectivity-class transport failures: the device is offline or the
+    /// backend can't be reached (DNS/host/timeout). These map to `APIError.offline`
+    /// so the whole app can show "Offline"; other `URLError`s propagate unchanged.
+    private static func isOffline(_ error: URLError) -> Bool {
+        switch error.code {
+        case .notConnectedToInternet, .networkConnectionLost, .cannotConnectToHost,
+             .cannotFindHost, .dnsLookupFailed, .timedOut, .dataNotAllowed,
+             .internationalRoamingOff:
+            return true
+        default:
+            return false
         }
     }
 

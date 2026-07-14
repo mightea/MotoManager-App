@@ -51,6 +51,11 @@ struct GarageView: View {
                 }
                 .padding(.bottom, 24)
             }
+            // Pull to reload the fleet — the way to recover an empty picker after
+            // the initial load failed offline / with the backend unreachable.
+            .refreshable {
+                await fleetVM.loadMotorcycles()
+            }
             .safeAreaInset(edge: .top, spacing: 0) {
                 header
             }

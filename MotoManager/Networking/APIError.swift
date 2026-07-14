@@ -15,6 +15,10 @@ enum APIError: LocalizedError {
     case http(status: Int, message: String?)
     /// The response body could not be decoded into the expected type.
     case decoding(underlying: Error)
+    /// The request failed because the device has no connection or the backend
+    /// is unreachable (a connectivity-class `URLError`). Surfaced to the user as
+    /// "Offline" rather than a raw transport error.
+    case offline
 
     var errorDescription: String? {
         switch self {
@@ -31,6 +35,8 @@ enum APIError: LocalizedError {
             return "Serverfehler (\(status))."
         case .decoding:
             return "Antwort konnte nicht verarbeitet werden."
+        case .offline:
+            return "Offline"
         }
     }
 }

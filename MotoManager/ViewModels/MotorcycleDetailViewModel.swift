@@ -37,6 +37,26 @@ class MotorcycleDetailViewModel: ObservableObject {
         self.motorcycle = motorcycle
     }
     
+    /// Pull-to-refresh / reconnect: reload the display data, then re-run the sync
+    /// engine so pending writes flush and the "Offline" status clears once the
+    /// backend is reachable again. A pull while offline simply refreshes the
+    /// (cached) data and leaves the offline pill in place. Mirrors the initial
+    /// load sequence in `MainTabView`.
+    ///
+    /// The body runs in an unstructured `Task` (which does not inherit the
+    /// caller's cancellation) because SwiftUI cancels the `.refreshable` action
+    /// as its control retracts — that would otherwise abort our in-flight
+    /// requests, surfacing them as `URLError.cancelled` (a spurious failure) and
+    /// leaving the reconnect half-done. Awaiting `.value` keeps the pull spinner
+    /// up until the work actually finishes.
+    func reconnect() async {
+        await Task {
+            await loadAllData()
+            await SyncEngine.shared.sync(motorcycleIds: [motorcycle.id])
+            reloadLocal()
+        }.value
+    }
+
     func loadAllData() async {
         // Hydrate from cache instantly so the UI works offline / while the network is in flight.
         hydrateFromCache()

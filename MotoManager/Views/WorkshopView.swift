@@ -83,7 +83,7 @@ struct WorkshopView: View {
         // Banner only — Workshop's adds are per-section, so no page-level button.
         .bottomActionBar(detailVM: viewModel)
         .refreshable {
-            await viewModel.loadAllData()
+            await viewModel.reconnect()
         }
         .sheet(item: $presentedDocument) { doc in
             DocumentViewerView(document: doc)

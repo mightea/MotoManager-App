@@ -87,7 +87,7 @@ struct FuelStatsTests {
     }
 
     @Test func averageConsumptionIsZeroWhenEmpty() {
-        #expect(FuelStats.averageConsumption([]) == 0)
+        #expect(FuelStats.averageConsumption([MaintenanceRecord]()) == 0)
     }
 
     @Test func litersInYearSumsOnlyMatchingYear() throws {
@@ -146,6 +146,38 @@ struct SyncMappingTests {
         #expect(model.clientId == UUID(uuidString: "11111111-1111-1111-1111-111111111111"))
         #expect(model.serverId == 9)
         #expect(model.syncState == .synced)
+    }
+}
+
+// MARK: - Offline classification
+
+/// Serialized because it temporarily repoints the shared `NetworkManager.baseURL`
+/// at an unreachable host; no other suite touches the network.
+@MainActor
+@Suite(.serialized)
+struct OfflineClassificationTests {
+
+    @Test func offlineDescriptionReadsOffline() {
+        #expect(APIError.offline.errorDescription == "Offline")
+    }
+
+    @Test func unreachableBackendMapsToOffline() async {
+        let original = NetworkManager.shared.baseURL
+        // Port 1 refuses instantly -> URLError.cannotConnectToHost, no slow timeout.
+        NetworkManager.shared.baseURL = "http://127.0.0.1:1"
+        defer { NetworkManager.shared.baseURL = original }
+
+        do {
+            _ = try await NetworkManager.shared.fetchPasskeyLoginOptions(username: "someone")
+            Issue.record("expected an offline error, but the request succeeded")
+        } catch let error as APIError {
+            guard case .offline = error else {
+                Issue.record("expected APIError.offline, got \(error)")
+                return
+            }
+        } catch {
+            Issue.record("expected APIError.offline, got \(type(of: error)): \(error)")
+        }
     }
 }
 

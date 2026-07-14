@@ -34,6 +34,7 @@ struct AddTirePressureView: View {
     @State private var confirmingDelete = false
     @State private var isSaving = false
     @State private var errorMessage: String?
+    @State private var alertTitle = "Fehler"
     @State private var savedAnim = false
 
     init(viewModel: MotorcycleDetailViewModel) {
@@ -88,7 +89,7 @@ struct AddTirePressureView: View {
             .padding(Theme.Spacing.l)
         }
         .background(Color.clear)
-        .alert("Fehler", isPresented: .init(
+        .alert(alertTitle, isPresented: .init(
             get: { errorMessage != nil },
             set: { if !$0 { errorMessage = nil } }
         )) {
@@ -257,6 +258,18 @@ struct AddTirePressureView: View {
         return payload
     }
 
+    /// Present a save/delete failure. A connectivity failure reads as "Offline"
+    /// (title and body); anything else keeps the generic "Fehler" alert.
+    private func present(_ error: Error) {
+        if case APIError.offline = error {
+            alertTitle = "Offline"
+            errorMessage = APIError.offline.errorDescription ?? "Offline"
+        } else {
+            alertTitle = "Fehler"
+            errorMessage = error.localizedDescription
+        }
+    }
+
     private func save() {
         guard canSave, !isSaving else { return }
         isSaving = true
@@ -267,7 +280,7 @@ struct AddTirePressureView: View {
                 try? await Task.sleep(nanoseconds: 400_000_000)
                 dismiss()
             } catch {
-                errorMessage = error.localizedDescription
+                present(error)
             }
             isSaving = false
         }
@@ -286,7 +299,7 @@ struct AddTirePressureView: View {
                 }
                 dismiss()
             } catch {
-                errorMessage = error.localizedDescription
+                present(error)
             }
             isSaving = false
         }

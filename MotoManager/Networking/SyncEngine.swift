@@ -73,10 +73,30 @@ final class SyncEngine: ObservableObject {
             try await pullPartsInventory()
             isSyncing = false
             refreshStatus()
+        } catch is CancellationError {
+            // A superseded/cancelled sync is not a failure — recompute the badge
+            // rather than leaving it stuck on ".syncing" or flagging an error.
+            isSyncing = false
+            refreshStatus()
+        } catch let urlError as URLError where urlError.code == .cancelled {
+            // URLSession surfaces task cancellation as URLError.cancelled, which
+            // isn't a CancellationError; treat it the same — not a real failure.
+            isSyncing = false
+            refreshStatus()
         } catch {
             isSyncing = false
-            AppLog.error("Sync failed: \(error.localizedDescription)")
-            status = .error(error.localizedDescription)
+            if case APIError.offline = error {
+                // No connection or the backend is unreachable — this isn't a
+                // failure the user must act on; show "Offline" and retry when
+                // connectivity returns. Set it explicitly (not via refreshStatus)
+                // since the device may still report online when only the backend
+                // is down.
+                AppLog.debug("Sync deferred: offline")
+                status = .offline(pending: pendingCount() + failedCount())
+            } else {
+                AppLog.error("Sync failed: \(error.localizedDescription)")
+                status = .error(error.localizedDescription)
+            }
         }
     }
 
@@ -434,7 +454,7 @@ final class SyncEngine: ObservableObject {
     /// session is dead); per-record server errors are logged and left pending.
     private func isFatal(_ error: APIError) -> Bool {
         switch error {
-        case .unauthorized, .notAuthenticated: return true
+        case .unauthorized, .notAuthenticated, .offline: return true
         default: return false
         }
     }

@@ -28,12 +28,12 @@ struct PartDecodingTests {
     @Test func decodesPublicPartWithoutPrivateFields() throws {
         let json = """
         {"id":5,"partNumber":"PN-1","name":"Tachowelle","manufacturer":"BMW",
-         "description":null,"seriesIds":[19],"ownerName":"testuser",
+         "description":null,"seriesIds":[19],"ownerName":"testuser","isPublic":true,
          "hasStock":true,"totalQuantity":3}
         """
         let part = try JSONDecoder().decode(PublicPart.self, from: Data(json.utf8))
         #expect(part.ownerName == "testuser")
-        #expect(part.hasStock)
+        #expect(part.hasStock == true)
         #expect(part.totalQuantity == 3)
     }
 

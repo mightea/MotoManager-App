@@ -49,7 +49,7 @@ struct FuelListView: View {
             showingAddFuel = true
         }
         .refreshable {
-            await viewModel.loadAllData()
+            await viewModel.reconnect()
         }
         .sheet(isPresented: $showingAddFuel) {
             AddFuelView(viewModel: viewModel)

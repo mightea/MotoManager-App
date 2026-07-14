@@ -70,7 +70,7 @@ struct MaintenanceLogsView: View {
             if tab == .issues { showingAddIssue = true } else { showingAddMaintenance = true }
         }
         .refreshable {
-            await viewModel.loadAllData()
+            await viewModel.reconnect()
         }
         .sheet(item: $selectedRecord) { record in
             MaintenanceDetailView(record: record, viewModel: viewModel)

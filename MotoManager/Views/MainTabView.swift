@@ -54,9 +54,7 @@ struct MainTabView: View {
             guard let selected = fleetVM.selectedMotorcycle else { return }
             let dVM = MotorcycleDetailViewModel(motorcycle: selected)
             self.detailVM = dVM
-            await dVM.loadAllData()
-            await SyncEngine.shared.sync(motorcycleIds: [selected.id])
-            dVM.reloadLocal()
+            await dVM.reconnect()
         }
     }
 
