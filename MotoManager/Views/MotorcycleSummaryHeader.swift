@@ -76,17 +76,20 @@ struct MotorcycleSummaryHeader: View {
     private var topActions: some View {
         HStack(spacing: 8) {
             Spacer()
-            SyncStatusPill()
-            Button(action: chrome.openSettings) {
-                Image(systemName: "gearshape.fill")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(.white)
-                    .frame(width: 44, height: 44)
-                    .background(Color.white.opacity(0.18), in: Circle())
-                    .overlay(Circle().stroke(Color.white.opacity(0.28), lineWidth: 0.5))
-                    .shadow(color: .black.opacity(0.25), radius: 6, x: 0, y: 2)
+            // Group the two adjacent glass chips so they blend as one cluster.
+            GlassEffectContainer(spacing: 8) {
+                HStack(spacing: 8) {
+                    SyncStatusPill()
+                    Button(action: chrome.openSettings) {
+                        Image(systemName: "gearshape.fill")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .frame(width: 44, height: 44)
+                            .glassEffect(.regular, in: Circle())
+                    }
+                    .accessibilityLabel("Einstellungen")
+                }
             }
-            .accessibilityLabel("Einstellungen")
         }
     }
 
@@ -156,13 +159,7 @@ struct MotorcycleSummaryHeader: View {
             .padding(.leading, 10)
             .padding(.trailing, 12)
             .padding(.vertical, 8)
-            .background(
-                Capsule().fill(Color.black.opacity(0.42))
-            )
-            .overlay(
-                Capsule().stroke(Color.white.opacity(0.3), lineWidth: 0.5)
-            )
-            .shadow(color: .black.opacity(0.25), radius: 6, x: 0, y: 2)
+            .glassEffect(.regular, in: Capsule())
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Motorrad wechseln")

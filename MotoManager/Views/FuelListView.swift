@@ -35,18 +35,19 @@ struct FuelListView: View {
                     .ignoresSafeArea(edges: .top)
 
                 statStrip
-                    .padding(.horizontal, Theme.Spacing.m)
-
-                ctaCard
-                    .padding(.horizontal, Theme.Spacing.m)
+                    .padding(.horizontal, Theme.Spacing.pageH)
 
                 listSection
-                    .padding(.horizontal, Theme.Spacing.m)
+                    .padding(.horizontal, Theme.Spacing.pageH)
             }
-            .padding(.bottom, 110)
+            // Clears the docked add button so the last row is never hidden.
+            .padding(.bottom, 96)
         }
         .ignoresSafeArea(edges: .top)
         .background(Color.clear)
+        .bottomActionBar(detailVM: viewModel, addLabel: "Neue Tankung erfassen") {
+            showingAddFuel = true
+        }
         .refreshable {
             await viewModel.loadAllData()
         }
@@ -89,55 +90,6 @@ struct FuelListView: View {
         ])
     }
 
-    // MARK: - CTA card
-
-    private var ctaCard: some View {
-        Button {
-            showingAddFuel = true
-        } label: {
-            HStack(spacing: 12) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 14)
-                        .fill(Color.white.opacity(0.18))
-                        .frame(width: 44, height: 44)
-                    Image(systemName: "fuelpump.fill")
-                        .font(.system(size: 20, weight: .semibold))
-                        .foregroundStyle(.white)
-                }
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Neue Tankung erfassen")
-                        .font(.system(size: 16, weight: .bold))
-                        .foregroundStyle(.white)
-                    Text("Schnell-Eingabe mit Tastatur")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.85))
-                }
-
-                Spacer(minLength: 0)
-
-                Image(systemName: "plus")
-                    .font(.system(size: 20, weight: .bold))
-                    .foregroundStyle(.white.opacity(0.95))
-            }
-            .padding(.horizontal, 18)
-            .padding(.vertical, 14)
-            .background(
-                ZStack {
-                    Theme.Colors.primary
-                    LinearGradient(
-                        colors: [Color.white.opacity(0.15), .clear],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                }
-            )
-            .cornerRadius(22)
-            .shadow(color: Theme.Colors.primary.opacity(0.5), radius: 14, x: 0, y: 8)
-        }
-        .buttonStyle(.plain)
-    }
-
     // MARK: - List section
 
     private var listSection: some View {
@@ -178,11 +130,7 @@ struct FuelListView: View {
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 36)
-            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 22))
-            .overlay(
-                RoundedRectangle(cornerRadius: 22)
-                    .stroke(Color.white.opacity(0.08), lineWidth: 0.5)
-            )
+            .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 22))
         } else {
             // Lazy so a long fuel history renders rows on demand instead of all up front.
             LazyVStack(spacing: 0) {
@@ -201,11 +149,7 @@ struct FuelListView: View {
                     }
                 }
             }
-            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 22))
-            .overlay(
-                RoundedRectangle(cornerRadius: 22)
-                    .stroke(Color.white.opacity(0.08), lineWidth: 0.5)
-            )
+            .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 22))
         }
     }
 

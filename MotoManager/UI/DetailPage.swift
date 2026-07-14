@@ -123,12 +123,7 @@ struct DetailPage<HeroContent: View, BodyContent: View, Actions: View>: View {
             .foregroundColor(.white)
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
-            .background(
-                Capsule().fill(Color.white.opacity(0.10))
-            )
-            .overlay(
-                Capsule().stroke(Theme.Glass.strongBorder, lineWidth: 0.5)
-            )
+            .glassEffect(.regular, in: Capsule())
         }
         .buttonStyle(.plain)
         .accessibilityLabel(backLabel)
@@ -209,14 +204,7 @@ struct DetailSection<Content: View>: View {
             VStack(spacing: 0) {
                 content
             }
-            .background(
-                RoundedRectangle(cornerRadius: Theme.Glass.fieldRadius)
-                    .fill(Color.white.opacity(0.06))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: Theme.Glass.fieldRadius)
-                    .stroke(Theme.Glass.hairline, lineWidth: 0.5)
-            )
+            .glassEffect(.regular, in: RoundedRectangle(cornerRadius: Theme.Glass.fieldRadius))
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -249,48 +237,18 @@ struct DetailActionButton: View {
                 Text(label)
                     .font(.system(size: 14, weight: .heavy))
             }
-            .foregroundColor(foreground)
             .frame(maxWidth: .infinity)
             .frame(height: 50)
-            .background(background)
-            .overlay(border)
-            .shadow(color: shadow, radius: 14, x: 0, y: 6)
         }
-        .buttonStyle(.plain)
+        .glassActionButton(glassVariant, in: .roundedRectangle(radius: 14))
     }
 
-    private var foreground: Color {
+    private var glassVariant: GlassButtonVariant {
         switch variant {
-        case .primary, .success: return .white
-        case .secondary: return .white
-        case .danger: return Theme.Colors.accent
-        }
-    }
-
-    private var background: some View {
-        let fill: Color = switch variant {
-            case .primary:   Theme.Colors.primary
-            case .success:   .green
-            case .secondary: Color.white.opacity(0.10)
-            case .danger:    Theme.Colors.accent.opacity(0.16)
-        }
-        return RoundedRectangle(cornerRadius: 14).fill(fill)
-    }
-
-    private var border: some View {
-        let stroke: Color = switch variant {
-            case .secondary: Theme.Glass.strongBorder
-            case .danger:    Theme.Colors.accent.opacity(0.3)
-            default:         .clear
-        }
-        return RoundedRectangle(cornerRadius: 14).stroke(stroke, lineWidth: 0.5)
-    }
-
-    private var shadow: Color {
-        switch variant {
-        case .primary: return Theme.Colors.primary.opacity(0.45)
-        case .success: return Color.green.opacity(0.35)
-        default:       return .clear
+        case .primary:   .primary
+        case .secondary: .secondary
+        case .danger:    .danger
+        case .success:   .success
         }
     }
 }
@@ -327,14 +285,7 @@ struct HeroStatTile: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 11)
         .padding(.vertical, 10)
-        .background(
-            RoundedRectangle(cornerRadius: 14)
-                .fill(Color.white.opacity(0.06))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 14)
-                .stroke(Theme.Glass.hairline, lineWidth: 0.5)
-        )
+        .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 14))
     }
 }
 

@@ -10,10 +10,14 @@ struct StatStrip: View {
     }
 
     var body: some View {
-        HStack(spacing: Theme.Spacing.s) {
-            ForEach(tiles) { tile in
-                tileView(tile)
-                    .frame(maxWidth: .infinity)
+        // Group the tiles so adjacent glass surfaces blend/merge rather than
+        // each drawing its own isolated effect.
+        GlassEffectContainer(spacing: Theme.Spacing.s) {
+            HStack(spacing: Theme.Spacing.s) {
+                ForEach(tiles) { tile in
+                    tileView(tile)
+                        .frame(maxWidth: .infinity)
+                }
             }
         }
     }
@@ -43,11 +47,7 @@ struct StatStrip: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 11)
         .padding(.vertical, 10)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14))
-        .overlay(
-            RoundedRectangle(cornerRadius: 14)
-                .stroke(Color.white.opacity(0.08), lineWidth: 0.5)
-        )
+        .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 14))
     }
 }
 

@@ -76,7 +76,10 @@ struct GlassFieldRow: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, size.paddingH)
             .padding(.vertical, size.paddingV)
-            .background(background)
+            .glassEffect(
+                isActive ? .regular.tint(Theme.Colors.primary.opacity(0.5)) : .regular,
+                in: RoundedRectangle(cornerRadius: Theme.Glass.fieldRadius)
+            )
             .overlay(border)
             .overlay(focusRing)
             .contentShape(Rectangle())
@@ -129,15 +132,6 @@ struct GlassFieldRow: View {
         guard !value.isEmpty else { return Color.white.opacity(0.3) }
         if accent { return Theme.Colors.primary }
         return .white
-    }
-
-    private var background: some View {
-        RoundedRectangle(cornerRadius: Theme.Glass.fieldRadius)
-            .fill(
-                isActive
-                    ? Theme.Colors.primary.opacity(0.18)
-                    : Color.white.opacity(0.06)
-            )
     }
 
     private var border: some View {

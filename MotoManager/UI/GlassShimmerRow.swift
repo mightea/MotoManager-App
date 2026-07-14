@@ -26,8 +26,7 @@ struct GlassShimmerRow: View {
                 .frame(width: 60, height: 14)
         }
         .padding()
-        .background(.ultraThinMaterial)
-        .cornerRadius(Theme.Radius.m)
+        .glassEffect(.regular, in: RoundedRectangle(cornerRadius: Theme.Radius.m))
         .padding(.horizontal)
         .overlay {
             // Sweeping highlight — skipped entirely when Reduce Motion is on,

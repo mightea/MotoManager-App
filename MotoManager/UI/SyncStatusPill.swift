@@ -25,9 +25,7 @@ struct SyncStatusPill: View {
         .foregroundColor(.white)
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
-        .background(Capsule().fill(style.tint.opacity(0.9)))
-        .overlay(Capsule().stroke(Color.white.opacity(0.25), lineWidth: 0.5))
-        .shadow(color: .black.opacity(0.25), radius: 6, x: 0, y: 2)
+        .glassEffect(.regular.tint(style.tint), in: Capsule())
         .animation(.easeInOut(duration: 0.25), value: engine.status)
         // Tap to retry when a sync has failed (clears the poison counters and
         // re-runs the outbox) — otherwise the pill is purely informational.

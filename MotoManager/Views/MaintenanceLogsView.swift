@@ -41,29 +41,34 @@ struct MaintenanceLogsView: View {
                     ],
                     selection: $tab
                 )
-                .padding(.horizontal, Theme.Spacing.m)
+                .padding(.horizontal, Theme.Spacing.pageH)
 
                 if tab == .issues {
                     issuesContent
-                        .padding(.horizontal, Theme.Spacing.m)
+                        .padding(.horizontal, Theme.Spacing.pageH)
                 } else {
                     statStrip
-                        .padding(.horizontal, Theme.Spacing.m)
-
-                    addMaintenanceCTA
-                        .padding(.horizontal, Theme.Spacing.m)
+                        .padding(.horizontal, Theme.Spacing.pageH)
 
                     sectionHeader("Verlauf", count: serviceRecords.count)
-                        .padding(.horizontal, Theme.Spacing.m + 6)
+                        .padding(.horizontal, Theme.Spacing.pageH + 6)
 
                     maintenanceContent
-                        .padding(.horizontal, Theme.Spacing.m)
+                        .padding(.horizontal, Theme.Spacing.pageH)
                 }
             }
             .padding(.bottom, 110)
         }
         .ignoresSafeArea(edges: .top)
         .background(Color.clear)
+        // One context-aware add button: red for Mängel, blue for Wartung.
+        .bottomActionBar(
+            detailVM: viewModel,
+            addTint: tab == .issues ? Theme.Colors.accent : Theme.Colors.primary,
+            addLabel: tab == .issues ? "Mangel erfassen" : "Wartung erfassen"
+        ) {
+            if tab == .issues { showingAddIssue = true } else { showingAddMaintenance = true }
+        }
         .refreshable {
             await viewModel.loadAllData()
         }
@@ -97,26 +102,6 @@ struct MaintenanceLogsView: View {
         }
     }
 
-    private var addMaintenanceCTA: some View {
-        Button { showingAddMaintenance = true } label: {
-            HStack(spacing: 10) {
-                Image(systemName: "wrench.and.screwdriver.fill")
-                    .font(.system(size: 16, weight: .semibold))
-                Text("Wartung erfassen")
-                    .font(.system(size: 15, weight: .bold))
-                Spacer(minLength: 0)
-                Image(systemName: "plus")
-                    .font(.system(size: 16, weight: .bold))
-            }
-            .foregroundColor(.white)
-            .padding(.horizontal, 16)
-            .padding(.vertical, 14)
-            .background(Theme.Colors.primary, in: RoundedRectangle(cornerRadius: 18))
-            .shadow(color: Theme.Colors.primary.opacity(0.4), radius: 12, x: 0, y: 6)
-        }
-        .buttonStyle(.plain)
-    }
-
     private var statStrip: some View {
         StatStrip([
             StatTile(
@@ -135,7 +120,6 @@ struct MaintenanceLogsView: View {
     @ViewBuilder
     private var issuesContent: some View {
         VStack(spacing: Theme.Spacing.s) {
-            addIssueCTA
             if viewModel.issues.isEmpty {
                 IssuesEmptyCard(motorcycle: viewModel.motorcycle)
             } else {
@@ -149,26 +133,6 @@ struct MaintenanceLogsView: View {
                 }
             }
         }
-    }
-
-    private var addIssueCTA: some View {
-        Button { showingAddIssue = true } label: {
-            HStack(spacing: 10) {
-                Image(systemName: "exclamationmark.triangle.fill")
-                    .font(.system(size: 16, weight: .semibold))
-                Text("Mangel erfassen")
-                    .font(.system(size: 15, weight: .bold))
-                Spacer(minLength: 0)
-                Image(systemName: "plus")
-                    .font(.system(size: 16, weight: .bold))
-            }
-            .foregroundColor(.white)
-            .padding(.horizontal, 16)
-            .padding(.vertical, 14)
-            .background(Theme.Colors.accent, in: RoundedRectangle(cornerRadius: 18))
-            .shadow(color: Theme.Colors.accent.opacity(0.4), radius: 12, x: 0, y: 6)
-        }
-        .buttonStyle(.plain)
     }
 
     private func sectionHeader(_ label: String, count: Int) -> some View {
@@ -245,11 +209,7 @@ private struct IssuesEmptyCard: View {
         .frame(maxWidth: .infinity)
         .padding(.vertical, 28)
         .padding(.horizontal, 20)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: Theme.Glass.cardRadius))
-        .overlay(
-            RoundedRectangle(cornerRadius: Theme.Glass.cardRadius)
-                .stroke(Theme.Glass.border, lineWidth: 0.5)
-        )
+        .glassEffect(.regular, in: RoundedRectangle(cornerRadius: Theme.Glass.cardRadius))
     }
 }
 
@@ -279,11 +239,7 @@ private struct IssuesPlaceholderCard: View {
             Spacer(minLength: 0)
         }
         .padding(14)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: Theme.Glass.fieldRadius))
-        .overlay(
-            RoundedRectangle(cornerRadius: Theme.Glass.fieldRadius)
-                .stroke(Theme.Glass.border, lineWidth: 0.5)
-        )
+        .glassEffect(.regular, in: RoundedRectangle(cornerRadius: Theme.Glass.fieldRadius))
     }
 }
 
@@ -336,11 +292,7 @@ private struct IssueRow: View {
             Spacer(minLength: 0)
         }
         .padding(14)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18))
-        .overlay(
-            RoundedRectangle(cornerRadius: 18)
-                .stroke(Color.white.opacity(0.08), lineWidth: 0.5)
-        )
+        .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 18))
         .contentShape(Rectangle())
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(statusLabel) Mangel: \(issue.title), \(Formatters.mediumDate(issue.date)), Kilometerstand \(issue.odo)")
@@ -427,11 +379,7 @@ private struct MaintenanceCard: View {
             }
         }
         .padding(14)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18))
-        .overlay(
-            RoundedRectangle(cornerRadius: 18)
-                .stroke(Color.white.opacity(0.08), lineWidth: 0.5)
-        )
+        .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 18))
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityText(for: record, kind: kind))
     }
@@ -513,11 +461,7 @@ struct EmptyStateView: View {
                 .padding(.horizontal, Theme.Spacing.xl)
         }
         .padding(Theme.Spacing.l)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 22))
-        .overlay(
-            RoundedRectangle(cornerRadius: 22)
-                .stroke(Color.white.opacity(0.08), lineWidth: 0.5)
-        )
+        .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 22))
     }
 }
 

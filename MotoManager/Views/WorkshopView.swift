@@ -56,7 +56,7 @@ struct WorkshopView: View {
                 if viewModel.isLoading && bothEmpty {
                     VStack(spacing: 10) {
                         ForEach(0..<5, id: \.self) { _ in
-                            GlassShimmerRow().padding(.horizontal, Theme.Spacing.m)
+                            GlassShimmerRow().padding(.horizontal, Theme.Spacing.pageH)
                         }
                     }
                 } else if bothEmpty {
@@ -65,21 +65,23 @@ struct WorkshopView: View {
                         message: "Drehmomente und Dokumente erscheinen hier.",
                         icon: "wrench.adjustable.fill"
                     )
-                    .padding(.horizontal, Theme.Spacing.m)
+                    .padding(.horizontal, Theme.Spacing.pageH)
                     .padding(.top, 40)
                 } else {
                     tirePressureSection
-                        .padding(.horizontal, Theme.Spacing.m)
+                        .padding(.horizontal, Theme.Spacing.pageH)
                     documentsSection
-                        .padding(.horizontal, Theme.Spacing.m)
+                        .padding(.horizontal, Theme.Spacing.pageH)
                     torqueSection
-                        .padding(.horizontal, Theme.Spacing.m)
+                        .padding(.horizontal, Theme.Spacing.pageH)
                 }
             }
             .padding(.bottom, 110)
         }
         .ignoresSafeArea(edges: .top)
         .background(Color.clear)
+        // Banner only — Workshop's adds are per-section, so no page-level button.
+        .bottomActionBar(detailVM: viewModel)
         .refreshable {
             await viewModel.loadAllData()
         }
@@ -122,10 +124,9 @@ struct WorkshopView: View {
                 Button { showingTirePressure = true } label: {
                     Image(systemName: viewModel.tirePressure == nil ? "plus" : "pencil")
                         .font(.system(size: 12, weight: .heavy))
-                        .foregroundColor(.white)
                         .frame(width: 26, height: 26)
-                        .background(Circle().fill(Theme.Colors.primary))
                 }
+                .glassActionButton(.primary, in: .circle)
                 .accessibilityLabel(viewModel.tirePressure == nil ? "Reifendruck erfassen" : "Reifendruck bearbeiten")
             }
             .padding(.horizontal, 6)
@@ -139,7 +140,7 @@ struct WorkshopView: View {
                         .foregroundColor(.white.opacity(0.6))
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 24)
-                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18))
+                        .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 18))
                 }
                 .buttonStyle(.plain)
             }
@@ -202,10 +203,9 @@ struct WorkshopView: View {
                 Button { showingAddTorque = true } label: {
                     Image(systemName: "plus")
                         .font(.system(size: 12, weight: .heavy))
-                        .foregroundColor(.white)
                         .frame(width: 26, height: 26)
-                        .background(Circle().fill(Theme.Colors.primary))
                 }
+                .glassActionButton(.primary, in: .circle)
                 .accessibilityLabel("Drehmoment hinzufügen")
             }
             .padding(.horizontal, 6)
@@ -217,7 +217,7 @@ struct WorkshopView: View {
                         .foregroundColor(.white.opacity(0.6))
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 24)
-                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18))
+                        .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 18))
                 }
                 .buttonStyle(.plain)
             } else {
@@ -247,13 +247,11 @@ struct WorkshopView: View {
                 .foregroundColor(active ? .white : .white.opacity(0.7))
                 .padding(.horizontal, 12)
                 .padding(.vertical, 6)
-                .background(
-                    Capsule()
-                        .fill(active ? Theme.Colors.primary : Color.white.opacity(0.10))
-                )
-                .shadow(
-                    color: active ? Theme.Colors.primary.opacity(0.35) : .clear,
-                    radius: 8, x: 0, y: 3
+                .glassEffect(
+                    active
+                        ? .regular.tint(Theme.Colors.primary).interactive()
+                        : .regular.interactive(),
+                    in: Capsule()
                 )
         }
     }
@@ -287,11 +285,7 @@ struct WorkshopView: View {
                 }
             }
         }
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18))
-        .overlay(
-            RoundedRectangle(cornerRadius: 18)
-                .stroke(Color.white.opacity(0.08), lineWidth: 0.5)
-        )
+        .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 18))
     }
 }
 
@@ -336,11 +330,7 @@ private struct TirePressureTable: View {
                 row(label: "Beiwagen") { $0.sidecar }
             }
         }
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18))
-        .overlay(
-            RoundedRectangle(cornerRadius: 18)
-                .stroke(Color.white.opacity(0.08), lineWidth: 0.5)
-        )
+        .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 18))
     }
 
     private func row(
@@ -490,14 +480,7 @@ private struct DocumentTile: View {
         }
         .padding(12)
         .frame(maxWidth: .infinity, minHeight: 132, alignment: .topLeading)
-        .background(
-            RoundedRectangle(cornerRadius: Theme.Glass.fieldRadius)
-                .fill(Color.white.opacity(0.04))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: Theme.Glass.fieldRadius)
-                .stroke(Theme.Glass.border, lineWidth: 0.5)
-        )
+        .glassEffect(.regular, in: RoundedRectangle(cornerRadius: Theme.Glass.fieldRadius))
     }
 
     private var fileBadge: String {
@@ -524,7 +507,8 @@ private struct UploadDocumentTile: View {
             }
             .foregroundColor(.white.opacity(0.55))
             .frame(maxWidth: .infinity, minHeight: 132)
-            .background(
+            .glassEffect(.regular, in: RoundedRectangle(cornerRadius: Theme.Glass.fieldRadius))
+            .overlay(
                 RoundedRectangle(cornerRadius: Theme.Glass.fieldRadius)
                     .strokeBorder(
                         Color.white.opacity(0.18),

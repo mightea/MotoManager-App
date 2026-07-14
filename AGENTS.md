@@ -30,6 +30,18 @@ xcodebuild -project MotoManager.xcodeproj -scheme MotoManager \
   -destination 'platform=iOS Simulator,name=iPhone 16' test
 ```
 
+### Driving the Simulator
+
+**Building still happens in Xcode.** CLI `xcodebuild` hits this machine's broken link phase
+(`ld: -objc_abi_version '-Xlinker' not supported`), so build once in Xcode (or CI) → then
+drive the produced `.app` with `xcrun simctl`:
+
+1. `xcrun simctl boot` a device (target: **`iPhone 17 Pro`** — iOS 26.5 runtime matches the
+   26.4 deploy target)
+2. `xcrun simctl install <device> <DerivedData>/…/MotoManager.app`
+3. `xcrun simctl launch <device> ltd.herrmann.MotoManager`
+4. `xcrun simctl io <device> screenshot out.png` to see the screen; `openurl` for deep links
+
 ## Architecture
 
 MVVM. Source layout under `MotoManager/`:

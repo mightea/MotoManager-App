@@ -138,13 +138,9 @@ struct LoginView: View {
     private var wheelMark: some View {
         ZStack {
             RoundedRectangle(cornerRadius: 12)
-                .fill(Color.white.opacity(0.10))
-                .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 12))
+                .fill(Color.clear)
                 .frame(width: 38, height: 38)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12)
-                        .stroke(Color.white.opacity(0.2), lineWidth: 0.5)
-                )
+                .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 12))
 
             // Wheel + spokes mark — mirrors the SVG in BrandMark
             Image(systemName: "circle.dotted.circle")
@@ -222,15 +218,7 @@ struct LoginView: View {
             passkeyButton
         }
         .padding(16)
-        .background(
-            RoundedRectangle(cornerRadius: 26)
-                .fill(Color(white: 0.10).opacity(0.86))
-                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 26))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 26)
-                .stroke(Color.white.opacity(0.12), lineWidth: 0.5)
-        )
+        .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 26))
         .shadow(color: .black.opacity(0.5), radius: 24, x: 0, y: 12)
         .padding(.horizontal, 18)
         .padding(.bottom, 36)
@@ -312,19 +300,10 @@ struct LoginView: View {
                 }
             }
             .font(.system(size: 15, weight: .heavy))
-            .foregroundColor(canSubmit ? .white : Theme.Glass.mutedText)
             .frame(maxWidth: .infinity)
             .frame(height: 50)
-            .background(
-                RoundedRectangle(cornerRadius: 14)
-                    .fill(canSubmit ? Theme.Colors.primary : Color.white.opacity(0.10))
-            )
-            .shadow(
-                color: canSubmit ? Theme.Colors.primary.opacity(0.45) : .clear,
-                radius: 14, x: 0, y: 6
-            )
         }
-        .buttonStyle(.plain)
+        .glassActionButton(.primary, in: .roundedRectangle(radius: 14))
         .disabled(!canSubmit)
         .animation(.easeOut(duration: 0.18), value: canSubmit)
     }
@@ -357,19 +336,10 @@ struct LoginView: View {
                 Text("Mit Passkey anmelden")
                     .font(.system(size: 15, weight: .bold))
             }
-            .foregroundColor(.white)
             .frame(maxWidth: .infinity)
             .frame(height: 50)
-            .background(
-                RoundedRectangle(cornerRadius: 14)
-                    .fill(Color.white.opacity(0.10))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 14)
-                    .stroke(Color.white.opacity(0.12), lineWidth: 0.5)
-            )
         }
-        .buttonStyle(.plain)
+        .glassActionButton(.secondary, in: .roundedRectangle(radius: 14))
         .disabled(authVM.isLoading)
     }
 

@@ -83,7 +83,7 @@ struct SettingsView: View {
         .padding(.horizontal, 18)
         .padding(.top, 14)
         .padding(.bottom, 10)
-        .background(.regularMaterial)
+        .glassEffect(.regular, in: Rectangle())
     }
 
     // MARK: - Sections

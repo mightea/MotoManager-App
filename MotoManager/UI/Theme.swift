@@ -40,6 +40,9 @@ enum Theme {
         static let m: CGFloat = 16
         static let l: CGFloat = 24
         static let xl: CGFloat = 32
+        /// Horizontal gutter for the main tab screens' content. Tighter than
+        /// `m` so cards get more width; tweak here to re-flow every home view.
+        static let pageH: CGFloat = 12
     }
 
     enum Radius {

@@ -60,7 +60,7 @@ struct PrintLabelView: View {
         .padding(.horizontal, 18)
         .padding(.top, 14)
         .padding(.bottom, 10)
-        .background(.regularMaterial)
+        .glassEffect(.regular, in: Rectangle())
     }
 
     // MARK: - Preview
@@ -225,15 +225,10 @@ struct PrintLabelView: View {
                 Text(isPrinting ? "Wird gedruckt…" : "Drucken")
                     .font(.system(size: 14, weight: .semibold))
             }
-            .foregroundColor(.white)
             .frame(maxWidth: .infinity)
             .padding(.vertical, 13)
-            .background(
-                RoundedRectangle(cornerRadius: 14)
-                    .fill(Theme.Colors.primary.opacity(canPrint ? 1 : 0.4))
-            )
         }
-        .buttonStyle(.plain)
+        .glassActionButton(.primary, in: .roundedRectangle(radius: 14))
         .disabled(!canPrint)
     }
 

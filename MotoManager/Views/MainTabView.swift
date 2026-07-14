@@ -64,18 +64,21 @@ struct MainTabView: View {
 
     @ViewBuilder
     private func screenStack(dVM: MotorcycleDetailViewModel) -> some View {
-        ZStack(alignment: .bottom) {
-            NavigationStack {
-                screen(for: activeTab, dVM: dVM)
-                    .toolbar(.hidden, for: .navigationBar)
-            }
-
-            VStack(spacing: 10) {
-                RefreshBanner(viewModel: dVM)
-                GlassTabBar(selection: $activeTab)
-                    .padding(.bottom, 18)
+        // Native iOS 26 TabView with the Liquid Glass tab bar. Scroll-to-minimize
+        // is intentionally off: the offline banner + add button float above the
+        // tab bar as background-free overlays (each screen's `bottomActionBar`),
+        // and a minimizing bar would leave the button floating mid-screen.
+        TabView(selection: $activeTab) {
+            ForEach(AppTab.allCases) { tab in
+                Tab(tab.label, systemImage: tab.systemImage, value: tab) {
+                    NavigationStack {
+                        screen(for: tab, dVM: dVM)
+                            .toolbar(.hidden, for: .navigationBar)
+                    }
+                }
             }
         }
+        .tint(Theme.Colors.primary)
     }
 
     @ViewBuilder
@@ -88,7 +91,7 @@ struct MainTabView: View {
         case .service:
             MaintenanceLogsView(viewModel: dVM)
         case .parts:
-            PartsView(viewModel: partsVM, motorcycle: dVM.motorcycle)
+            PartsView(viewModel: partsVM, detailVM: dVM, motorcycle: dVM.motorcycle)
         }
     }
 
@@ -100,12 +103,9 @@ struct MainTabView: View {
                 // Compact glass chrome with settings access while the fleet is empty
                 ZStack {
                     Rectangle()
-                        .fill(.ultraThinMaterial)
+                        .fill(Color.clear)
                         .frame(height: 110)
-                        .overlay(
-                            Rectangle()
-                                .fill(Color.white.opacity(0.04))
-                        )
+                        .glassEffect(.regular, in: Rectangle())
                     HStack {
                         Spacer()
                         glassIconButton(systemImage: "gearshape.fill") {
@@ -129,8 +129,7 @@ struct MainTabView: View {
                 .font(.system(size: 16, weight: .semibold))
                 .foregroundStyle(.white)
                 .frame(width: 38, height: 38)
-                .background(.ultraThinMaterial, in: Circle())
-                .overlay(Circle().stroke(Color.white.opacity(0.3), lineWidth: 0.5))
+                .glassEffect(.regular, in: Circle())
         }
     }
 }
@@ -185,12 +184,7 @@ struct EmptyFleetView: View {
                 .foregroundColor(.secondary.opacity(0.7))
             }
             .padding(Theme.Spacing.l)
-            .background(.ultraThinMaterial)
-            .cornerRadius(Theme.Radius.l)
-            .overlay(
-                RoundedRectangle(cornerRadius: Theme.Radius.l)
-                    .stroke(Color.white.opacity(0.1), lineWidth: 1)
-            )
+            .glassEffect(.regular, in: RoundedRectangle(cornerRadius: Theme.Radius.l))
             .padding(.horizontal, Theme.Spacing.l)
 
             Spacer()

@@ -4,6 +4,8 @@ import SwiftUI
 /// segment for other users' public parts (online-only).
 struct PartsView: View {
     @ObservedObject var viewModel: PartsViewModel
+    /// The bike detail VM — drives the shared offline banner overlay.
+    @ObservedObject var detailVM: MotorcycleDetailViewModel
     /// The currently selected bike, used for the "Passend für …" filter chip.
     let motorcycle: Motorcycle?
 
@@ -19,7 +21,7 @@ struct PartsView: View {
         ScrollView {
             VStack(spacing: Theme.Spacing.m) {
                 header
-                    .padding(.horizontal, Theme.Spacing.m)
+                    .padding(.horizontal, Theme.Spacing.pageH)
 
                 GlassSegmentedControl(
                     segments: [
@@ -31,20 +33,26 @@ struct PartsView: View {
                 .padding(.horizontal, Theme.Spacing.m)
 
                 searchField
-                    .padding(.horizontal, Theme.Spacing.m)
+                    .padding(.horizontal, Theme.Spacing.pageH)
 
                 if tab == .mine {
                     mineContent
-                        .padding(.horizontal, Theme.Spacing.m)
+                        .padding(.horizontal, Theme.Spacing.pageH)
                 } else {
                     publicContent
-                        .padding(.horizontal, Theme.Spacing.m)
+                        .padding(.horizontal, Theme.Spacing.pageH)
                 }
             }
             .padding(.top, Theme.Spacing.xl * 2)
             .padding(.bottom, 110)
         }
         .background(Color.clear)
+        // Add is only meaningful for the user's own inventory.
+        .bottomActionBar(
+            detailVM: detailVM,
+            addLabel: tab == .mine ? "Teil hinzufügen" : nil,
+            addAction: tab == .mine ? { showingAddPart = true } : nil
+        )
         .refreshable {
             await SyncEngine.shared.sync(motorcycleIds: [])
             viewModel.reloadLocal()
@@ -147,8 +155,6 @@ struct PartsView: View {
     @ViewBuilder
     private var mineContent: some View {
         VStack(spacing: Theme.Spacing.s) {
-            addPartCTA
-
             if let moto = motorcycle, moto.seriesId != nil {
                 Toggle(isOn: $filterBySelectedBike) {
                     Text("Passend für \(moto.make) \(moto.model)")
@@ -181,26 +187,6 @@ struct PartsView: View {
                 }
             }
         }
-    }
-
-    private var addPartCTA: some View {
-        Button { showingAddPart = true } label: {
-            HStack(spacing: 10) {
-                Image(systemName: "shippingbox.fill")
-                    .font(.system(size: 16, weight: .semibold))
-                Text("Teil hinzufügen")
-                    .font(.system(size: 15, weight: .bold))
-                Spacer(minLength: 0)
-                Image(systemName: "plus")
-                    .font(.system(size: 16, weight: .bold))
-            }
-            .foregroundColor(.white)
-            .padding(.horizontal, 16)
-            .padding(.vertical, 14)
-            .background(Theme.Colors.primary, in: RoundedRectangle(cornerRadius: 18))
-            .shadow(color: Theme.Colors.primary.opacity(0.4), radius: 12, x: 0, y: 6)
-        }
-        .buttonStyle(.plain)
     }
 
     // MARK: - Public browse
