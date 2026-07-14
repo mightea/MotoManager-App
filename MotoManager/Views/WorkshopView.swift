@@ -378,13 +378,13 @@ private struct TorqueRow: View {
     let showGroup: Bool
 
     var body: some View {
-        HStack(alignment: .center) {
+        HStack(alignment: .top) {
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 6) {
                     Text(spec.name)
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundColor(.white)
-                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
                     if spec.syncState.isPending { PendingBadge() }
                     if spec.unverified {
                         Label("Unverifiziert", systemImage: "exclamationmark.triangle.fill")
@@ -398,27 +398,32 @@ private struct TorqueRow: View {
                     }
                 }
 
-                HStack(spacing: 6) {
-                    if showGroup {
-                        Text(spec.category.uppercased())
-                            .font(.system(size: 9, weight: .heavy))
-                            .tracking(0.4)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 1.5)
-                            .background(Capsule().fill(Theme.Colors.primary.opacity(0.22)))
-                            .foregroundColor(Theme.Colors.primary)
+                if showGroup || (spec.toolSize.map { !$0.isEmpty } ?? false) {
+                    HStack(spacing: 6) {
+                        if showGroup {
+                            Text(spec.category.uppercased())
+                                .font(.system(size: 9, weight: .heavy))
+                                .tracking(0.4)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 1.5)
+                                .background(Capsule().fill(Theme.Colors.primary.opacity(0.22)))
+                                .foregroundColor(Theme.Colors.primary)
+                        }
+                        if let tool = spec.toolSize, !tool.isEmpty {
+                            Text(tool)
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundColor(.white.opacity(0.6))
+                        }
                     }
-                    if let tool = spec.toolSize, !tool.isEmpty {
-                        Text(tool)
-                            .font(.system(size: 10, weight: .semibold))
-                            .foregroundColor(.white.opacity(0.6))
-                    }
-                    if let description = spec.recordDescription, !description.isEmpty {
-                        Text(description)
-                            .font(.system(size: 10))
-                            .foregroundColor(.white.opacity(0.5))
-                            .lineLimit(1)
-                    }
+                }
+
+                // Full description on its own line so it wraps and the row grows
+                // vertically instead of truncating.
+                if let description = spec.recordDescription, !description.isEmpty {
+                    Text(description)
+                        .font(.system(size: 11))
+                        .foregroundColor(.white.opacity(0.6))
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
             Spacer(minLength: 8)
@@ -446,12 +451,13 @@ private struct DocumentTile: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             ZStack(alignment: .topLeading) {
-                RoundedRectangle(cornerRadius: 10)
-                    .fill(Theme.Colors.accent.opacity(0.16))
+                DocumentThumbnailView(document: document)
                     .frame(height: 56)
+                    .frame(maxWidth: .infinity)
+                    .clipShape(RoundedRectangle(cornerRadius: 10))
                     .overlay(
                         RoundedRectangle(cornerRadius: 10)
-                            .stroke(Theme.Colors.accent.opacity(0.25), lineWidth: 0.5)
+                            .stroke(Color.white.opacity(0.12), lineWidth: 0.5)
                     )
 
                 Text(fileBadge)
