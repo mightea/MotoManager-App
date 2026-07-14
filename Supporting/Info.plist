@@ -12,6 +12,9 @@
 		<string>_printer._tcp</string>
 		<string>_ipp._tcp</string>
 	</array>
+	<!-- Detect the fuel station when logging a fill-up, to match or create it. -->
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>MotoManager nutzt deinen Standort, um beim Erfassen einer Tankung die passende Tankstelle zu finden oder anzulegen.</string>
 	<!-- Only standard HTTPS is used — exempt from export-compliance review,
 	     so TestFlight builds skip the manual encryption question. -->
 	<key>ITSAppUsesNonExemptEncryption</key>

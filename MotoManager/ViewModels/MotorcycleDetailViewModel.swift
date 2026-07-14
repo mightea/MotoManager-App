@@ -148,7 +148,8 @@ class MotorcycleDetailViewModel: ObservableObject {
     func createFuelRecord(
         odo: Int, amount: Double, cost: Double, pricePerUnit: Double,
         currency: String, date: Date, fuelType: String,
-        locationName: String?, notes: String?
+        locationName: String?, notes: String?,
+        locationId: Int? = nil, latitude: Double? = nil, longitude: Double? = nil
     ) -> Bool {
         let record = SDMaintenanceRecord(
             motorcycleId: motorcycle.id,
@@ -158,7 +159,8 @@ class MotorcycleDetailViewModel: ObservableObject {
             syncState: .pendingCreate
         )
         applyFuelFields(record, amount: amount, cost: cost, pricePerUnit: pricePerUnit,
-                        currency: currency, fuelType: fuelType, locationName: locationName, notes: notes)
+                        currency: currency, fuelType: fuelType, locationName: locationName, notes: notes,
+                        locationId: locationId, latitude: latitude, longitude: longitude)
         modelContext.insert(record)
         persistAndSync()
         return true
@@ -194,7 +196,8 @@ class MotorcycleDetailViewModel: ObservableObject {
     private func applyFuelFields(
         _ record: SDMaintenanceRecord,
         amount: Double, cost: Double, pricePerUnit: Double,
-        currency: String, fuelType: String, locationName: String?, notes: String?
+        currency: String, fuelType: String, locationName: String?, notes: String?,
+        locationId: Int? = nil, latitude: Double? = nil, longitude: Double? = nil
     ) {
         record.fuelAmount = amount
         record.cost = cost > 0 ? cost : nil
@@ -203,6 +206,12 @@ class MotorcycleDetailViewModel: ObservableObject {
         record.fuelType = fuelType
         record.locationName = (locationName?.isEmpty == false) ? locationName : nil
         record.recordDescription = (notes?.isEmpty == false) ? notes : nil
+        // Server links fuel records to a station by locationId; lat/lon/name are
+        // kept locally so the detail map can show it immediately (nil-preserving
+        // so an edit that doesn't re-detect keeps the existing link).
+        if let locationId { record.locationId = locationId }
+        if let latitude { record.latitude = latitude }
+        if let longitude { record.longitude = longitude }
     }
 
     private func persistAndSync() {

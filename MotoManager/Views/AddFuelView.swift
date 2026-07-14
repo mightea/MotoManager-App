@@ -1,3 +1,4 @@
+import CoreLocation
 import SwiftUI
 
 /// Glass bottom-sheet fuel-entry flow.
@@ -18,6 +19,8 @@ struct AddFuelView: View {
 
     private enum Field: Hashable { case odo, liters, price, total }
     private enum PriceCouple { case perLiter, total }
+    /// Fuel-station GPS detection lifecycle (new entries only).
+    private enum StationState: Equatable { case idle, detecting, matched, suggestCreate, denied, failed }
 
     @State private var odo: String
     @State private var liters: String = ""
@@ -26,6 +29,11 @@ struct AddFuelView: View {
     @State private var coupleSource: PriceCouple = .perLiter
     @State private var fullTank: Bool = true
     @State private var savedAnim: Bool = false
+    /// One-shot: on the first tap into the pre-filled odo/price fields we strip
+    /// the part that usually changes (odo's last 3 digits, the price decimals)
+    /// so the user only types the delta. New entries only.
+    @State private var odoPrepared = false
+    @State private var pricePrepared = false
     @State private var currency: String
     @State private var currencies: [Currency]
     @State private var currencyPopoverOpen: Bool = false
@@ -34,6 +42,14 @@ struct AddFuelView: View {
     @State private var locationName: String = ""
     @State private var notes: String = ""
     @State private var date = Date()
+
+    // Fuel-station detection (new entries): GPS → match an existing backend
+    // location or propose creating one. `locationId` links the record server-side;
+    // `stationCoord` is kept for the local detail map.
+    @State private var locationId: Int?
+    @State private var stationName: String = ""
+    @State private var stationCoord: CLLocationCoordinate2D?
+    @State private var stationState: StationState = .idle
 
     @FocusState private var focused: Field?
 
@@ -89,6 +105,9 @@ struct AddFuelView: View {
             VStack(spacing: 0) {
                 header
                 fieldStack
+                if existingRecord == nil {
+                    stationRow
+                }
                 metaRow
                 saveButton
                 Spacer(minLength: 0)
@@ -104,6 +123,10 @@ struct AddFuelView: View {
         }
         .task {
             await refreshCurrencies()
+        }
+        .task {
+            // Detect the fuel station on open (new entries only).
+            if existingRecord == nil { await detectStation() }
         }
         .onChange(of: odo) { _, newValue in
             let sanitized = newValue.filter { $0.isNumber }
@@ -192,7 +215,7 @@ struct AddFuelView: View {
                 derived: false,
                 accent: false,
                 isActive: focused == .odo,
-                onTap: { focused = .odo }
+                onTap: { prepareOdoIfNeeded(); focused = .odo }
             )
             GlassFieldRow(
                 eyebrow: "TANKMENGE",
@@ -217,7 +240,7 @@ struct AddFuelView: View {
                     derived: coupleSource == .total && !price.isEmpty && !liters.isEmpty,
                     accent: false,
                     isActive: focused == .price,
-                    onTap: { focused = .price }
+                    onTap: { preparePriceIfNeeded(); focused = .price }
                 )
                 GlassFieldRow(
                     eyebrow: "GESAMTPREIS",
@@ -495,6 +518,161 @@ struct AddFuelView: View {
         return ["CHF", "EUR", "USD", "GBP", "AUD"]
     }
 
+    // MARK: - Fast-entry prep
+
+    /// First tap into the pre-filled odometer: drop the last three digits so the
+    /// user just types the change since the last fill (e.g. 134'373 → 134___).
+    private func prepareOdoIfNeeded() {
+        guard existingRecord == nil, !odoPrepared else { return }
+        odoPrepared = true
+        if odo.count > 3 { odo = String(odo.dropLast(3)) }
+    }
+
+    /// First tap into the pre-filled price/L: drop the decimals (the part that
+    /// usually changes), keeping the integer + separator (e.g. 1.66 → 1.).
+    private func preparePriceIfNeeded() {
+        guard existingRecord == nil, !pricePrepared, !price.isEmpty else { return }
+        pricePrepared = true
+        let intPart = price.prefix { $0.isNumber }
+        price = intPart + "."
+    }
+
+    // MARK: - Fuel station (GPS detection)
+
+    private var stationRow: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "fuelpump.fill")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundColor(Theme.Colors.primary)
+                .frame(width: 22)
+            stationContent
+        }
+        .frame(minHeight: 30)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .background(RoundedRectangle(cornerRadius: Theme.Glass.fieldRadius).fill(Color.white.opacity(0.05)))
+        .overlay(RoundedRectangle(cornerRadius: Theme.Glass.fieldRadius).stroke(Theme.Glass.border, lineWidth: 0.5))
+        .padding(.horizontal, 14)
+        .padding(.top, 8)
+    }
+
+    @ViewBuilder
+    private var stationContent: some View {
+        switch stationState {
+        case .idle:
+            Button { Task { await detectStation() } } label: {
+                Text("Tankstelle in der Nähe suchen")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(Theme.Colors.primary)
+            }
+            Spacer(minLength: 0)
+        case .detecting:
+            ProgressView().controlSize(.small)
+            Text("Tankstelle wird gesucht…")
+                .font(.system(size: 13))
+                .foregroundColor(Theme.Glass.mutedText)
+            Spacer(minLength: 0)
+        case .matched:
+            VStack(alignment: .leading, spacing: 1) {
+                Text("TANKSTELLE")
+                    .font(.system(size: 9, weight: .heavy)).tracking(1)
+                    .foregroundColor(Theme.Glass.mutedText)
+                Text(stationName)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(.white).lineLimit(1)
+            }
+            Spacer(minLength: 0)
+            Image(systemName: "checkmark.circle.fill").foregroundColor(.green)
+            Button { clearStation() } label: {
+                Image(systemName: "xmark.circle.fill").foregroundColor(Theme.Glass.mutedText)
+            }
+        case .suggestCreate:
+            VStack(alignment: .leading, spacing: 2) {
+                Text("NEUE TANKSTELLE")
+                    .font(.system(size: 9, weight: .heavy)).tracking(1)
+                    .foregroundColor(Theme.Glass.mutedText)
+                TextField("Name der Tankstelle", text: $stationName)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(.white)
+                    .textFieldStyle(.plain)
+            }
+            Spacer(minLength: 0)
+            Button { Task { await createStation() } } label: {
+                Text("Anlegen").font(.system(size: 13, weight: .heavy))
+                    .foregroundColor(Theme.Colors.primary)
+            }
+            .disabled(stationName.trimmingCharacters(in: .whitespaces).isEmpty)
+        case .denied:
+            Text("Standortzugriff verweigert")
+                .font(.system(size: 13)).foregroundColor(Theme.Glass.mutedText)
+            Spacer(minLength: 0)
+        case .failed:
+            Text("Keine Tankstelle gefunden")
+                .font(.system(size: 13)).foregroundColor(Theme.Glass.mutedText)
+            Spacer(minLength: 0)
+            Button { Task { await detectStation() } } label: {
+                Image(systemName: "arrow.clockwise").foregroundColor(Theme.Colors.primary)
+            }
+        }
+    }
+
+    private func detectStation() async {
+        guard existingRecord == nil else { return }
+        stationState = .detecting
+        do {
+            let location = try await LocationManager.shared.requestCurrentLocation()
+            let coord = location.coordinate
+            stationCoord = coord
+            let nearby = try await NetworkManager.shared.fetchNearbyLocations(
+                latitude: coord.latitude, longitude: coord.longitude, radiusMeters: 250)
+            if let match = nearby.first {
+                locationId = match.id
+                stationName = match.name
+                if let la = match.latitude, let lo = match.longitude {
+                    stationCoord = CLLocationCoordinate2D(latitude: la, longitude: lo)
+                }
+                stationState = .matched
+            } else {
+                stationName = (try? await reverseGeocodedName(coord)) ?? ""
+                stationState = .suggestCreate
+            }
+        } catch LocationManager.LocationError.denied {
+            stationState = .denied
+        } catch {
+            stationState = .failed
+        }
+    }
+
+    private func createStation() async {
+        guard let coord = stationCoord else { return }
+        let name = stationName.trimmingCharacters(in: .whitespaces)
+        guard !name.isEmpty else { return }
+        stationState = .detecting
+        do {
+            let created = try await NetworkManager.shared.createLocation(
+                name: name, latitude: coord.latitude, longitude: coord.longitude)
+            locationId = created.id
+            stationName = created.name
+            stationState = .matched
+        } catch {
+            stationState = .suggestCreate
+        }
+    }
+
+    private func clearStation() {
+        locationId = nil
+        stationName = ""
+        stationState = .idle
+    }
+
+    private func reverseGeocodedName(_ coord: CLLocationCoordinate2D) async throws -> String {
+        let placemarks = try await CLGeocoder().reverseGeocodeLocation(
+            CLLocation(latitude: coord.latitude, longitude: coord.longitude))
+        guard let p = placemarks.first else { return "" }
+        if let name = p.name, !name.isEmpty { return name }
+        return [p.thoroughfare, p.locality].compactMap { $0 }.joined(separator: ", ")
+    }
+
     // MARK: - Coupling logic
 
     private func recomputeFromLiters() {
@@ -582,8 +760,11 @@ struct AddFuelView: View {
             viewModel.createFuelRecord(
                 odo: odoValue, amount: litersValue, cost: totalCost, pricePerUnit: pricePerLiter,
                 currency: currency, date: date, fuelType: fuelType,
-                locationName: locationName.isEmpty ? nil : locationName,
-                notes: notes.isEmpty ? nil : notes
+                locationName: stationName.isEmpty ? (locationName.isEmpty ? nil : locationName) : stationName,
+                notes: notes.isEmpty ? nil : notes,
+                locationId: locationId,
+                latitude: stationCoord?.latitude,
+                longitude: stationCoord?.longitude
             )
         }
 

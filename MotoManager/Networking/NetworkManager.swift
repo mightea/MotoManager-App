@@ -455,6 +455,33 @@ class NetworkManager {
         _ = try await performRequest(request)
     }
 
+    // MARK: - Locations (GPS places, e.g. fuel stations)
+
+    /// Fuel stations (or other `types`) within `radiusMeters` of a point, nearest
+    /// first. Backed by the `/api/locations` proximity params.
+    func fetchNearbyLocations(
+        latitude: Double, longitude: Double, radiusMeters: Double, types: String = "fuelStation"
+    ) async throws -> [Location] {
+        let path = String(
+            format: "/api/locations?types=%@&lat=%.6f&lon=%.6f&radius=%.0f",
+            types, latitude, longitude, radiusMeters
+        )
+        let wrapper: LocationListResponse = try await get(path)
+        return wrapper.locations
+    }
+
+    func createLocation(
+        name: String, type: String = "fuelStation", latitude: Double, longitude: Double
+    ) async throws -> Location {
+        let payload: [String: Any] = [
+            "name": name, "type": type, "latitude": latitude, "longitude": longitude,
+        ]
+        let body = try JSONSerialization.data(withJSONObject: payload)
+        let request = try makeRequest(path: "/api/locations", method: "POST", authorized: true, jsonBody: body)
+        let data = try await performRequest(request)
+        return try Self.decode(LocationResponse.self, from: data).location
+    }
+
     /// Series lookup, cached like currencies.
     func fetchModelSeries() async throws -> [ModelSeries] {
         let wrapper: ModelSeriesListResponse = try await get("/api/model-series")
