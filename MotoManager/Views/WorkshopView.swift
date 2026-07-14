@@ -451,8 +451,11 @@ private struct DocumentTile: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             ZStack(alignment: .topLeading) {
+                // Documents are usually A4 (portrait), so give the preview a tall,
+                // page-like frame — enough to show most of the page instead of a
+                // cropped sliver, without dominating the tile.
                 DocumentThumbnailView(document: document)
-                    .frame(height: 56)
+                    .frame(height: 160)
                     .frame(maxWidth: .infinity)
                     .clipShape(RoundedRectangle(cornerRadius: 10))
                     .overlay(

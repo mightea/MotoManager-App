@@ -58,7 +58,7 @@ final class DocumentThumbnailer {
     /// Generate (or reuse a cached) thumbnail. Returns nil for types QuickLook
     /// shouldn't render here (so the caller shows the type glyph instead).
     func thumbnail(for document: Document,
-                   size: CGSize = CGSize(width: 400, height: 220),
+                   size: CGSize = CGSize(width: 320, height: 440),
                    scale: CGFloat) async -> UIImage? {
         guard Self.kind(for: document) != .other else { return nil }
 
