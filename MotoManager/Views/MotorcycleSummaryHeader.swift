@@ -23,11 +23,19 @@ struct MotorcycleSummaryHeader: View {
     let motorcycle: Motorcycle
     let type: HeaderType
     @ObservedObject var viewModel: MotorcycleDetailViewModel
+    /// Extra image height added *below* the header content. The bike block stays
+    /// anchored to the top `contentHeight` region while the photo continues down,
+    /// so an overlapping element (e.g. the stat strip) sits on the image instead
+    /// of a hard black cut-off.
+    var bottomExtension: CGFloat = 0
 
     @Environment(\.chromeActions) private var chrome
 
+    private let contentHeight: CGFloat = 180
+    private var totalHeight: CGFloat { contentHeight + bottomExtension }
+
     var body: some View {
-        ZStack(alignment: .bottomLeading) {
+        ZStack(alignment: .topLeading) {
             backgroundImage
             darkeningOverlay
 
@@ -39,8 +47,10 @@ struct MotorcycleSummaryHeader: View {
             .padding(.horizontal, 14)
             .padding(.top, 54)
             .padding(.bottom, 14)
+            // Keep the content in the top region; the extension below is pure image.
+            .frame(height: contentHeight, alignment: .bottom)
         }
-        .frame(height: 180)
+        .frame(height: totalHeight)
         .clipped()
     }
 
@@ -51,24 +61,28 @@ struct MotorcycleSummaryHeader: View {
         if let url = motorcycle.image {
             RemoteImageView(url: url, maxPixelWidth: 1200)
                 .aspectRatio(contentMode: .fill)
-                .frame(height: 180)
+                .frame(height: totalHeight)
                 .clipped()
         } else {
             Theme.Colors.primary.opacity(0.8)
-                .frame(height: 180)
+                .frame(height: totalHeight)
         }
     }
 
     private var darkeningOverlay: some View {
-        LinearGradient(
-            stops: [
-                .init(color: .black.opacity(0.40), location: 0.0),
-                .init(color: .black.opacity(0.10), location: 0.38),
-                .init(color: .black.opacity(0.78), location: 1.0)
-            ],
-            startPoint: .top,
-            endPoint: .bottom
-        )
+        // Compress the original 3-stop gradient into the content region so the
+        // bike block keeps its exact look; when there's an extension, add a
+        // lighter tail below it so the photo shows through behind the stat strip.
+        let boundary = contentHeight / totalHeight   // 1.0 when bottomExtension == 0
+        var stops: [Gradient.Stop] = [
+            .init(color: .black.opacity(0.40), location: 0.0),
+            .init(color: .black.opacity(0.10), location: 0.38 * boundary),
+            .init(color: .black.opacity(0.78), location: boundary)
+        ]
+        if bottomExtension > 0 {
+            stops.append(.init(color: .black.opacity(0.45), location: 1.0))
+        }
+        return LinearGradient(stops: stops, startPoint: .top, endPoint: .bottom)
     }
 
     // MARK: - Top row (gear only)

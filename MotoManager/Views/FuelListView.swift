@@ -5,6 +5,9 @@ struct FuelListView: View {
     @State private var showingAddFuel = false
     @State private var selectedFuelRecord: SDMaintenanceRecord?
 
+    /// Tightened horizontal page margin for the stat strip + list (was 12).
+    private let sideMargin: CGFloat = 6
+
     /// Backed by SwiftData (offline-first); already filtered to fuel + non-deleted.
     private var fuelRecords: [SDMaintenanceRecord] {
         viewModel.fuelRecords
@@ -31,14 +34,23 @@ struct FuelListView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: Theme.Spacing.m) {
-                MotorcycleSummaryHeader(motorcycle: viewModel.motorcycle, type: .fuel, viewModel: viewModel)
+                // The header photo extends below its content so the stat strip
+                // overlaps it (glass pills on the image) instead of sitting on a
+                // hard black cut-off.
+                ZStack(alignment: .bottom) {
+                    MotorcycleSummaryHeader(
+                        motorcycle: viewModel.motorcycle, type: .fuel, viewModel: viewModel,
+                        bottomExtension: 96
+                    )
                     .ignoresSafeArea(edges: .top)
 
-                statStrip
-                    .padding(.horizontal, Theme.Spacing.pageH)
+                    statStrip
+                        .padding(.horizontal, sideMargin)
+                        .padding(.bottom, 12)
+                }
 
                 listSection
-                    .padding(.horizontal, Theme.Spacing.pageH)
+                    .padding(.horizontal, sideMargin)
             }
             // Clears the docked add button so the last row is never hidden.
             .padding(.bottom, 96)
