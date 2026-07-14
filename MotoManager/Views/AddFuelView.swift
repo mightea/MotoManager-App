@@ -34,6 +34,7 @@ struct AddFuelView: View {
     /// so the user only types the delta. New entries only.
     @State private var odoPrepared = false
     @State private var pricePrepared = false
+    @State private var showingOdoScanner = false
     @State private var currency: String
     @State private var currencies: [Currency]
     @State private var currencyPopoverOpen: Bool = false
@@ -115,6 +116,17 @@ struct AddFuelView: View {
             hiddenTextFields
         }
         .background(sheetBackground)
+        .sheet(isPresented: $showingOdoScanner) {
+            OdometerScanSheet(onResult: { value in
+                odo = "\(value)"
+                // Keep the full scanned value on the next tap (don't strip digits).
+                odoPrepared = true
+            })
+            .presentationDetents([.large])
+            .presentationCornerRadius(Theme.Glass.sheetRadius)
+            .presentationBackground(.regularMaterial)
+            .presentationDragIndicator(.visible)
+        }
         .onAppear {
             if focused == nil {
                 // Mirrors FuelEntrySheet.jsx setActiveField("liters") on open.
@@ -205,18 +217,34 @@ struct AddFuelView: View {
 
     private var fieldStack: some View {
         VStack(spacing: 8) {
-            GlassFieldRow(
-                eyebrow: "KILOMETERSTAND",
-                unit: "km",
-                value: odo,
-                hint: odoHint,
-                icon: "gauge.with.dots",
-                size: .big,
-                derived: false,
-                accent: false,
-                isActive: focused == .odo,
-                onTap: { prepareOdoIfNeeded(); focused = .odo }
-            )
+            // Odometer row carries a camera button to scan the reading from the
+            // dashboard instead of typing it.
+            ZStack(alignment: .topTrailing) {
+                GlassFieldRow(
+                    eyebrow: "KILOMETERSTAND",
+                    unit: "km",
+                    value: odo,
+                    hint: odoHint,
+                    icon: "gauge.with.dots",
+                    size: .big,
+                    derived: false,
+                    accent: false,
+                    isActive: focused == .odo,
+                    onTap: { prepareOdoIfNeeded(); focused = .odo }
+                )
+                Button {
+                    focused = nil
+                    showingOdoScanner = true
+                } label: {
+                    Image(systemName: "camera.viewfinder")
+                        .font(.system(size: 17, weight: .semibold))
+                        .foregroundColor(Theme.Colors.primary)
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Kilometerstand scannen")
+            }
             GlassFieldRow(
                 eyebrow: "TANKMENGE",
                 unit: "L",

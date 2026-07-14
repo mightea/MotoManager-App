@@ -33,6 +33,7 @@ struct AddMaintenanceView: View {
     @State private var date: Date
     @State private var confirmingDelete = false
     @State private var savedAnim = false
+    @State private var showingOdoScanner = false
 
     init(viewModel: MotorcycleDetailViewModel, existingRecord: SDMaintenanceRecord? = nil) {
         self.viewModel = viewModel
@@ -69,7 +70,18 @@ struct AddMaintenanceView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 field("KILOMETERSTAND") {
-                    TextField("", text: $odo).keyboardType(.numberPad).foregroundColor(.white)
+                    HStack(spacing: 8) {
+                        TextField("", text: $odo).keyboardType(.numberPad).foregroundColor(.white)
+                        Button {
+                            showingOdoScanner = true
+                        } label: {
+                            Image(systemName: "camera.viewfinder")
+                                .font(.system(size: 17, weight: .semibold))
+                                .foregroundColor(Theme.Colors.primary)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Kilometerstand scannen")
+                    }
                 }
                 HStack(spacing: Theme.Spacing.m) {
                     field("KOSTEN") {
@@ -100,6 +112,13 @@ struct AddMaintenanceView: View {
             .padding(Theme.Spacing.l)
         }
         .background(Color.clear)
+        .sheet(isPresented: $showingOdoScanner) {
+            OdometerScanSheet(onResult: { value in odo = "\(value)" })
+            .presentationDetents([.large])
+            .presentationCornerRadius(Theme.Glass.sheetRadius)
+            .presentationBackground(.regularMaterial)
+            .presentationDragIndicator(.visible)
+        }
         .onAppear {
             availableParts = PartsInventory.availableParts(
                 in: PersistenceController.shared.mainContext)
