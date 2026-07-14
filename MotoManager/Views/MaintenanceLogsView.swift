@@ -397,7 +397,7 @@ private struct MaintenanceCard: View {
     private func displayTitle(for record: SDMaintenanceRecord, kind: MaintenanceKind) -> String {
         if let desc = record.recordDescription, !desc.isEmpty { return desc }
         if let summary = record.summary, !summary.isEmpty { return summary }
-        return kind.label
+        return record.fluidTypeLabel ?? kind.label
     }
 
     private func formatDateFull(_ iso: String) -> String {

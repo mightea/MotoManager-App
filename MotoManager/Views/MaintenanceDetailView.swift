@@ -47,7 +47,7 @@ struct MaintenanceDetailView: View {
         HStack(spacing: 6) {
             Image(systemName: kind.icon)
                 .font(.system(size: 12, weight: .semibold))
-            Text(kind.label)
+            Text(record.fluidTypeLabel ?? kind.label)
                 .font(.system(size: 12, weight: .heavy))
         }
         .foregroundColor(kind.tint)
@@ -73,7 +73,7 @@ struct MaintenanceDetailView: View {
             divider
             DetailRow(label: "Kilometerstand", value: "\(record.odo) km")
             divider
-            DetailRow(label: "Kategorie", value: kind.label, mono: false)
+            DetailRow(label: "Kategorie", value: record.fluidTypeLabel ?? kind.label, mono: false)
             divider
             DetailRow(label: "Motorrad",
                       value: "\(viewModel.motorcycle.make) \(viewModel.motorcycle.model)",
@@ -141,7 +141,7 @@ struct MaintenanceDetailView: View {
     private func displayTitle(kind: MaintenanceVisualKind) -> String {
         if let desc = record.recordDescription, !desc.isEmpty { return desc }
         if let summary = record.summary, !summary.isEmpty { return summary }
-        return kind.label
+        return record.fluidTypeLabel ?? kind.label
     }
 }
 
