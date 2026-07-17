@@ -96,6 +96,14 @@ struct FuelDetailView: View {
                 divider
                 DetailRow(label: "Kraftstoff", value: type, mono: false)
             }
+            if record.fuelAdditiveAdded {
+                divider
+                DetailRow(label: "Additiv", value: "Ja", mono: false)
+            }
+            if record.leadSubstituteAdded {
+                divider
+                DetailRow(label: "Bleiersatz", value: "Ja", mono: false)
+            }
         }
 
         DetailSection("KOSTEN") {

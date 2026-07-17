@@ -29,6 +29,8 @@ struct MaintenanceRecord: Codable, Identifiable {
     let locationName: String?
     let fuelConsumption: Double?
     let tripDistance: Double?
+    let fuelAdditiveAdded: Bool?
+    let leadSubstituteAdded: Bool?
     let summary: String?
     let parentId: Int?
     // Sync metadata (server-provided; see backend migration 011).
@@ -39,7 +41,7 @@ struct MaintenanceRecord: Codable, Identifiable {
     enum CodingKeys: String, CodingKey {
         case id, date, odo, motorcycleId, cost, normalizedCost, currency, description, summary
         case recordType = "type"
-        case brand, model, tirePosition, tireSize, dotCode, batteryType, fluidType, viscosity, oilType, inspectionLocation, locationId, fuelType, fuelAmount, pricePerUnit, latitude, longitude, locationName, fuelConsumption, tripDistance, parentId
+        case brand, model, tirePosition, tireSize, dotCode, batteryType, fluidType, viscosity, oilType, inspectionLocation, locationId, fuelType, fuelAmount, pricePerUnit, latitude, longitude, locationName, fuelConsumption, tripDistance, fuelAdditiveAdded, leadSubstituteAdded, parentId
         case clientId, updatedAt, deletedAt
     }
 }

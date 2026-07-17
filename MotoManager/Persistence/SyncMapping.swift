@@ -56,6 +56,8 @@ extension SDMaintenanceRecord {
         locationName = dto.locationName
         fuelConsumption = dto.fuelConsumption
         tripDistance = dto.tripDistance
+        fuelAdditiveAdded = dto.fuelAdditiveAdded ?? false
+        leadSubstituteAdded = dto.leadSubstituteAdded ?? false
         parentId = dto.parentId
         serverUpdatedAt = dto.updatedAt
         syncState = .synced
@@ -88,6 +90,8 @@ extension SDMaintenanceRecord {
         if let locationId { p["locationId"] = locationId }
         if let fuelConsumption { p["fuelConsumption"] = fuelConsumption }
         if let tripDistance { p["tripDistance"] = tripDistance }
+        p["fuelAdditiveAdded"] = fuelAdditiveAdded
+        p["leadSubstituteAdded"] = leadSubstituteAdded
         if let parentId { p["parentId"] = parentId }
         return p
     }

@@ -169,6 +169,7 @@ class MotorcycleDetailViewModel: ObservableObject {
         odo: Int, amount: Double, cost: Double, pricePerUnit: Double,
         currency: String, date: Date, fuelType: String,
         locationName: String?, notes: String?,
+        fuelAdditiveAdded: Bool = false, leadSubstituteAdded: Bool = false,
         locationId: Int? = nil, latitude: Double? = nil, longitude: Double? = nil
     ) -> Bool {
         let record = SDMaintenanceRecord(
@@ -180,6 +181,7 @@ class MotorcycleDetailViewModel: ObservableObject {
         )
         applyFuelFields(record, amount: amount, cost: cost, pricePerUnit: pricePerUnit,
                         currency: currency, fuelType: fuelType, locationName: locationName, notes: notes,
+                        fuelAdditiveAdded: fuelAdditiveAdded, leadSubstituteAdded: leadSubstituteAdded,
                         locationId: locationId, latitude: latitude, longitude: longitude)
         modelContext.insert(record)
         persistAndSync()
@@ -190,12 +192,14 @@ class MotorcycleDetailViewModel: ObservableObject {
         _ record: SDMaintenanceRecord,
         odo: Int, amount: Double, cost: Double, pricePerUnit: Double,
         currency: String, date: Date, fuelType: String,
-        locationName: String?, notes: String?
+        locationName: String?, notes: String?,
+        fuelAdditiveAdded: Bool = false, leadSubstituteAdded: Bool = false
     ) {
         record.odo = odo
         record.date = Self.isoDay(date)
         applyFuelFields(record, amount: amount, cost: cost, pricePerUnit: pricePerUnit,
-                        currency: currency, fuelType: fuelType, locationName: locationName, notes: notes)
+                        currency: currency, fuelType: fuelType, locationName: locationName, notes: notes,
+                        fuelAdditiveAdded: fuelAdditiveAdded, leadSubstituteAdded: leadSubstituteAdded)
         // A record still waiting to be created stays pendingCreate.
         if record.syncState != .pendingCreate { record.syncState = .pendingUpdate }
         record.updatedAtLocal = Date()
@@ -217,8 +221,11 @@ class MotorcycleDetailViewModel: ObservableObject {
         _ record: SDMaintenanceRecord,
         amount: Double, cost: Double, pricePerUnit: Double,
         currency: String, fuelType: String, locationName: String?, notes: String?,
+        fuelAdditiveAdded: Bool = false, leadSubstituteAdded: Bool = false,
         locationId: Int? = nil, latitude: Double? = nil, longitude: Double? = nil
     ) {
+        record.fuelAdditiveAdded = fuelAdditiveAdded
+        record.leadSubstituteAdded = leadSubstituteAdded
         record.fuelAmount = amount
         record.cost = cost > 0 ? cost : nil
         record.pricePerUnit = pricePerUnit > 0 ? pricePerUnit : nil

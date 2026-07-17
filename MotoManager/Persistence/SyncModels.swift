@@ -42,6 +42,9 @@ final class SDMaintenanceRecord {
     var locationName: String?
     var fuelConsumption: Double?
     var tripDistance: Double?
+    /// Defaults keep these a lightweight SwiftData migration (see `syncAttempts`).
+    var fuelAdditiveAdded: Bool = false
+    var leadSubstituteAdded: Bool = false
     var parentId: Int?
 
     var syncState: SyncState

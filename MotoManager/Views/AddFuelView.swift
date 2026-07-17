@@ -28,6 +28,8 @@ struct AddFuelView: View {
     @State private var total: String = ""
     @State private var coupleSource: PriceCouple = .perLiter
     @State private var fullTank: Bool = true
+    @State private var fuelAdditiveAdded: Bool = false
+    @State private var leadSubstituteAdded: Bool = false
     @State private var savedAnim: Bool = false
     /// One-shot: on the first tap into the pre-filled odo/price fields we strip
     /// the part that usually changes (odo's last 3 digits, the price decimals)
@@ -67,6 +69,8 @@ struct AddFuelView: View {
             _locationName = State(initialValue: record.locationName ?? "")
             _notes = State(initialValue: record.recordDescription ?? "")
             _currency = State(initialValue: record.currency ?? Self.defaultCurrency(for: viewModel))
+            _fuelAdditiveAdded = State(initialValue: record.fuelAdditiveAdded)
+            _leadSubstituteAdded = State(initialValue: record.leadSubstituteAdded)
 
             let formatter = ISO8601DateFormatter()
             formatter.formatOptions = [.withFullDate]
@@ -110,6 +114,7 @@ struct AddFuelView: View {
                     stationRow
                 }
                 metaRow
+                additiveRow
                 saveButton
                 Spacer(minLength: 0)
             }
@@ -324,6 +329,17 @@ struct AddFuelView: View {
         .padding(.bottom, 4)
     }
 
+    private var additiveRow: some View {
+        HStack(alignment: .center, spacing: 8) {
+            checkPill(label: "Additiv", isOn: $fuelAdditiveAdded)
+            checkPill(label: "Bleiersatz", isOn: $leadSubstituteAdded)
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 18)
+        .padding(.top, 2)
+        .padding(.bottom, 4)
+    }
+
     private var saveButton: some View {
         Button(action: save) {
             HStack(spacing: 8) {
@@ -454,6 +470,53 @@ struct AddFuelView: View {
             .overlay(
                 Capsule().stroke(
                     fullTank
+                        ? Color.green.opacity(0.35)
+                        : Color.clear,
+                    lineWidth: 0.5
+                )
+            )
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// Same pill style as `fullTankToggle`, for the additive/lead-substitute flags.
+    private func checkPill(label: String, isOn: Binding<Bool>) -> some View {
+        Button {
+            withAnimation(.easeOut(duration: 0.18)) {
+                isOn.wrappedValue.toggle()
+            }
+        } label: {
+            HStack(spacing: 6) {
+                ZStack {
+                    Circle()
+                        .fill(isOn.wrappedValue ? Color.green : Color.clear)
+                        .frame(width: 16, height: 16)
+                    if isOn.wrappedValue {
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 9, weight: .heavy))
+                            .foregroundColor(.white)
+                    } else {
+                        Circle()
+                            .stroke(Color.white.opacity(0.35), lineWidth: 1.5)
+                            .frame(width: 16, height: 16)
+                    }
+                }
+                Text(label)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(isOn.wrappedValue ? Color.green : .white)
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 5)
+            .background(
+                Capsule().fill(
+                    isOn.wrappedValue
+                        ? Color.green.opacity(0.18)
+                        : Color.white.opacity(0.08)
+                )
+            )
+            .overlay(
+                Capsule().stroke(
+                    isOn.wrappedValue
                         ? Color.green.opacity(0.35)
                         : Color.clear,
                     lineWidth: 0.5
@@ -782,7 +845,9 @@ struct AddFuelView: View {
                 odo: odoValue, amount: litersValue, cost: totalCost, pricePerUnit: pricePerLiter,
                 currency: currency, date: date, fuelType: fuelType,
                 locationName: locationName.isEmpty ? nil : locationName,
-                notes: notes.isEmpty ? nil : notes
+                notes: notes.isEmpty ? nil : notes,
+                fuelAdditiveAdded: fuelAdditiveAdded,
+                leadSubstituteAdded: leadSubstituteAdded
             )
         } else {
             viewModel.createFuelRecord(
@@ -790,6 +855,8 @@ struct AddFuelView: View {
                 currency: currency, date: date, fuelType: fuelType,
                 locationName: stationName.isEmpty ? (locationName.isEmpty ? nil : locationName) : stationName,
                 notes: notes.isEmpty ? nil : notes,
+                fuelAdditiveAdded: fuelAdditiveAdded,
+                leadSubstituteAdded: leadSubstituteAdded,
                 locationId: locationId,
                 latitude: stationCoord?.latitude,
                 longitude: stationCoord?.longitude
