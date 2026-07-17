@@ -341,7 +341,7 @@ private struct MaintenanceCard: View {
                     Text(displayTitle(for: record, kind: kind))
                         .font(.system(size: 14, weight: .bold))
                         .foregroundColor(.white)
-                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
                     Spacer(minLength: 8)
                     if let cost = record.cost {
                         Text(Formatters.currency(cost, code: currency, fractionDigits: 0))
@@ -355,7 +355,7 @@ private struct MaintenanceCard: View {
                     Text(notes)
                         .font(.system(size: 12))
                         .foregroundColor(.white.opacity(0.65))
-                        .lineLimit(3)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
 
                 HStack(spacing: 6) {
