@@ -198,6 +198,16 @@ class NetworkManager {
         return wrapper.torqueSpecs
     }
 
+    func fetchMotorcycleDetails(motorcycleId: Int, since: String? = nil) async throws -> [MotorcycleDetail] {
+        let wrapper: MotorcycleDetailListResponse = try await get(syncPath(
+            "/api/motorcycles/\(motorcycleId)/details", since: since))
+        if since == nil {
+            CacheStore.shared.save(wrapper.motorcycleDetails, key: CacheKey.details(motorcycleId: motorcycleId))
+        }
+        AppLog.debug("Fetched \(wrapper.motorcycleDetails.count) motorcycle details for \(motorcycleId)")
+        return wrapper.motorcycleDetails
+    }
+
     /// Tire pressures are a 1:1 record without sync metadata — plain
     /// fetch + cache like documents, not SwiftData/SyncEngine.
     func fetchTirePressure(motorcycleId: Int) async throws -> TirePressure? {
@@ -327,6 +337,25 @@ class NetworkManager {
 
     func deleteTorqueSpec(motorcycleId: Int, specId: Int) async throws {
         let request = try makeRequest(path: "/api/motorcycles/\(motorcycleId)/torque-specs/\(specId)", method: "DELETE", authorized: true)
+        _ = try await performRequest(request)
+    }
+
+    func createMotorcycleDetail(motorcycleId: Int, payload: [String: Any]) async throws -> MotorcycleDetail {
+        let body = try JSONSerialization.data(withJSONObject: payload)
+        let request = try makeRequest(path: "/api/motorcycles/\(motorcycleId)/details", method: "POST", authorized: true, jsonBody: body)
+        let data = try await performRequest(request)
+        return try Self.decode(MotorcycleDetailResponse.self, from: data).motorcycleDetail
+    }
+
+    func updateMotorcycleDetail(motorcycleId: Int, detailId: Int, payload: [String: Any]) async throws -> MotorcycleDetail {
+        let body = try JSONSerialization.data(withJSONObject: payload)
+        let request = try makeRequest(path: "/api/motorcycles/\(motorcycleId)/details/\(detailId)", method: "PUT", authorized: true, jsonBody: body)
+        let data = try await performRequest(request)
+        return try Self.decode(MotorcycleDetailResponse.self, from: data).motorcycleDetail
+    }
+
+    func deleteMotorcycleDetail(motorcycleId: Int, detailId: Int) async throws {
+        let request = try makeRequest(path: "/api/motorcycles/\(motorcycleId)/details/\(detailId)", method: "DELETE", authorized: true)
         _ = try await performRequest(request)
     }
 

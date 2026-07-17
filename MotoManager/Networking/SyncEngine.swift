@@ -112,6 +112,7 @@ final class SyncEngine: ObservableObject {
         deleteAll(SDMaintenanceRecord.self)
         deleteAll(SDTorqueSpec.self)
         deleteAll(SDIssue.self)
+        deleteAll(SDMotorcycleDetail.self)
         deleteAll(SDPart.self)
         deleteAll(SDPartStock.self)
         deleteAll(SDPartConsumption.self)
@@ -133,6 +134,7 @@ final class SyncEngine: ObservableObject {
         try await pushMaintenance()
         try await pushTorque()
         try await pushIssues()
+        try await pushDetails()
         // Parts inventory: dependencies push first (locations before stocks
         // that reference them, parts before stocks/consumptions). Maintenance
         // already pushed above, so consumption→repair links resolve.
@@ -233,6 +235,38 @@ final class SyncEngine: ObservableObject {
             } catch {
                 issue.recordSyncFailure(error)
                 AppLog.error("Push issue \(issue.clientId) failed (attempt \(issue.syncAttempts)): \(error.localizedDescription)")
+            }
+        }
+        try? context.save()
+    }
+
+    private func pushDetails() async throws {
+        let pending = (try? context.fetch(FetchDescriptor<SDMotorcycleDetail>()))?
+            .filter { $0.syncState.isPending && $0.syncAttempts < maxSyncAttempts } ?? []
+        for detail in pending {
+            do {
+                switch detail.syncState {
+                case .pendingDelete:
+                    if let sid = detail.serverId {
+                        try await net.deleteMotorcycleDetail(motorcycleId: detail.motorcycleId, detailId: sid)
+                    }
+                    context.delete(detail)
+                case .pendingUpdate where detail.serverId != nil:
+                    let dto = try await net.updateMotorcycleDetail(
+                        motorcycleId: detail.motorcycleId, detailId: detail.serverId!, payload: detail.toPayload())
+                    detail.apply(dto)
+                    detail.clearSyncFailure()
+                default:
+                    let dto = try await net.createMotorcycleDetail(
+                        motorcycleId: detail.motorcycleId, payload: detail.toPayload())
+                    detail.apply(dto)
+                    detail.clearSyncFailure()
+                }
+            } catch let error as APIError where isFatal(error) {
+                throw error
+            } catch {
+                detail.recordSyncFailure(error)
+                AppLog.error("Push detail \(detail.clientId) failed (attempt \(detail.syncAttempts)): \(error.localizedDescription)")
             }
         }
         try? context.save()
@@ -466,6 +500,7 @@ final class SyncEngine: ObservableObject {
             try await pullMaintenance(motorcycleId: id)
             try await pullTorque(motorcycleId: id)
             try await pullIssues(motorcycleId: id)
+            try await pullDetails(motorcycleId: id)
         }
     }
 
@@ -524,6 +559,25 @@ final class SyncEngine: ObservableObject {
                 if dto.deletedAt != nil { context.delete(local) } else { local.apply(dto) }
             } else if dto.deletedAt == nil {
                 context.insert(SDIssue.make(from: dto))
+            }
+        }
+        try context.save() // durable before cursor advance — see pullMaintenance
+        SyncCursor.advance(cursorKey, with: dtos.compactMap(\.updatedAt))
+    }
+
+    private func pullDetails(motorcycleId: Int) async throws {
+        let cursorKey = SyncCursor.key("details", motorcycleId)
+        let dtos = try await net.fetchMotorcycleDetails(motorcycleId: motorcycleId, since: SyncCursor.get(cursorKey))
+        let existing = (try? context.fetch(FetchDescriptor<SDMotorcycleDetail>(
+            predicate: #Predicate { $0.motorcycleId == motorcycleId }
+        ))) ?? []
+        for dto in dtos {
+            let local = match(dto.clientId, dto.id, in: existing, clientId: \.clientId, serverId: \.serverId)
+            if let local {
+                if local.syncState.isPending { continue }
+                if dto.deletedAt != nil { context.delete(local) } else { local.apply(dto) }
+            } else if dto.deletedAt == nil {
+                context.insert(SDMotorcycleDetail.make(from: dto))
             }
         }
         try context.save() // durable before cursor advance — see pullMaintenance
@@ -689,6 +743,7 @@ final class SyncEngine: ObservableObject {
         return count(SDMaintenanceRecord.self) { $0.syncState.isPending }
             + count(SDTorqueSpec.self) { $0.syncState.isPending }
             + count(SDIssue.self) { $0.syncState.isPending }
+            + count(SDMotorcycleDetail.self) { $0.syncState.isPending }
             + count(SDPart.self) { $0.syncState.isPending }
             + count(SDPartStock.self) { $0.syncState.isPending }
             + count(SDPartConsumption.self) { $0.syncState.isPending }
@@ -706,6 +761,7 @@ final class SyncEngine: ObservableObject {
         clear(SDMaintenanceRecord.self)
         clear(SDTorqueSpec.self)
         clear(SDIssue.self)
+        clear(SDMotorcycleDetail.self)
         clear(SDPart.self)
         clear(SDPartStock.self)
         clear(SDPartConsumption.self)

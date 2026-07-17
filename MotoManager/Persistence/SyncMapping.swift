@@ -148,6 +148,43 @@ extension SDTorqueSpec {
     }
 }
 
+// MARK: - Motorcycle detail
+
+extension SDMotorcycleDetail {
+    static func make(from dto: MotorcycleDetail) -> SDMotorcycleDetail {
+        let cid = dto.clientId.flatMap(UUID.init(uuidString:)) ?? UUID()
+        let d = SDMotorcycleDetail(
+            clientId: cid,
+            serverId: dto.id,
+            motorcycleId: dto.motorcycleId,
+            title: dto.title,
+            value: dto.value,
+            createdAt: dto.createdAt,
+            syncState: .synced
+        )
+        d.apply(dto)
+        return d
+    }
+
+    func apply(_ dto: MotorcycleDetail) {
+        serverId = dto.id
+        motorcycleId = dto.motorcycleId
+        title = dto.title
+        value = dto.value
+        createdAt = dto.createdAt
+        serverUpdatedAt = dto.updatedAt
+        syncState = .synced
+    }
+
+    func toPayload() -> [String: Any] {
+        [
+            "clientId": clientId.uuidString,
+            "title": title,
+            "value": value,
+        ]
+    }
+}
+
 // MARK: - Issue
 
 extension SDIssue {

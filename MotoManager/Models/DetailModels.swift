@@ -64,6 +64,19 @@ struct TorqueSpec: Codable, Identifiable {
     let deletedAt: String?
 }
 
+/// Free-form Title/Value pair per motorcycle (e.g. spark plug brand/model).
+struct MotorcycleDetail: Codable, Identifiable {
+    let id: Int
+    let motorcycleId: Int
+    let title: String
+    let value: String
+    let createdAt: String
+    // Sync metadata (server-provided).
+    let clientId: String?
+    let updatedAt: String?
+    let deletedAt: String?
+}
+
 struct Document: Codable, Identifiable {
     let id: Int
     let title: String

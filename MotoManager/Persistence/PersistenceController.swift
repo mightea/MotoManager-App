@@ -8,6 +8,7 @@ enum PersistenceController {
         SDMaintenanceRecord.self,
         SDTorqueSpec.self,
         SDIssue.self,
+        SDMotorcycleDetail.self,
         SDPart.self,
         SDPartStock.self,
         SDPartConsumption.self,

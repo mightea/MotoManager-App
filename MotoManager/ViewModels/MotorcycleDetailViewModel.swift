@@ -17,6 +17,8 @@ class MotorcycleDetailViewModel: ObservableObject {
     @Published var torque: [SDTorqueSpec] = []
     /// Non-fuel maintenance records backed by SwiftData (offline-first source of truth).
     @Published var serviceRecords: [SDMaintenanceRecord] = []
+    /// Motorcycle details (Title/Value pairs) backed by SwiftData (offline-first source of truth).
+    @Published var details: [SDMotorcycleDetail] = []
 
     @Published var maintenanceRecords: [MaintenanceRecord] = []
     @Published var torqueSpecs: [TorqueSpec] = []
@@ -253,6 +255,7 @@ class MotorcycleDetailViewModel: ObservableObject {
         reloadIssues()
         reloadTorque()
         reloadService()
+        reloadDetails()
     }
 
     // MARK: - Maintenance (non-fuel) writes (offline-first via SwiftData + SyncEngine)
@@ -366,6 +369,50 @@ class MotorcycleDetailViewModel: ObservableObject {
         persistAndSync()
     }
 
+    // MARK: - Motorcycle detail writes (offline-first via SwiftData + SyncEngine)
+
+    func reloadDetails() {
+        let mid = motorcycle.id
+        let descriptor = FetchDescriptor<SDMotorcycleDetail>(
+            predicate: #Predicate { $0.motorcycleId == mid },
+            sortBy: [SortDescriptor(\.title)]
+        )
+        let scoped = (try? modelContext.fetch(descriptor)) ?? []
+        details = scoped.filter { $0.syncState != .pendingDelete }
+    }
+
+    @discardableResult
+    func createDetail(title: String, value: String) -> Bool {
+        let detail = SDMotorcycleDetail(
+            motorcycleId: motorcycle.id,
+            title: title,
+            value: value,
+            createdAt: Self.isoDay(Date()),
+            syncState: .pendingCreate
+        )
+        modelContext.insert(detail)
+        persistAndSync()
+        return true
+    }
+
+    func updateDetail(_ detail: SDMotorcycleDetail, title: String, value: String) {
+        detail.title = title
+        detail.value = value
+        if detail.syncState != .pendingCreate { detail.syncState = .pendingUpdate }
+        detail.updatedAtLocal = Date()
+        persistAndSync()
+    }
+
+    func deleteDetail(_ detail: SDMotorcycleDetail) {
+        if detail.serverId == nil {
+            modelContext.delete(detail)
+        } else {
+            detail.syncState = .pendingDelete
+            detail.updatedAtLocal = Date()
+        }
+        persistAndSync()
+    }
+
     // MARK: - Issue writes (offline-first via SwiftData + SyncEngine)
 
     func reloadIssues() {
@@ -457,6 +504,16 @@ class MotorcycleDetailViewModel: ObservableObject {
             {
                 let t = SDTorqueSpec(serverId: 2, motorcycleId: 1, category: "Wheels", name: "Rear Axle Nut", torque: 100, toolSize: "34mm", createdAt: "2023-01-01", syncState: .synced)
                 return t
+            }()
+        ]
+        vm.details = [
+            {
+                let d = SDMotorcycleDetail(serverId: 1, motorcycleId: 1, title: "Zündkerze", value: "NGK DPR8EA-9", createdAt: "2024-01-01", syncState: .synced)
+                return d
+            }(),
+            {
+                let d = SDMotorcycleDetail(serverId: 2, motorcycleId: 1, title: "Ölfilter", value: "HiFlo HF303", createdAt: "2024-01-01", syncState: .synced)
+                return d
             }()
         ]
         vm.issues = [

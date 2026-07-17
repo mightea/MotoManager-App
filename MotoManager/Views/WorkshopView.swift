@@ -6,6 +6,8 @@ struct WorkshopView: View {
     @State private var selectedTorqueGroup: String = "Alle"
     @State private var showingAddTorque = false
     @State private var editingTorque: SDTorqueSpec?
+    @State private var showingAddDetail = false
+    @State private var editingDetail: SDMotorcycleDetail?
     @State private var showingTirePressure = false
 
     enum DocScope: Hashable { case moto, common }
@@ -42,6 +44,7 @@ struct WorkshopView: View {
 
     private var bothEmpty: Bool {
         viewModel.torque.isEmpty
+            && viewModel.details.isEmpty
             && viewModel.documents.isEmpty
             && viewModel.commonDocuments.isEmpty
             && viewModel.tirePressure == nil
@@ -72,6 +75,8 @@ struct WorkshopView: View {
                         .padding(.horizontal, Theme.Spacing.pageH)
                     documentsSection
                         .padding(.horizontal, Theme.Spacing.pageH)
+                    detailsSection
+                        .padding(.horizontal, Theme.Spacing.pageH)
                     torqueSection
                         .padding(.horizontal, Theme.Spacing.pageH)
                 }
@@ -97,6 +102,20 @@ struct WorkshopView: View {
         }
         .sheet(item: $editingTorque) { spec in
             AddTorqueView(viewModel: viewModel, existingSpec: spec)
+                .presentationDetents([.large])
+                .presentationCornerRadius(Theme.Glass.sheetRadius)
+                .presentationBackground(.regularMaterial)
+                .presentationDragIndicator(.visible)
+        }
+        .sheet(isPresented: $showingAddDetail) {
+            AddDetailView(viewModel: viewModel)
+                .presentationDetents([.large])
+                .presentationCornerRadius(Theme.Glass.sheetRadius)
+                .presentationBackground(.regularMaterial)
+                .presentationDragIndicator(.visible)
+        }
+        .sheet(item: $editingDetail) { detail in
+            AddDetailView(viewModel: viewModel, existingDetail: detail)
                 .presentationDetents([.large])
                 .presentationCornerRadius(Theme.Glass.sheetRadius)
                 .presentationBackground(.regularMaterial)
@@ -286,6 +305,102 @@ struct WorkshopView: View {
             }
         }
         .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 18))
+    }
+}
+
+// MARK: - Details
+
+extension WorkshopView {
+    private var detailsSection: some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.s) {
+            HStack {
+                Text("Details".uppercased())
+                    .font(.system(size: 11, weight: .heavy))
+                    .tracking(2)
+                    .foregroundColor(.white.opacity(0.55))
+                Spacer()
+                Button { showingAddDetail = true } label: {
+                    Image(systemName: "plus")
+                        .font(.system(size: 12, weight: .heavy))
+                        .frame(width: 26, height: 26)
+                }
+                .glassActionButton(.primary, in: .circle)
+                .accessibilityLabel("Detail hinzufügen")
+            }
+            .padding(.horizontal, 6)
+
+            if viewModel.details.isEmpty {
+                Button { showingAddDetail = true } label: {
+                    Text("Keine Details erfasst — tippen zum Hinzufügen.")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(.white.opacity(0.6))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 24)
+                        .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 18))
+                }
+                .buttonStyle(.plain)
+            } else {
+                detailsTable
+            }
+        }
+    }
+
+    private var detailsTable: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Text("TITEL")
+                    .font(.system(size: 9, weight: .heavy))
+                    .tracking(1.5)
+                    .foregroundColor(.white.opacity(0.5))
+                Spacer()
+                Text("WERT")
+                    .font(.system(size: 9, weight: .heavy))
+                    .tracking(1.5)
+                    .foregroundColor(.white.opacity(0.5))
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
+            .background(Color.white.opacity(0.04))
+
+            ForEach(Array(viewModel.details.enumerated()), id: \.element.clientId) { index, detail in
+                Button { editingDetail = detail } label: {
+                    MotorcycleDetailRow(detail: detail)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 10)
+                }
+                .buttonStyle(.plain)
+                if index < viewModel.details.count - 1 {
+                    Divider().background(Color.white.opacity(0.06))
+                }
+            }
+        }
+        .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 18))
+    }
+}
+
+/// Flat title/value row. Both sides wrap instead of truncating — long values
+/// (e.g. part numbers plus descriptions) are expected.
+private struct MotorcycleDetailRow: View {
+    let detail: SDMotorcycleDetail
+
+    var body: some View {
+        HStack(alignment: .top) {
+            HStack(spacing: 6) {
+                Text(detail.title)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(.white)
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
+                if detail.syncState.isPending { PendingBadge() }
+            }
+            Spacer(minLength: 8)
+            Text(detail.value)
+                .font(.system(size: 13, weight: .medium))
+                .foregroundColor(.white.opacity(0.8))
+                .multilineTextAlignment(.trailing)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .contentShape(Rectangle())
     }
 }
 

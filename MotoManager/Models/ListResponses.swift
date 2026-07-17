@@ -12,6 +12,10 @@ struct TorqueSpecListResponse: Codable {
     let torqueSpecs: [TorqueSpec]
 }
 
+struct MotorcycleDetailListResponse: Codable {
+    let motorcycleDetails: [MotorcycleDetail]
+}
+
 struct DocumentListResponse: Codable {
     let docs: [Document]
 }
@@ -55,6 +59,10 @@ struct MaintenanceRecordResponse: Codable {
 
 struct TorqueSpecResponse: Codable {
     let torqueSpec: TorqueSpec
+}
+
+struct MotorcycleDetailResponse: Codable {
+    let motorcycleDetail: MotorcycleDetail
 }
 
 struct IssueResponse: Codable {

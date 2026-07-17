@@ -54,4 +54,5 @@ enum CacheKey {
     static func maintenance(motorcycleId: Int) -> String { "maintenance_\(motorcycleId)" }
     static func torque(motorcycleId: Int) -> String { "torque_\(motorcycleId)" }
     static func tirePressure(motorcycleId: Int) -> String { "tirePressure_\(motorcycleId)" }
+    static func details(motorcycleId: Int) -> String { "details_\(motorcycleId)" }
 }

@@ -102,6 +102,7 @@ extension SyncFailureTracking {
 extension SDMaintenanceRecord: SyncFailureTracking {}
 extension SDTorqueSpec: SyncFailureTracking {}
 extension SDIssue: SyncFailureTracking {}
+extension SDMotorcycleDetail: SyncFailureTracking {}
 
 @Model
 final class SDTorqueSpec {
@@ -158,6 +159,47 @@ final class SDTorqueSpec {
         self.toolSize = toolSize
         self.recordDescription = recordDescription
         self.unverified = unverified
+        self.createdAt = createdAt
+        self.syncState = syncState
+        self.updatedAtLocal = updatedAtLocal
+    }
+}
+
+@Model
+final class SDMotorcycleDetail {
+    @Attribute(.unique) var clientId: UUID
+    var serverId: Int?
+    var motorcycleId: Int
+
+    var title: String
+    var value: String
+    var createdAt: String
+
+    var syncState: SyncState
+    var updatedAtLocal: Date
+    var serverUpdatedAt: String?
+
+    /// Push-failure tracking. Bounds retries so a permanently-rejected record
+    /// (e.g. a 400/422) stops retrying every sync forever and can be surfaced to
+    /// the user and cleared. Defaults make this a lightweight SwiftData migration.
+    var syncAttempts: Int = 0
+    var lastSyncError: String?
+
+    init(
+        clientId: UUID = UUID(),
+        serverId: Int? = nil,
+        motorcycleId: Int,
+        title: String,
+        value: String,
+        createdAt: String = "",
+        syncState: SyncState = .pendingCreate,
+        updatedAtLocal: Date = .init()
+    ) {
+        self.clientId = clientId
+        self.serverId = serverId
+        self.motorcycleId = motorcycleId
+        self.title = title
+        self.value = value
         self.createdAt = createdAt
         self.syncState = syncState
         self.updatedAtLocal = updatedAtLocal
