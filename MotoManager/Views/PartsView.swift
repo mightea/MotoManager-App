@@ -9,7 +9,7 @@ struct PartsView: View {
     /// The currently selected bike, used for the "Passend für …" filter chip.
     let motorcycle: Motorcycle?
 
-    enum PartsTab: Hashable { case mine, publicParts }
+    enum PartsTab: Hashable { case mine, locations, publicParts }
     @State private var tab: PartsTab = .mine
     @State private var searchText = ""
     @State private var filterBySelectedBike = false
@@ -19,6 +19,7 @@ struct PartsView: View {
     @State private var pendingScan: ScannedLabel?
     @State private var selectedLocation: SDStorageLocation?
     @State private var showingScanNotFound = false
+    @FocusState private var searchFocused: Bool
     @ObservedObject private var connectivity = ConnectivityMonitor.shared
 
     var body: some View {
@@ -30,6 +31,7 @@ struct PartsView: View {
                 GlassSegmentedControl(
                     segments: [
                         .init(value: PartsTab.mine, label: "Meine Teile", count: viewModel.parts.count),
+                        .init(value: PartsTab.locations, label: "Lagerorte", count: viewModel.storageLocations.count),
                         .init(value: PartsTab.publicParts, label: "Öffentlich")
                     ],
                     selection: $tab
@@ -39,10 +41,14 @@ struct PartsView: View {
                 searchField
                     .padding(.horizontal, Theme.Spacing.pageH)
 
-                if tab == .mine {
+                switch tab {
+                case .mine:
                     mineContent
                         .padding(.horizontal, Theme.Spacing.pageH)
-                } else {
+                case .locations:
+                    locationsContent
+                        .padding(.horizontal, Theme.Spacing.pageH)
+                case .publicParts:
                     publicContent
                         .padding(.horizontal, Theme.Spacing.pageH)
                 }
@@ -50,15 +56,21 @@ struct PartsView: View {
             .padding(.top, Theme.Spacing.xl * 2)
             .padding(.bottom, 110)
         }
+        // The search keyboard must always be escapable — scrolling dismisses
+        // it, and the clear button in the field offers an explicit way out
+        // (without either, the custom tab bar stays buried behind the keyboard).
+        .scrollDismissesKeyboard(.immediately)
         .background(Color.clear)
-        // Add and label scanning are only meaningful for the user's own inventory.
+        // Add and label scanning are only meaningful for the user's own
+        // inventory; scanning also resolves bin labels, so it stays available
+        // on the Lagerorte segment.
         .bottomActionBar(
             detailVM: detailVM,
             addLabel: tab == .mine ? "Teil hinzufügen" : nil,
             addAction: tab == .mine ? { showingAddPart = true } : nil,
-            secondaryIcon: tab == .mine ? "qrcode.viewfinder" : nil,
-            secondaryLabel: tab == .mine ? "Etikett scannen" : nil,
-            secondaryAction: tab == .mine ? { showingScanner = true } : nil
+            secondaryIcon: tab != .publicParts ? "qrcode.viewfinder" : nil,
+            secondaryLabel: tab != .publicParts ? "Etikett scannen" : nil,
+            secondaryAction: tab != .publicParts ? { showingScanner = true } : nil
         )
         .refreshable {
             await SyncEngine.shared.sync(motorcycleIds: [])
@@ -158,13 +170,19 @@ struct PartsView: View {
             TextField(
                 "",
                 text: $searchText,
-                prompt: Text("Name oder Teilenummer …").foregroundColor(.white.opacity(0.35))
+                prompt: Text(tab == .locations ? "Lagerort suchen …" : "Name oder Teilenummer …")
+                    .foregroundColor(.white.opacity(0.35))
             )
             .foregroundColor(.white)
             .autocorrectionDisabled()
-            if !searchText.isEmpty {
+            .focused($searchFocused)
+            .submitLabel(.search)
+            // Visible while typing OR focused: clears the query and drops
+            // focus, so the keyboard can always be dismissed from the field.
+            if searchFocused || !searchText.isEmpty {
                 Button {
                     searchText = ""
+                    searchFocused = false
                 } label: {
                     Image(systemName: "xmark.circle.fill")
                         .foregroundColor(.white.opacity(0.4))
@@ -240,6 +258,60 @@ struct PartsView: View {
         }
     }
 
+    // MARK: - Storage locations
+
+    /// Name-or-path search over the user's storage locations, sorted by their
+    /// full breadcrumb path so children group under their parents.
+    private var filteredLocations: [SDStorageLocation] {
+        let query = searchText.trimmingCharacters(in: .whitespaces).lowercased()
+        var result = viewModel.storageLocations
+        if !query.isEmpty {
+            result = result.filter {
+                (viewModel.locationPath($0) ?? $0.name).lowercased().contains(query)
+            }
+        }
+        return result.sorted {
+            (viewModel.locationPath($0) ?? $0.name) < (viewModel.locationPath($1) ?? $1.name)
+        }
+    }
+
+    @ViewBuilder
+    private var locationsContent: some View {
+        if filteredLocations.isEmpty {
+            EmptyStateView(
+                title: viewModel.storageLocations.isEmpty ? "Keine Lagerorte" : "Keine Treffer",
+                message: viewModel.storageLocations.isEmpty
+                    ? "Lagerorte entstehen beim Erfassen von Beständen — oder scanne ein Etikett."
+                    : "Kein Lagerort passt zur Suche.",
+                icon: "archivebox.fill"
+            )
+            .padding(.top, 40)
+        } else {
+            LazyVStack(spacing: 10) {
+                ForEach(filteredLocations, id: \.clientId) { location in
+                    Button {
+                        selectedLocation = location
+                    } label: {
+                        StorageLocationCard(
+                            location: location,
+                            parentPath: parentPath(location),
+                            partCount: viewModel.stockedParts(at: location).count
+                        )
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+    }
+
+    /// Breadcrumb of the ancestors only ("Garage › Regal A" for "Kiste 3"),
+    /// nil for root locations.
+    private func parentPath(_ location: SDStorageLocation) -> String? {
+        guard let path = viewModel.locationPath(location) else { return nil }
+        let ancestors = path.components(separatedBy: " › ").dropLast()
+        return ancestors.isEmpty ? nil : ancestors.joined(separator: " › ")
+    }
+
     // MARK: - Public browse
 
     @ViewBuilder
@@ -282,6 +354,56 @@ struct PartsView: View {
 }
 
 // MARK: - Cards
+
+private struct StorageLocationCard: View {
+    let location: SDStorageLocation
+    let parentPath: String?
+    let partCount: Int
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "archivebox.fill")
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundColor(Theme.Colors.primary)
+                .frame(width: 40, height: 40)
+                .background(Circle().fill(Theme.Colors.primary.opacity(0.15)))
+                .overlay(alignment: .topTrailing) {
+                    if location.syncState.isPending { PendingBadge().offset(x: 5, y: -5) }
+                }
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(location.name)
+                    .font(.system(size: 15, weight: .bold))
+                    .foregroundColor(.white)
+                    .fixedSize(horizontal: false, vertical: true)
+                if let parentPath {
+                    Text(parentPath)
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(.white.opacity(0.55))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            Spacer(minLength: 0)
+
+            VStack(alignment: .trailing, spacing: 2) {
+                Text("\(partCount)")
+                    .font(.system(size: 17, weight: .heavy))
+                    .monospacedDigit()
+                    .foregroundColor(partCount > 0 ? Theme.Colors.primary : .white.opacity(0.35))
+                Text(partCount == 1 ? "Teil" : "Teile")
+                    .font(.system(size: 9, weight: .heavy))
+                    .tracking(1)
+                    .foregroundColor(.white.opacity(0.4))
+            }
+            Image(systemName: "chevron.right")
+                .font(.system(size: 12, weight: .bold))
+                .foregroundColor(.white.opacity(0.35))
+        }
+        .padding(14)
+        .background(RoundedRectangle(cornerRadius: Theme.Radius.l).fill(Color.white.opacity(0.06)))
+        .overlay(RoundedRectangle(cornerRadius: Theme.Radius.l).stroke(Theme.Glass.border, lineWidth: 0.5))
+    }
+}
 
 private struct PartCard: View {
     let part: SDPart
