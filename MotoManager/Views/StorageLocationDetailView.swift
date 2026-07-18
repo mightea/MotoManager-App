@@ -9,9 +9,25 @@ struct StorageLocationDetailView: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var selectedPart: SDPart?
+    @State private var showingPrintLabel = false
 
     private var stockedParts: [(part: SDPart, quantity: Int)] {
         viewModel.stockedParts(at: location)
+    }
+
+    /// Label for this bin — same content the per-stock print in
+    /// `PartDetailView` builds. Requires a server id (the QR links to the
+    /// location's web page), so it's unavailable while waiting to sync.
+    private var labelContent: LabelContent? {
+        guard let serverId = location.serverId else { return nil }
+        let path = viewModel.locationPath(location)
+        return LabelContent(
+            url: LabelWebLinks.storageLocationURL(serverId: serverId),
+            code: nil,
+            title: location.name,
+            subtitle: path == location.name ? nil : path,
+            footer: "MotoManager · Lagerort #\(serverId)"
+        )
     }
 
     var body: some View {
@@ -30,6 +46,15 @@ struct StorageLocationDetailView: View {
                 .presentationCornerRadius(Theme.Glass.sheetRadius)
                 .presentationBackground(.regularMaterial)
                 .presentationDragIndicator(.hidden)
+        }
+        .sheet(isPresented: $showingPrintLabel) {
+            if let content = labelContent {
+                PrintLabelView(content: content)
+                    .presentationDetents([.large])
+                    .presentationCornerRadius(Theme.Glass.sheetRadius)
+                    .presentationBackground(.regularMaterial)
+                    .presentationDragIndicator(.visible)
+            }
         }
     }
 
@@ -58,6 +83,16 @@ struct StorageLocationDetailView: View {
                 }
             }
             Spacer()
+            if labelContent != nil {
+                Button { showingPrintLabel = true } label: {
+                    Image(systemName: "printer.fill")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundColor(.white)
+                        .frame(width: 32, height: 32)
+                        .background(Circle().fill(Color.white.opacity(0.12)))
+                }
+                .accessibilityLabel("Etikett drucken")
+            }
             Button { dismiss() } label: {
                 Image(systemName: "xmark")
                     .font(.system(size: 14, weight: .bold))
@@ -94,11 +129,17 @@ struct StorageLocationDetailView: View {
 
     private func partRow(_ part: SDPart, quantity: Int) -> some View {
         HStack(spacing: 12) {
-            Text("\(quantity)×")
-                .font(.system(size: 16, weight: .heavy))
-                .monospacedDigit()
-                .foregroundColor(Theme.Colors.primary)
-                .frame(width: 44, alignment: .leading)
+            if let imageURL = part.image {
+                RemoteImageView(url: imageURL, maxPixelWidth: 160)
+                    .frame(width: 40, height: 40)
+                    .clipShape(RoundedRectangle(cornerRadius: 10))
+            } else {
+                Image(systemName: "shippingbox.fill")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundColor(Theme.Colors.primary)
+                    .frame(width: 40, height: 40)
+                    .background(Circle().fill(Theme.Colors.primary.opacity(0.15)))
+            }
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(part.name)
@@ -111,6 +152,10 @@ struct StorageLocationDetailView: View {
                     .foregroundColor(.white.opacity(0.5))
             }
             Spacer(minLength: 0)
+            Text("\(quantity)×")
+                .font(.system(size: 16, weight: .heavy))
+                .monospacedDigit()
+                .foregroundColor(Theme.Colors.primary)
             Image(systemName: "chevron.right")
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundColor(.white.opacity(0.3))
