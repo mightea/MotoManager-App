@@ -80,7 +80,11 @@ nonisolated enum LabelPrinterService {
             // The bitmap is already pure black/white at the tape's exact dot
             // height — threshold keeps modules crisp (no dithering).
             settings.halftone = .threshold
-            settings.scaleMode = .fitPageAspect
+            // The bitmap arrives pre-rotated from `renderPrintAsync` (width =
+            // printable dots, length along the feed) — print it 1 pixel per
+            // dot. SDK-side fitting (`fitPageAspect`, `imageRotation`) proved
+            // unpredictable on continuous tape and shrank the label.
+            settings.scaleMode = .actualSize
 
             for _ in 0..<max(1, copies) {
                 let printError = driver.printImage(with: fileURL, settings: settings)

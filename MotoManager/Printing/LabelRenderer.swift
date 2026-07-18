@@ -94,13 +94,51 @@ nonisolated enum LabelTape: String, CaseIterable, Identifiable {
 /// thresholds to monochrome, so no grays).
 nonisolated enum LabelRenderer {
 
+    /// Off-main render for UI callers: the QR pipeline (CIFilter + CIContext)
+    /// is slow enough to visibly stall a sheet presentation.
+    static func renderAsync(content: LabelContent, tape: LabelTape) async -> UIImage? {
+        await Task.detached(priority: .userInitiated) {
+            render(content: content, tape: tape)
+        }.value
+    }
+
+    /// The bitmap as sent to the printer: rotated 90° so its width spans the
+    /// tape's printable dots and its height runs along the feed. Combined
+    /// with `.actualSize` printing this maps 1 pixel to 1 printer dot — no
+    /// SDK-side scaling that could shrink the label (see the 2026-07 sample
+    /// where `fitPageAspect` printed at roughly half the tape height).
+    static func renderPrintAsync(content: LabelContent, tape: LabelTape) async -> UIImage? {
+        await Task.detached(priority: .userInitiated) {
+            render(content: content, tape: tape).map(rotatedForTape)
+        }.value
+    }
+
+    private static func rotatedForTape(_ image: UIImage) -> UIImage {
+        let size = CGSize(width: image.size.height, height: image.size.width)
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        format.opaque = true
+        let renderer = UIGraphicsImageRenderer(size: size, format: format)
+        return renderer.image { ctx in
+            UIColor.white.setFill()
+            ctx.fill(CGRect(origin: .zero, size: size))
+            ctx.cgContext.interpolationQuality = .none
+            ctx.cgContext.translateBy(x: size.width, y: 0)
+            ctx.cgContext.rotate(by: .pi / 2)
+            image.draw(at: .zero)
+        }
+    }
+
     static func render(content: LabelContent, tape: LabelTape) -> UIImage? {
         let height = CGFloat(tape.printableDots)
         // All metrics are designed against the 24 mm tape (128 dots) and
         // scaled down for narrower tapes.
         let s = height / 128
 
-        let qrInset = (4 * s).rounded()
+        // No inset: the QR spans the full printable height (the physical tape
+        // is wider than the print area, so the tape itself provides the quiet
+        // zone). Integer module scaling below still decides the exact size.
+        let qrInset: CGFloat = 0
         let qrSide = height - 2 * qrInset
         guard let qr = qrImage(for: content.url, side: qrSide) else { return nil }
 
@@ -170,22 +208,26 @@ nonisolated enum LabelRenderer {
 
         var lines: [NSAttributedString] = []
         if let code = content.code, !code.isEmpty {
-            lines.append(line(code, font: .monospacedSystemFont(ofSize: 16 * s, weight: .bold), kern: 0.5 * s))
+            lines.append(line(code, font: .monospacedSystemFont(ofSize: 22 * s, weight: .bold), kern: 0.5 * s))
         }
-        lines.append(line(content.title.uppercased(), font: .systemFont(ofSize: 18 * s, weight: .heavy)))
+        lines.append(line(content.title.uppercased(), font: .systemFont(ofSize: 30 * s, weight: .heavy)))
         if let subtitle = content.subtitle, !subtitle.isEmpty {
-            lines.append(line(subtitle, font: .systemFont(ofSize: 12 * s, weight: .medium)))
+            lines.append(line(subtitle, font: .systemFont(ofSize: 18 * s, weight: .medium)))
         }
-        lines.append(line(content.footer.uppercased(), font: .monospacedSystemFont(ofSize: 9 * s, weight: .semibold), kern: 1.2 * s))
+        lines.append(line(content.footer.uppercased(), font: .monospacedSystemFont(ofSize: 13 * s, weight: .semibold), kern: 1.2 * s))
         return lines
     }
 
-    /// QR code at error correction level M (same as the webapp), scaled by an
-    /// integer factor so every module stays a crisp square of whole dots.
+    /// QR code scaled by an integer factor so every module stays a crisp
+    /// square of whole dots. Error correction L (webapp uses M): fewer
+    /// modules mean a bigger integer factor on the 128-dot tape — for the
+    /// typical label URL that is 29 modules × 4 dots (116) instead of
+    /// 33 × 3 (99). Level L is plenty for a clean thermal print scanned
+    /// up close.
     private static func qrImage(for text: String, side: CGFloat) -> UIImage? {
         let filter = CIFilter.qrCodeGenerator()
         filter.message = Data(text.utf8)
-        filter.correctionLevel = "M"
+        filter.correctionLevel = "L"
         guard let output = filter.outputImage else { return nil }
 
         let moduleCount = output.extent.width

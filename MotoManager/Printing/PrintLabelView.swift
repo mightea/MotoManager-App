@@ -16,9 +16,12 @@ struct PrintLabelView: View {
     @State private var isPrinting = false
     @State private var successMessage: String?
     @State private var errorMessage: String?
+    // Rendered off-main after presentation so the sheet opens instantly; the
+    // preview card shows a loader until the bitmap lands.
+    @State private var labelImage: UIImage?
+    @State private var isRendering = true
 
     private var tape: LabelTape { LabelTape(rawValue: tapeRaw) ?? .mm24 }
-    private var labelImage: UIImage? { LabelRenderer.render(content: content, tape: tape) }
     private var canPrint: Bool {
         !isPrinting && labelImage != nil
             && !printerIP.trimmingCharacters(in: .whitespaces).isEmpty
@@ -38,6 +41,11 @@ struct PrintLabelView: View {
         }
         .safeAreaInset(edge: .top, spacing: 0) { header }
         .background(Color.clear)
+        .task(id: tapeRaw) {
+            isRendering = true
+            labelImage = await LabelRenderer.renderAsync(content: content, tape: tape)
+            isRendering = false
+        }
     }
 
     // MARK: - Header
@@ -76,6 +84,11 @@ struct PrintLabelView: View {
                         .scaledToFit()
                         .frame(maxWidth: .infinity)
                         .frame(maxHeight: 90)
+                } else if isRendering {
+                    ProgressView()
+                        .tint(.black.opacity(0.5))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 32)
                 } else {
                     Text("Vorschau nicht verfügbar")
                         .font(.system(size: 13))
@@ -269,15 +282,18 @@ struct PrintLabelView: View {
     }
 
     private func printLabel() {
-        guard let png = labelImage?.pngData() else {
-            errorMessage = LabelPrintError.renderFailed.errorDescription
-            return
-        }
         let ip = printerIP.trimmingCharacters(in: .whitespaces)
         isPrinting = true
         successMessage = nil
         errorMessage = nil
         Task {
+            // The print bitmap is the preview rotated for the tape feed —
+            // rendered fresh off-main so the printer always gets 1:1 dots.
+            guard let png = await LabelRenderer.renderPrintAsync(content: content, tape: tape)?.pngData() else {
+                errorMessage = LabelPrintError.renderFailed.errorDescription
+                isPrinting = false
+                return
+            }
             do {
                 try await LabelPrinterService.printLabel(pngData: png, printerIP: ip, tape: tape)
                 successMessage = "Etikett gedruckt."

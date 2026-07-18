@@ -77,12 +77,26 @@ struct LabelScanSheet: View {
     let onResult: (ScannedLabel) -> Void
 
     @Environment(\.dismiss) private var dismiss
+    /// The camera controller is expensive to create — mounting it during the
+    /// sheet presentation stalls the animation. Present the sheet with a
+    /// loader first and mount the scanner one frame later; the camera feed
+    /// covers the loader as soon as it is live.
+    @State private var scannerMounted = false
 
     var body: some View {
         NavigationStack {
             Group {
                 if QRLabelScanner.isSupported {
-                    scanner
+                    ZStack {
+                        cameraLoader
+                        if scannerMounted {
+                            scanner
+                        }
+                    }
+                    .task {
+                        await Task.yield()
+                        scannerMounted = true
+                    }
                 } else {
                     unavailable
                 }
@@ -95,6 +109,17 @@ struct LabelScanSheet: View {
                 }
             }
         }
+    }
+
+    private var cameraLoader: some View {
+        VStack(spacing: 12) {
+            ProgressView()
+                .tint(.white)
+            Text("Kamera wird gestartet …")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundColor(Theme.Glass.mutedText)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private var scanner: some View {
