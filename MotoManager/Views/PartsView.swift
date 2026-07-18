@@ -294,7 +294,7 @@ struct PartsView: View {
                     } label: {
                         StorageLocationCard(
                             location: location,
-                            parentPath: parentPath(location),
+                            parentPath: viewModel.locationParentPath(location),
                             partCount: viewModel.stockedParts(at: location).count
                         )
                     }
@@ -302,14 +302,6 @@ struct PartsView: View {
                 }
             }
         }
-    }
-
-    /// Breadcrumb of the ancestors only ("Garage › Regal A" for "Kiste 3"),
-    /// nil for root locations.
-    private func parentPath(_ location: SDStorageLocation) -> String? {
-        guard let path = viewModel.locationPath(location) else { return nil }
-        let ancestors = path.components(separatedBy: " › ").dropLast()
-        return ancestors.isEmpty ? nil : ancestors.joined(separator: " › ")
     }
 
     // MARK: - Public browse

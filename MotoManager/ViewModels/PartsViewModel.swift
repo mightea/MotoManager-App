@@ -82,6 +82,15 @@ class PartsViewModel: ObservableObject {
             .sorted { $0.part.name < $1.part.name }
     }
 
+    /// Ancestors only ("Garage › Regal A" for "Kiste 3"); nil for roots.
+    /// Used where the location's own name is already shown as the title
+    /// (list rows, printed labels) so the name isn't duplicated.
+    func locationParentPath(_ location: SDStorageLocation) -> String? {
+        guard let path = locationPath(location) else { return nil }
+        let ancestors = path.components(separatedBy: " › ").dropLast()
+        return ancestors.isEmpty ? nil : ancestors.joined(separator: " › ")
+    }
+
     /// "Garage › Regal A › Kiste 3" for a leaf location (depth-capped).
     func locationPath(_ location: SDStorageLocation?) -> String? {
         guard let location else { return nil }

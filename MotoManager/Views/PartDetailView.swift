@@ -113,12 +113,12 @@ struct PartDetailView: View {
     /// `storage-location-label.tsx` (name + path, for shelves and bins).
     private func locationLabelContent(_ location: SDStorageLocation) -> LabelContent? {
         guard let serverId = location.serverId else { return nil }
-        let path = viewModel.locationPath(location)
         return LabelContent(
             url: LabelWebLinks.storageLocationURL(serverId: serverId),
             code: nil,
             title: location.name,
-            subtitle: path == location.name ? nil : path,
+            // Ancestors only — the name is already the label title.
+            subtitle: viewModel.locationParentPath(location),
             footer: "MotoManager · Lagerort #\(serverId)"
         )
     }

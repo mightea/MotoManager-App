@@ -34,6 +34,9 @@ nonisolated enum LabelWebLinks {
         return value.hasSuffix("/") ? String(value.dropLast()) : value
     }
 
+    // Always the webapp's real routes — the QR must open in any camera app
+    // without redirects. (A short-URL experiment bought one QR version but
+    // broke that guarantee; don't repeat it.)
     static func partURL(serverId: Int) -> String { "\(origin)/parts/\(serverId)" }
     static func storageLocationURL(serverId: Int) -> String { "\(origin)/storage-locations/\(serverId)" }
 
@@ -208,13 +211,13 @@ nonisolated enum LabelRenderer {
 
         var lines: [NSAttributedString] = []
         if let code = content.code, !code.isEmpty {
-            lines.append(line(code, font: .monospacedSystemFont(ofSize: 22 * s, weight: .bold), kern: 0.5 * s))
+            lines.append(line(code, font: .monospacedSystemFont(ofSize: 24 * s, weight: .bold), kern: 0.5 * s))
         }
-        lines.append(line(content.title.uppercased(), font: .systemFont(ofSize: 30 * s, weight: .heavy)))
+        lines.append(line(content.title.uppercased(), font: .systemFont(ofSize: 34 * s, weight: .heavy)))
         if let subtitle = content.subtitle, !subtitle.isEmpty {
-            lines.append(line(subtitle, font: .systemFont(ofSize: 18 * s, weight: .medium)))
+            lines.append(line(subtitle, font: .systemFont(ofSize: 20 * s, weight: .medium)))
         }
-        lines.append(line(content.footer.uppercased(), font: .monospacedSystemFont(ofSize: 13 * s, weight: .semibold), kern: 1.2 * s))
+        lines.append(line(content.footer.uppercased(), font: .monospacedSystemFont(ofSize: 14 * s, weight: .semibold), kern: 1.2 * s))
         return lines
     }
 
@@ -232,7 +235,11 @@ nonisolated enum LabelRenderer {
 
         let moduleCount = output.extent.width
         guard moduleCount > 0 else { return nil }
-        let factor = max(1, (side / moduleCount).rounded(.down))
+        // Reserve at least 4 dots of quiet zone on each side when picking the
+        // module scale: a full-bleed QR (tried 2026-07) is not scannable.
+        // The code is then centered in the full slot, so the actual margins
+        // come out at 4+ dots.
+        let factor = max(1, ((side - 8) / moduleCount).rounded(.down))
         let scaled = output.transformed(by: CGAffineTransform(scaleX: factor, y: factor))
         guard let cgImage = CIContext().createCGImage(scaled, from: scaled.extent) else { return nil }
         return UIImage(cgImage: cgImage)
