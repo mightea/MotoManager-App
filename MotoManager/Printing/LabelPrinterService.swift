@@ -11,6 +11,7 @@ nonisolated struct DiscoveredPrinter: Identifiable, Sendable {
 nonisolated enum LabelPrintError: LocalizedError {
     case renderFailed
     case cannotConnect(String)
+    case tapeMismatch
     case printFailed(String)
 
     var errorDescription: String? {
@@ -19,6 +20,8 @@ nonisolated enum LabelPrintError: LocalizedError {
             return "Etikett konnte nicht erstellt werden."
         case .cannotConnect(let detail):
             return "Drucker nicht erreichbar (\(detail)). WLAN und IP-Adresse prüfen."
+        case .tapeMismatch:
+            return "Die gewählte Bandbreite passt nicht zur eingelegten Kassette — Auswahl oder Band prüfen."
         case .printFailed(let detail):
             return "Drucken fehlgeschlagen (\(detail))."
         }
@@ -89,6 +92,11 @@ nonisolated enum LabelPrinterService {
             for _ in 0..<max(1, copies) {
                 let printError = driver.printImage(with: fileURL, settings: settings)
                 guard printError.code == .noError else {
+                    // The most common field failure: selected tape width ≠
+                    // installed cassette. Give it a self-explanatory message.
+                    if printError.code == .setLabelSizeError {
+                        throw LabelPrintError.tapeMismatch
+                    }
                     throw LabelPrintError.printFailed(String(describing: printError.code))
                 }
             }

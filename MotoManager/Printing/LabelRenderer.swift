@@ -145,15 +145,28 @@ nonisolated enum LabelRenderer {
         let qrSide = height - 2 * qrInset
         guard let qr = qrImage(for: content.url, side: qrSide) else { return nil }
 
-        let lines = textLines(for: content, scale: s)
-        let lineSpacing = (3 * s).rounded()
-        let maxTextWidth = (600 * s).rounded()
+        // Two-pass text sizing: measure the block at the design scale, then
+        // rescale the fonts so the block fills the printable height (2-dot
+        // margin per side) regardless of how many lines this label has —
+        // location labels with 2-3 lines get markedly bigger type than a
+        // 4-line part label. Clamped so overly tall blocks shrink to fit and
+        // sparse labels don't become grotesque.
+        func blockHeight(_ lines: [NSAttributedString], spacing: CGFloat) -> CGFloat {
+            lines.map { ceil($0.size().height) }.reduce(0, +)
+                + spacing * CGFloat(max(0, lines.count - 1))
+        }
+        let baseBlock = blockHeight(textLines(for: content, scale: s), spacing: (3 * s).rounded())
+        let fill = min(2.0, max(0.6, (height - 4) / max(1, baseBlock)))
+        let ts = s * fill
+
+        let lines = textLines(for: content, scale: ts)
+        let lineSpacing = (3 * ts).rounded()
+        let maxTextWidth = (600 * ts).rounded()
         let textWidth = min(
             maxTextWidth,
             lines.map { ceil($0.size().width) }.max() ?? 0
         )
-        let textHeight = lines.map { ceil($0.size().height) }.reduce(0, +)
-            + lineSpacing * CGFloat(max(0, lines.count - 1))
+        let textHeight = blockHeight(lines, spacing: lineSpacing)
 
         let gap = (10 * s).rounded()
         let textX = qrInset + qrSide + gap
