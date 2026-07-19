@@ -6,9 +6,9 @@ and documents, and a parts inventory with printable QR labels. The UI is
 German (Swiss).
 
 The app is offline-first: records are stored in SwiftData and synced against
-the companion Rust/Axum backend (`moto-api.herrmann.ltd`) with client-side
-IDs, so entries created without connectivity push cleanly once the network
-returns. A React Router webapp covers the same data from the desktop.
+the companion Rust/Axum backend with client-side IDs, so entries created
+without connectivity push cleanly once the network returns. A React Router
+webapp covers the same data from the desktop.
 
 ## Features by tab
 
