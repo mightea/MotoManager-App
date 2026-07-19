@@ -120,8 +120,9 @@ jobs:
         run: |
           # Tag v1.2.3 → MARKETING_VERSION 1.2.3; manual dispatches use the
           # newest v* tag (falls back to the project setting when no release
-          # exists yet). Build number: run number + attempt, unique across
-          # re-runs.
+          # exists yet). Build number: run*100 + attempt — a single integer
+          # that stays unique across re-runs (Apple rejects reused build
+          # numbers per version) and monotonic across runs.
           if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
             echo "marketing_args=MARKETING_VERSION=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT"
           else
@@ -133,7 +134,7 @@ jobs:
               echo "marketing_args=" >> "$GITHUB_OUTPUT"
             fi
           fi
-          echo "build_number=${GITHUB_RUN_NUMBER}.${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_OUTPUT"
+          echo "build_number=$((GITHUB_RUN_NUMBER * 100 + GITHUB_RUN_ATTEMPT))" >> "$GITHUB_OUTPUT"
 
       - name: Archive
         env:
