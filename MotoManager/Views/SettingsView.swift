@@ -1,54 +1,43 @@
 import SwiftUI
 
-/// Sectioned-card settings sheet matching the prototype's
-/// `motomanager-app/project/assets/sheets.jsx::SettingsSheet`.
-///
-/// Each section is a rounded card with iconified rows. Trailing detail text
-/// + chevron-right tells the user the row is navigable. A red "Abmelden"
-/// danger button + version footer sit at the bottom. The dev-only
-/// environment switcher is kept under an Entwicklung section so the
-/// production user never sees it but the developer can still flip backends.
+/// Sectioned-card settings sheet. Only functional entries: the dev-only
+/// backend switcher (compiled into Debug builds exclusively, so TestFlight
+/// and App Store builds can never leave the production API), the logout
+/// button, and a version footer fed from the bundle's marketing version and
+/// build number.
 struct SettingsView: View {
     @EnvironmentObject var authVM: AuthViewModel
     @Environment(\.dismiss) var dismiss
+
+    #if DEBUG
     @State private var selectedBaseURL = NetworkManager.shared.baseURL
 
     private let environments: [(String, String)] = [
         ("Production", "https://moto-api.herrmann.ltd"),
         ("Development", "http://localhost:3001")
     ]
+    #endif
 
-    private var environmentLabel: String {
-        environments.first(where: { $0.1 == selectedBaseURL })?.0 ?? "Custom"
+    /// "v0.2.0 (302)" — CI stamps MARKETING_VERSION and the build number
+    /// into the archive; local builds show the project defaults.
+    private var versionString: String {
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "—"
+        let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "—"
+        return "MotoManager · v\(version) (\(build))"
     }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
-                section(title: "KONTO", rows: [
-                    SettingRow(icon: "person.fill", label: "Profil", detail: "Mein Profil"),
-                    SettingRow(icon: "lock.fill", label: "Passwort & Passkey"),
-                    SettingRow(icon: "bell.fill", label: "Benachrichtigungen", detail: "Aktiv")
-                ])
-
-                section(title: "GARAGE", rows: [
-                    SettingRow(icon: "mappin.and.ellipse", label: "Standorte"),
-                    SettingRow(icon: "dollarsign.circle.fill", label: "Währung", detail: "EUR"),
-                    SettingRow(icon: "calendar", label: "MFK-Erinnerungen", detail: "4 Wo. vorher")
-                ])
-
-                section(title: "SYNCHRONISATION", rows: [
-                    SettingRow(icon: "checkmark.circle.fill", label: "Cloud-Sync",
-                               detail: "Aktiv", detailColor: .green)
-                ])
-
-                section(title: "ENTWICKLUNG", rows: [], custom: AnyView(envPicker))
+                #if DEBUG
+                section(title: "ENTWICKLUNG") { envPicker }
+                #endif
 
                 logoutButton
                     .padding(.horizontal, 14)
                     .padding(.top, 4)
 
-                Text("MotoManager · v1.0.0")
+                Text(versionString)
                     .font(.system(size: 10, weight: .medium))
                     .foregroundColor(.white.opacity(0.35))
                     .frame(maxWidth: .infinity)
@@ -86,9 +75,10 @@ struct SettingsView: View {
         .glassEffect(.regular, in: Rectangle())
     }
 
-    // MARK: - Sections
+    // MARK: - Development section (Debug builds only)
 
-    private func section(title: String, rows: [SettingRow], custom: AnyView? = nil) -> some View {
+    #if DEBUG
+    private func section(title: String, @ViewBuilder content: () -> some View) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(title)
                 .font(.system(size: 10, weight: .heavy))
@@ -98,17 +88,7 @@ struct SettingsView: View {
                 .padding(.bottom, 2)
 
             VStack(spacing: 0) {
-                ForEach(Array(rows.enumerated()), id: \.offset) { index, row in
-                    SettingRowView(row: row)
-                    if index < rows.count - 1 {
-                        Divider()
-                            .background(Color.white.opacity(0.06))
-                            .padding(.leading, 56)
-                    }
-                }
-                if let custom {
-                    custom
-                }
+                content()
             }
             .background(
                 RoundedRectangle(cornerRadius: Theme.Glass.fieldRadius)
@@ -125,13 +105,7 @@ struct SettingsView: View {
     private var envPicker: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 12) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 8).fill(Color.white.opacity(0.10))
-                    Image(systemName: "server.rack")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(.white.opacity(0.75))
-                }
-                .frame(width: 30, height: 30)
+                settingIcon("server.rack")
 
                 Text("Backend")
                     .font(.system(size: 14, weight: .medium))
@@ -157,13 +131,7 @@ struct SettingsView: View {
                 .padding(.leading, 56)
 
             HStack(spacing: 12) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 8).fill(Color.white.opacity(0.10))
-                    Image(systemName: "network")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(.white.opacity(0.75))
-                }
-                .frame(width: 30, height: 30)
+                settingIcon("network")
                 Text("Endpoint")
                     .font(.system(size: 14, weight: .medium))
                     .foregroundColor(.white)
@@ -179,6 +147,17 @@ struct SettingsView: View {
             .padding(.vertical, 11)
         }
     }
+
+    private func settingIcon(_ systemImage: String) -> some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 8).fill(Color.white.opacity(0.10))
+            Image(systemName: systemImage)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundColor(.white.opacity(0.75))
+        }
+        .frame(width: 30, height: 30)
+    }
+    #endif
 
     // MARK: - Logout
 
@@ -217,48 +196,6 @@ struct SettingsView: View {
             endPoint: .bottom
         )
         .ignoresSafeArea()
-    }
-}
-
-// MARK: - Row model + view
-
-private struct SettingRow {
-    var icon: String
-    var label: String
-    var detail: String? = nil
-    var detailColor: Color? = nil
-}
-
-private struct SettingRowView: View {
-    let row: SettingRow
-
-    var body: some View {
-        HStack(spacing: 12) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(Color.white.opacity(0.10))
-                Image(systemName: row.icon)
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundColor(.white.opacity(0.75))
-            }
-            .frame(width: 30, height: 30)
-
-            Text(row.label)
-                .font(.system(size: 14, weight: .medium))
-                .foregroundColor(.white)
-            Spacer(minLength: 0)
-
-            if let detail = row.detail {
-                Text(detail)
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundColor(row.detailColor ?? Theme.Glass.mutedText)
-            }
-            Image(systemName: "chevron.right")
-                .font(.system(size: 11, weight: .heavy))
-                .foregroundColor(.white.opacity(0.3))
-        }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 11)
     }
 }
 

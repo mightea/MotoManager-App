@@ -7,9 +7,16 @@ class NetworkManager {
     private let baseURLKey = "com.motomanager.baseURL"
     private let defaultBaseURL = "https://moto-api.herrmann.ltd"
 
+    // Release builds always talk to production: the settings switcher only
+    // exists in Debug builds, and pinning here also rescues devices that
+    // persisted a dev URL through an older build that still shipped it.
     var baseURL: String {
         get {
+            #if DEBUG
             UserDefaults.standard.string(forKey: baseURLKey) ?? defaultBaseURL
+            #else
+            defaultBaseURL
+            #endif
         }
         set {
             UserDefaults.standard.set(newValue, forKey: baseURLKey)
