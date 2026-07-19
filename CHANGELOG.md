@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.2.1](https://github.com/mightea/MotoManager-App/compare/v0.2.0...v0.2.1) (2026-07-19)
+
+
+### Bug Fixes
+
+* open the add-fuel sheet immediately ([8cc1b36](https://github.com/mightea/MotoManager-App/commit/8cc1b369fdc2c750fef539e569d8e1157f1113d9))
+* trim settings to functional entries, real version, debug-only backend switch ([42d8da3](https://github.com/mightea/MotoManager-App/commit/42d8da3b811e38aebb5c543da3ed6fe711473378))
+
 ## [0.2.0](https://github.com/mightea/MotoManager-App/compare/v0.1.0...v0.2.0) (2026-07-19)
 
 
