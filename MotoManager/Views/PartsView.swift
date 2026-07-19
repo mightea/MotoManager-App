@@ -25,8 +25,19 @@ struct PartsView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: Theme.Spacing.m) {
-                header
-                    .padding(.horizontal, Theme.Spacing.pageH)
+                // Match the other tabs: photo header with the stat strip
+                // overlapping the extended image.
+                ZStack(alignment: .bottom) {
+                    MotorcycleSummaryHeader(
+                        motorcycle: detailVM.motorcycle, type: .parts, viewModel: detailVM,
+                        bottomExtension: 96
+                    )
+                    .ignoresSafeArea(edges: .top)
+
+                    statStrip
+                        .padding(.horizontal, 6)
+                        .padding(.bottom, 12)
+                }
 
                 GlassSegmentedControl(
                     segments: [
@@ -53,9 +64,9 @@ struct PartsView: View {
                         .padding(.horizontal, Theme.Spacing.pageH)
                 }
             }
-            .padding(.top, Theme.Spacing.xl * 2)
             .padding(.bottom, 110)
         }
+        .ignoresSafeArea(edges: .top)
         // The search keyboard must always be escapable — scrolling dismisses
         // it, and the clear button in the field offers an explicit way out
         // (without either, the custom tab bar stays buried behind the keyboard).
@@ -137,16 +148,48 @@ struct PartsView: View {
 
     // MARK: - Header
 
-    private var header: some View {
-        HStack(alignment: .firstTextBaseline) {
-            Text("Teile")
-                .font(.system(size: 30, weight: .heavy))
-                .foregroundColor(.white)
-            Spacer()
-            Text("\(viewModel.parts.count) \(viewModel.parts.count == 1 ? "Teil" : "Teile")")
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundColor(.white.opacity(0.55))
-        }
+    // MARK: - Header stat strip
+
+    /// Hierarchy-aware fitment count for the selected bike; nil when the bike
+    /// has no linked model series (same condition as the Passend-für toggle).
+    private var fittingCount: Int? {
+        guard let seriesId = motorcycle?.seriesId else { return nil }
+        return viewModel.parts.filter {
+            ModelSeriesCatalog.matches(
+                partSeriesIds: $0.seriesIds, bikeSeriesId: seriesId, in: viewModel.series)
+        }.count
+    }
+
+    /// Purchase value of all stock entries, mirroring the part detail's
+    /// `totalStockValue` (normalized to CHF where a conversion exists).
+    private var inventoryValue: Double {
+        viewModel.parts
+            .flatMap { viewModel.stocks(for: $0) }
+            .reduce(0) { $0 + ($1.normalizedPrice ?? $1.price ?? 0) }
+    }
+
+    private var statStrip: some View {
+        StatStrip([
+            StatTile(
+                eyebrow: "Teile",
+                value: "\(viewModel.parts.count)",
+                unit: viewModel.parts.count == 1 ? "Eintrag" : "Einträge",
+                accent: Theme.Colors.primary
+            ),
+            StatTile(
+                eyebrow: "Passend",
+                value: fittingCount.map(String.init) ?? "—",
+                unit: fittingCount != nil
+                    ? "für \(motorcycle?.model ?? "")"
+                    : "kein Modell verknüpft"
+            ),
+            StatTile(
+                eyebrow: "Lagerwert",
+                value: inventoryValue > 0
+                    ? Formatters.currency(inventoryValue, code: "CHF", fractionDigits: 0)
+                    : "—"
+            )
+        ])
     }
 
     private var searchField: some View {
