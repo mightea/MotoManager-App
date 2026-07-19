@@ -19,8 +19,20 @@ struct MaintenanceLogsView: View {
         viewModel.openIssuesCount
     }
 
-    private var totalCost: Double {
-        serviceRecords.compactMap { $0.cost }.reduce(0, +)
+    private var currentYearShort: String {
+        String(Calendar.current.component(.year, from: Date()))
+    }
+
+    /// Costs of the current year's service records (dates are ISO strings).
+    private var yearCost: Double {
+        serviceRecords
+            .filter { $0.date.hasPrefix(currentYearShort) }
+            .compactMap { $0.cost }
+            .reduce(0, +)
+    }
+
+    private var intervalInsights: [MaintenanceInsight] {
+        MaintenanceIntervalsEngine.insights(records: serviceRecords, currentOdo: currentOdo)
     }
 
     private var lastEntry: SDMaintenanceRecord? { serviceRecords.first }
@@ -49,8 +61,19 @@ struct MaintenanceLogsView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: Theme.Spacing.m) {
-                MotorcycleSummaryHeader(motorcycle: viewModel.motorcycle, type: .service, viewModel: viewModel)
+                // Match the fuel page: the photo extends below the content so
+                // the stat strip overlaps the image instead of a hard cut-off.
+                ZStack(alignment: .bottom) {
+                    MotorcycleSummaryHeader(
+                        motorcycle: viewModel.motorcycle, type: .service, viewModel: viewModel,
+                        bottomExtension: 96
+                    )
                     .ignoresSafeArea(edges: .top)
+
+                    statStrip
+                        .padding(.horizontal, 6)
+                        .padding(.bottom, 12)
+                }
 
                 GlassSegmentedControl(
                     segments: [
@@ -65,14 +88,8 @@ struct MaintenanceLogsView: View {
                     issuesContent
                         .padding(.horizontal, Theme.Spacing.pageH)
                 } else {
-                    statStrip
+                    ServiceIntervalsCard(insights: intervalInsights)
                         .padding(.horizontal, Theme.Spacing.pageH)
-
-                    ServiceIntervalsCard(
-                        insights: MaintenanceIntervalsEngine.insights(
-                            records: serviceRecords, currentOdo: currentOdo)
-                    )
-                    .padding(.horizontal, Theme.Spacing.pageH)
 
                     sectionHeader("Verlauf", count: groupCount)
                         .padding(.horizontal, Theme.Spacing.pageH + 6)
@@ -119,16 +136,37 @@ struct MaintenanceLogsView: View {
     private var statStrip: some View {
         StatStrip([
             StatTile(
-                eyebrow: "Gesamtkosten",
-                value: Formatters.currency(totalCost, code: currency, fractionDigits: 0),
+                eyebrow: "Kosten \(currentYearShort)",
+                value: Formatters.currency(yearCost, code: currency, fractionDigits: 0),
                 accent: Theme.Colors.primary
             ),
             StatTile(
                 eyebrow: "Letzte Wartung",
                 value: lastEntry.map { Formatters.dayMonth($0.date) } ?? "—",
                 unit: lastEntry.map { "bei \($0.odo) km" }
-            )
+            ),
+            intervalTile
         ])
+    }
+
+    /// Interval health at a glance, colored like `ServiceIntervalsCard`:
+    /// overdue beats due beats all-ok.
+    private var intervalTile: StatTile {
+        let overdue = intervalInsights.filter { $0.status == .overdue }.count
+        let due = intervalInsights.filter { $0.status == .due }.count
+        if overdue > 0 {
+            return StatTile(
+                eyebrow: "Intervalle", value: "\(overdue)",
+                unit: "überfällig", accent: Theme.Colors.accent)
+        }
+        if due > 0 {
+            return StatTile(
+                eyebrow: "Intervalle", value: "\(due)",
+                unit: "fällig", accent: .orange)
+        }
+        return StatTile(
+            eyebrow: "Intervalle", value: "OK",
+            unit: "alles im Plan", accent: .green)
     }
 
     @ViewBuilder

@@ -50,11 +50,64 @@ struct WorkshopView: View {
             && viewModel.tirePressure == nil
     }
 
+    // MARK: - Header stat strip
+
+    private var documentCount: Int {
+        viewModel.documents.count + viewModel.commonDocuments.count
+    }
+
+    private var statStrip: some View {
+        StatStrip([
+            pressureTile,
+            StatTile(
+                eyebrow: "Drehmomente",
+                value: "\(viewModel.torque.count)",
+                unit: viewModel.torque.count == 1 ? "Eintrag" : "Einträge"
+            ),
+            StatTile(
+                eyebrow: "Dokumente",
+                value: "\(documentCount)",
+                unit: documentCount == 1 ? "Datei" : "Dateien"
+            )
+        ])
+    }
+
+    /// Front/rear pressure of the first recorded configuration, in the unit
+    /// the user entered them in (mirrors `TirePressureTable`).
+    private var pressureTile: StatTile {
+        guard let pressure = viewModel.tirePressure,
+              let config = pressure.recordedConfigs.first else {
+            return StatTile(eyebrow: "Reifendruck", value: "—", unit: "nicht erfasst")
+        }
+        let values = pressure.values(for: config)
+        let unit = pressure.preferredUnit
+        func text(_ bar: Double?) -> String {
+            bar.map { PressureUnitFormat.fieldText(bar: $0, unit: unit) } ?? "—"
+        }
+        return StatTile(
+            eyebrow: "Reifendruck",
+            value: "\(text(values.front)) / \(text(values.rear))",
+            unit: "\(unit) vorne / hinten",
+            accent: Theme.Colors.primary
+        )
+    }
+
     var body: some View {
         ScrollView {
             VStack(spacing: Theme.Spacing.l) {
-                MotorcycleSummaryHeader(motorcycle: viewModel.motorcycle, type: .workshop, viewModel: viewModel)
+                // Match the fuel page: the photo extends below the content so
+                // the stat strip overlaps the image instead of a hard cut-off.
+                ZStack(alignment: .bottom) {
+                    MotorcycleSummaryHeader(
+                        motorcycle: viewModel.motorcycle, type: .workshop, viewModel: viewModel,
+                        bottomExtension: 96
+                    )
                     .ignoresSafeArea(edges: .top)
+
+                    statStrip
+                        .padding(.horizontal, 6)
+                        .padding(.bottom, 12)
+                }
 
                 if viewModel.isLoading && bothEmpty {
                     VStack(spacing: 10) {
