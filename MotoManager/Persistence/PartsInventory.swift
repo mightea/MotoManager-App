@@ -20,6 +20,20 @@ enum PartsInventory {
             .sorted { $0.date > $1.date }
     }
 
+    /// Reverse lookup: the parts consumed by a maintenance record ("Verwendete
+    /// Teile"). Matches by clientId first (offline-created links), then by
+    /// server id (links pulled from the server).
+    static func consumptions(forMaintenance record: SDMaintenanceRecord, in context: ModelContext) -> [SDPartConsumption] {
+        ((try? context.fetch(FetchDescriptor<SDPartConsumption>())) ?? [])
+            .filter { consumption in
+                guard consumption.syncState != .pendingDelete else { return false }
+                if consumption.maintenanceClientId == record.clientId { return true }
+                if let serverId = record.serverId, consumption.maintenanceServerId == serverId { return true }
+                return false
+            }
+            .sorted { $0.date > $1.date }
+    }
+
     static func onHand(for partClientId: UUID, in context: ModelContext) -> Int {
         let stocked = stocks(for: partClientId, in: context).reduce(0) { $0 + $1.quantity }
         let consumed = consumptions(for: partClientId, in: context).reduce(0) { $0 + $1.quantity }

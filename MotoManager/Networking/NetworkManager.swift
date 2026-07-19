@@ -508,6 +508,14 @@ class NetworkManager {
 
     // MARK: - Locations (GPS places, e.g. fuel stations)
 
+    /// All user locations (garages, MFK stations, fuel stops, …), cached for
+    /// offline display of location names on maintenance records.
+    func fetchLocations() async throws -> [Location] {
+        let wrapper: LocationListResponse = try await get("/api/locations")
+        CacheStore.shared.save(wrapper.locations, key: CacheKey.locations)
+        return wrapper.locations
+    }
+
     /// Fuel stations (or other `types`) within `radiusMeters` of a point, nearest
     /// first. Backed by the `/api/locations` proximity params.
     func fetchNearbyLocations(

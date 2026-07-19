@@ -1,8 +1,14 @@
 import SwiftUI
 import SwiftData
 
-/// Create/edit a non-fuel maintenance record (oil, tire, inspection, …).
-/// Writes optimistically to SwiftData via the view model (offline-first).
+/// Create/edit a non-fuel maintenance record. Uses the webapp's canonical
+/// type system (fluid + fluid subtype, brakepad/brakerotor via a UI-only
+/// "brake" type, …) with conditional type-specific fields. Writes
+/// optimistically to SwiftData via the view model (offline-first).
+///
+/// Legacy records (older iOS builds wrote `oil`, `tires`, `brakes`, …) open
+/// with the mapped picker selection, but their stored type is only rewritten
+/// when the user actually changes a type-determining control — never silently.
 struct AddMaintenanceView: View {
     @ObservedObject var viewModel: MotorcycleDetailViewModel
     let existingRecord: SDMaintenanceRecord?
@@ -13,19 +19,38 @@ struct AddMaintenanceView: View {
     @State private var usedParts: [UUID: Int] = [:]
     @State private var availableParts: [SDPart] = []
 
-    /// (value sent to the API, German label).
-    static let types: [(value: String, label: String)] = [
+    /// Picker values (webapp canonical set minus fuel/location, plus the
+    /// UI-only "brake" which submits brakepad/brakerotor).
+    static let formTypes: [(value: String, label: String)] = [
         ("service", "Service"),
-        ("oil", "Öl"),
-        ("tire", "Reifen"),
-        ("inspection", "Inspektion"),
-        ("chain", "Antrieb"),
-        ("brakes", "Bremsen"),
-        ("battery", "Elektrik"),
-        ("coolant", "Kühler"),
+        ("repair", "Reparatur"),
+        ("tire", "Reifenwechsel"),
+        ("fluid", "Flüssigkeit"),
+        ("brake", "Bremse"),
+        ("battery", "Batterie"),
+        ("chain", "Kette"),
+        ("inspection", "MFK"),
+        ("general", "Allgemein"),
     ]
 
-    @State private var type: String
+    /// Fluid subtypes in display order (webapp `fluidTypeLabels`).
+    static let fluidTypes = [
+        "engineoil", "gearboxoil", "finaldriveoil", "finaldrivegearboxoil",
+        "forkoil", "brakefluid", "coolant",
+    ]
+
+    @State private var formType: String
+    @State private var brakeComponent: String   // brakepad | brakerotor
+    @State private var brand: String
+    @State private var model: String
+    @State private var tirePosition: String
+    @State private var tireSize: String
+    @State private var dotCode: String
+    @State private var batteryType: String
+    @State private var fluidType: String
+    @State private var viscosity: String
+    @State private var oilType: String          // "" = none
+
     @State private var odo: String
     @State private var cost: String
     @State private var currency: String
@@ -35,11 +60,43 @@ struct AddMaintenanceView: View {
     @State private var savedAnim = false
     @State private var showingOdoScanner = false
 
+    /// Set when editing a record whose stored type isn't canonical; submitted
+    /// unchanged unless the user touches a type-determining control.
+    private let legacyOriginalType: String?
+    @State private var typeDirty = false
+
     init(viewModel: MotorcycleDetailViewModel, existingRecord: SDMaintenanceRecord? = nil) {
         self.viewModel = viewModel
         self.existingRecord = existingRecord
         if let r = existingRecord {
-            _type = State(initialValue: r.recordType)
+            let raw = r.recordType.lowercased()
+            let normalized = MaintenanceCategory.normalize(type: raw, fluidType: r.fluidType)
+            let isCanonical = MaintenanceCategory(rawValue: raw) != nil
+            self.legacyOriginalType = isCanonical ? nil : r.recordType
+
+            let initialFormType: String
+            switch normalized.category {
+            case .brakepad, .brakerotor: initialFormType = "brake"
+            case .tire: initialFormType = "tire"
+            case .fluid: initialFormType = "fluid"
+            case .battery: initialFormType = "battery"
+            case .chain: initialFormType = "chain"
+            case .inspection: initialFormType = "inspection"
+            case .repair: initialFormType = "repair"
+            case .service: initialFormType = "service"
+            default: initialFormType = "general"
+            }
+            _formType = State(initialValue: initialFormType)
+            _brakeComponent = State(initialValue: normalized.category == .brakerotor ? "brakerotor" : "brakepad")
+            _brand = State(initialValue: r.brand ?? "")
+            _model = State(initialValue: r.model ?? "")
+            _tirePosition = State(initialValue: r.tirePosition ?? "rear")
+            _tireSize = State(initialValue: r.tireSize ?? "")
+            _dotCode = State(initialValue: r.dotCode ?? "")
+            _batteryType = State(initialValue: r.batteryType ?? "lead-acid")
+            _fluidType = State(initialValue: normalized.fluidType ?? "engineoil")
+            _viscosity = State(initialValue: r.viscosity ?? "")
+            _oilType = State(initialValue: r.oilType ?? "")
             _odo = State(initialValue: "\(r.odo)")
             _cost = State(initialValue: r.cost.map { String($0) } ?? "")
             _currency = State(initialValue: r.currency ?? viewModel.motorcycle.currencyCode ?? "CHF")
@@ -47,7 +104,18 @@ struct AddMaintenanceView: View {
             let f = ISO8601DateFormatter(); f.formatOptions = [.withFullDate]
             _date = State(initialValue: f.date(from: r.date) ?? Date())
         } else {
-            _type = State(initialValue: "service")
+            self.legacyOriginalType = nil
+            _formType = State(initialValue: "service")
+            _brakeComponent = State(initialValue: "brakepad")
+            _brand = State(initialValue: "")
+            _model = State(initialValue: "")
+            _tirePosition = State(initialValue: "rear")
+            _tireSize = State(initialValue: "")
+            _dotCode = State(initialValue: "")
+            _batteryType = State(initialValue: "lead-acid")
+            _fluidType = State(initialValue: "engineoil")
+            _viscosity = State(initialValue: "")
+            _oilType = State(initialValue: "")
             _odo = State(initialValue: "\(viewModel.motorcycle.latestOdo ?? viewModel.motorcycle.initialOdo)")
             _cost = State(initialValue: "")
             _currency = State(initialValue: viewModel.motorcycle.currencyCode ?? "CHF")
@@ -62,13 +130,16 @@ struct AddMaintenanceView: View {
                 header
 
                 field("ART") {
-                    Picker("Art", selection: $type) {
-                        ForEach(Self.types, id: \.value) { Text($0.label).tag($0.value) }
+                    Picker("Art", selection: $formType) {
+                        ForEach(Self.formTypes, id: \.value) { Text($0.label).tag($0.value) }
                     }
                     .pickerStyle(.menu)
                     .tint(.white)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
+
+                typeSpecificFields
+
                 field("KILOMETERSTAND") {
                     HStack(spacing: 8) {
                         TextField("", text: $odo).keyboardType(.numberPad).foregroundColor(.white)
@@ -114,12 +185,12 @@ struct AddMaintenanceView: View {
             .padding(Theme.Spacing.l)
         }
         .background(Color.clear)
+        .onChange(of: formType) { typeDirty = true }
+        .onChange(of: brakeComponent) { typeDirty = true }
+        .onChange(of: fluidType) { typeDirty = true }
         .sheet(isPresented: $showingOdoScanner) {
             OdometerScanSheet(onResult: { value in odo = "\(value)" })
-            .presentationDetents([.large])
-            .presentationCornerRadius(Theme.Glass.sheetRadius)
-            .presentationBackground(.regularMaterial)
-            .presentationDragIndicator(.visible)
+                .glassSheet()
         }
         .onAppear {
             availableParts = PartsInventory.availableParts(
@@ -132,6 +203,102 @@ struct AddMaintenanceView: View {
                 dismiss()
             }
         }
+    }
+
+    // MARK: - Type-specific fields
+
+    @ViewBuilder
+    private var typeSpecificFields: some View {
+        switch formType {
+        case "tire":
+            field("POSITION") { tirePositionPicker }
+            HStack(spacing: Theme.Spacing.m) {
+                field("GRÖSSE") {
+                    TextField("", text: $tireSize, prompt: prompt("180/55 ZR17")).foregroundColor(.white)
+                }
+                field("DOT-CODE") {
+                    TextField("", text: $dotCode, prompt: prompt("2423")).foregroundColor(.white)
+                }
+            }
+            brandModelFields
+        case "fluid":
+            field("FLUID-ART") {
+                Picker("Fluid-Art", selection: $fluidType) {
+                    ForEach(Self.fluidTypes, id: \.self) {
+                        Text(SDMaintenanceRecord.fluidTypeLabels[$0] ?? $0).tag($0)
+                    }
+                }
+                .pickerStyle(.menu).tint(.white)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            if fluidType.hasSuffix("oil") {
+                HStack(spacing: Theme.Spacing.m) {
+                    field("VISKOSITÄT") {
+                        TextField("", text: $viscosity, prompt: prompt("10W-40")).foregroundColor(.white)
+                    }
+                    field("ÖL-TYP") {
+                        Picker("Öl-Typ", selection: $oilType) {
+                            Text("—").tag("")
+                            ForEach(["synthetic", "semi-synthetic", "mineral"], id: \.self) {
+                                Text(MaintenanceCategory.oilTypeLabels[$0] ?? $0).tag($0)
+                            }
+                        }
+                        .pickerStyle(.menu).tint(.white)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
+            }
+            field("MARKE") {
+                TextField("", text: $brand, prompt: prompt("z. B. Motul")).foregroundColor(.white)
+            }
+        case "brake":
+            field("KOMPONENTE") {
+                Picker("Komponente", selection: $brakeComponent) {
+                    Text("Bremsbeläge").tag("brakepad")
+                    Text("Bremsscheibe").tag("brakerotor")
+                }
+                .pickerStyle(.segmented).colorScheme(.dark)
+            }
+            field("POSITION") { tirePositionPicker }
+            brandModelFields
+        case "battery":
+            field("BATTERIETYP") {
+                Picker("Batterietyp", selection: $batteryType) {
+                    ForEach(["lead-acid", "gel", "agm", "lithium-ion", "other"], id: \.self) {
+                        Text(MaintenanceCategory.batteryTypeLabels[$0] ?? $0).tag($0)
+                    }
+                }
+                .pickerStyle(.menu).tint(.white)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            brandModelFields
+        default:
+            EmptyView()
+        }
+    }
+
+    private var tirePositionPicker: some View {
+        Picker("Position", selection: $tirePosition) {
+            Text("Vorne").tag("front")
+            Text("Hinten").tag("rear")
+            Text("Beiwagen").tag("sidecar")
+        }
+        .pickerStyle(.segmented).colorScheme(.dark)
+    }
+
+    private var brandModelFields: some View {
+        HStack(spacing: Theme.Spacing.m) {
+            field("MARKE") {
+                TextField("", text: $brand, prompt: prompt("z. B. Michelin")).foregroundColor(.white)
+            }
+            field("MODELL") {
+                TextField("", text: $model, prompt: prompt("z. B. Road 6")).foregroundColor(.white)
+            }
+        }
+    }
+
+    private func prompt(_ text: String) -> Text {
+        Text(text).foregroundColor(.white.opacity(0.3))
     }
 
     private var header: some View {
@@ -260,13 +427,58 @@ struct AddMaintenanceView: View {
         }
     }
 
+    // MARK: - Save
+
+    /// The `type` string written to the record: legacy stays untouched unless
+    /// a type-determining control changed; "brake" resolves to its component.
+    private var submittedType: String {
+        if let legacy = legacyOriginalType, !typeDirty { return legacy }
+        return formType == "brake" ? brakeComponent : formType
+    }
+
     private func save() {
         let odoValue = Int(odo) ?? (viewModel.motorcycle.latestOdo ?? viewModel.motorcycle.initialOdo)
         let costValue = Double(cost.replacingOccurrences(of: ",", with: ".")) ?? 0
+        let type = submittedType
+        let category = MaintenanceCategory.normalize(type: type, fluidType: nil).category
+
+        var draft = MotorcycleDetailViewModel.MaintenanceDraft(
+            type: type, odo: odoValue, date: date,
+            cost: costValue, currency: currency, description: notes
+        )
+        switch category {
+        case .tire:
+            draft.brand = brand; draft.model = model
+            draft.tirePosition = tirePosition
+            draft.tireSize = tireSize; draft.dotCode = dotCode
+        case .brakepad, .brakerotor:
+            draft.brand = brand; draft.model = model
+            draft.tirePosition = tirePosition
+        case .battery:
+            draft.brand = brand; draft.model = model
+            draft.batteryType = batteryType
+        case .fluid:
+            draft.brand = brand
+            // Legacy fluid type untouched → keep the stored (possibly nil)
+            // fluidType instead of writing the inferred one behind the
+            // user's back.
+            if legacyOriginalType != nil && !typeDirty {
+                draft.fluidType = existingRecord?.fluidType
+            } else {
+                draft.fluidType = fluidType
+            }
+            if fluidType.hasSuffix("oil") {
+                draft.viscosity = viscosity
+                draft.oilType = oilType.isEmpty ? nil : oilType
+            }
+        default:
+            break
+        }
+
         if let r = existingRecord {
-            viewModel.updateMaintenance(r, type: type, odo: odoValue, date: date, cost: costValue, currency: currency, description: notes)
+            viewModel.updateMaintenance(r, draft: draft)
         } else {
-            let record = viewModel.createMaintenance(type: type, odo: odoValue, date: date, cost: costValue, currency: currency, description: notes)
+            let record = viewModel.createMaintenance(draft)
             recordUsedParts(for: record)
         }
         withAnimation { savedAnim = true }

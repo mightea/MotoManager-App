@@ -1,8 +1,8 @@
 import SwiftUI
 
-/// Detail sheet for a catalog part: fitment + description, the stock entries
-/// ("Bestand") and the consumption history ("Verbrauch"), with add-affordances
-/// for both. All writes are offline-first via PartsViewModel.
+/// Pushed detail page for a catalog part: fitment + description, the stock
+/// entries ("Bestand") and the consumption history ("Verbrauch"), with
+/// add-affordances for both. All writes are offline-first via PartsViewModel.
 struct PartDetailView: View {
     let part: SDPart
     @ObservedObject var viewModel: PartsViewModel
@@ -14,6 +14,15 @@ struct PartDetailView: View {
     @State private var showingAddConsumption = false
     @State private var showingPrintLabel = false
     @State private var printingLocation: SDStorageLocation?
+    @State private var didAutoDismiss = false
+    /// Captured at init so the auto-pop guard never reads a deleted model.
+    private let partClientId: UUID
+
+    init(part: SDPart, viewModel: PartsViewModel) {
+        self.part = part
+        self.viewModel = viewModel
+        self.partClientId = part.clientId
+    }
 
     private var onHand: Int { viewModel.onHand(for: part) }
     private var stocks: [SDPartStock] { viewModel.stocks(for: part) }
@@ -27,62 +36,65 @@ struct PartDetailView: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: Theme.Spacing.l) {
-                header
+        DetailPage(
+            accent: Theme.Colors.primary,
+            eyebrow: part.syncState.isPending ? "TEIL · NICHT SYNCHRON" : "TEIL",
+            title: part.name,
+            subtitle: part.partNumber,
+            body: {
                 catalogCard
                 stockSection
                 consumptionSection
             }
-            .padding(Theme.Spacing.l)
-            .padding(.bottom, 40)
+        )
+        .toolbar {
+            ToolbarItemGroup(placement: .topBarTrailing) {
+                Button { showingPrintLabel = true } label: {
+                    Image(systemName: "printer.fill")
+                }
+                .accessibilityLabel("Etikett drucken")
+                .disabled(part.serverId == nil)
+                Button { showingEdit = true } label: {
+                    Image(systemName: "pencil")
+                }
+                .accessibilityLabel("Bearbeiten")
+            }
         }
-        .background(Color.clear)
         .sheet(isPresented: $showingEdit) {
             AddPartView(viewModel: viewModel, existingPart: part)
-                .presentationDetents([.large])
-                .presentationCornerRadius(Theme.Glass.sheetRadius)
-                .presentationBackground(.regularMaterial)
-                .presentationDragIndicator(.visible)
+                .glassSheet()
         }
         .sheet(isPresented: $showingAddStock) {
             AddPartStockView(viewModel: viewModel, part: part)
-                .presentationDetents([.large])
-                .presentationCornerRadius(Theme.Glass.sheetRadius)
-                .presentationBackground(.regularMaterial)
-                .presentationDragIndicator(.visible)
+                .glassSheet()
         }
         .sheet(item: $editingStock) { stock in
             AddPartStockView(viewModel: viewModel, part: part, existingStock: stock)
-                .presentationDetents([.large])
-                .presentationCornerRadius(Theme.Glass.sheetRadius)
-                .presentationBackground(.regularMaterial)
-                .presentationDragIndicator(.visible)
+                .glassSheet()
         }
         .sheet(isPresented: $showingAddConsumption) {
             AddPartConsumptionView(viewModel: viewModel, part: part)
-                .presentationDetents([.medium, .large])
-                .presentationCornerRadius(Theme.Glass.sheetRadius)
-                .presentationBackground(.regularMaterial)
-                .presentationDragIndicator(.visible)
+                .glassSheet()
         }
         .sheet(isPresented: $showingPrintLabel) {
             if let content = partLabelContent {
                 PrintLabelView(content: content)
-                    .presentationDetents([.large])
-                    .presentationCornerRadius(Theme.Glass.sheetRadius)
-                    .presentationBackground(.regularMaterial)
-                    .presentationDragIndicator(.visible)
+                    .glassSheet()
             }
         }
         .sheet(item: $printingLocation) { location in
             if let content = locationLabelContent(location) {
                 PrintLabelView(content: content)
-                    .presentationDetents([.large])
-                    .presentationCornerRadius(Theme.Glass.sheetRadius)
-                    .presentationBackground(.regularMaterial)
-                    .presentationDragIndicator(.visible)
+                    .glassSheet()
             }
+        }
+        // Pop back if the part disappears underneath us (remote delete via
+        // sync, or delete from within the edit sheet).
+        .onReceive(viewModel.$parts) { parts in
+            guard !didAutoDismiss,
+                  !parts.contains(where: { $0.clientId == partClientId }) else { return }
+            didAutoDismiss = true
+            dismiss()
         }
     }
 
@@ -123,48 +135,7 @@ struct PartDetailView: View {
         )
     }
 
-    // MARK: - Header & catalog
-
-    private var header: some View {
-        HStack(alignment: .top) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(part.name)
-                    .font(.system(size: 24, weight: .heavy))
-                    .foregroundColor(.white)
-                Text(part.partNumber)
-                    .font(.system(size: 13, weight: .semibold))
-                    .monospaced()
-                    .foregroundColor(.white.opacity(0.6))
-            }
-            Spacer()
-            Button { showingPrintLabel = true } label: {
-                Image(systemName: "printer.fill")
-                    .font(.system(size: 14, weight: .bold))
-                    .foregroundColor(.white)
-                    .frame(width: 32, height: 32)
-                    .background(Circle().fill(Color.white.opacity(0.12)))
-            }
-            .accessibilityLabel("Etikett drucken")
-            .disabled(part.serverId == nil)
-            .opacity(part.serverId == nil ? 0.4 : 1)
-            Button { showingEdit = true } label: {
-                Image(systemName: "pencil")
-                    .font(.system(size: 14, weight: .bold))
-                    .foregroundColor(.white)
-                    .frame(width: 32, height: 32)
-                    .background(Circle().fill(Color.white.opacity(0.12)))
-            }
-            .accessibilityLabel("Bearbeiten")
-            Button { dismiss() } label: {
-                Image(systemName: "xmark")
-                    .font(.system(size: 14, weight: .bold))
-                    .foregroundColor(.white)
-                    .frame(width: 32, height: 32)
-                    .background(Circle().fill(Color.white.opacity(0.12)))
-            }
-            .accessibilityLabel("Schließen")
-        }
-    }
+    // MARK: - Catalog
 
     private var catalogCard: some View {
         VStack(alignment: .leading, spacing: 10) {

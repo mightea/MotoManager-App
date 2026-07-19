@@ -14,10 +14,13 @@ extension SDMaintenanceRecord {
     ]
 
     /// The localized label for a fluid record's specific type (e.g. "Motoröl"),
-    /// or `nil` when this isn't a fluid record or the type is unknown. Callers
-    /// fall back to the coarse maintenance-kind label.
+    /// or `nil` when this isn't a fluid record or the type is unknown. Resolves
+    /// through `MaintenanceCategory.normalize`, so legacy oil types ("oil",
+    /// "gearboxoil", …) get a label too. Callers fall back to the coarse
+    /// category label.
     var fluidTypeLabel: String? {
-        guard recordType == "fluid", let type = fluidType else { return nil }
+        let normalized = MaintenanceCategory.normalize(type: recordType, fluidType: fluidType)
+        guard normalized.category == .fluid, let type = normalized.fluidType else { return nil }
         return Self.fluidTypeLabels[type]
     }
 }

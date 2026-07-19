@@ -18,6 +18,19 @@ class PartsViewModel: ObservableObject {
     @Published var isLoadingPublic = false
     @Published var publicError: String?
 
+    private var cancellables = Set<AnyCancellable>()
+
+    init() {
+        // Re-publish the local arrays whenever a sync finishes, so remotely
+        // pulled changes (incl. deletions, which the pushed detail pages'
+        // auto-pop guards watch for) reach the UI without a manual refresh.
+        SyncEngine.shared.$status
+            .scan((SyncStatus.idle, SyncStatus.idle)) { pair, next in (pair.1, next) }
+            .filter { pair in pair.0 == .syncing && pair.1 != .syncing }
+            .sink { [weak self] _ in self?.reloadLocal() }
+            .store(in: &cancellables)
+    }
+
     // MARK: - Local reads
 
     func reloadLocal() {
@@ -42,6 +55,20 @@ class PartsViewModel: ObservableObject {
 
     func consumptions(for part: SDPart) -> [SDPartConsumption] {
         PartsInventory.consumptions(for: part.clientId, in: modelContext)
+    }
+
+    /// Parts used by a maintenance record ("Verwendete Teile" on its detail page).
+    func consumptions(forMaintenance record: SDMaintenanceRecord) -> [SDPartConsumption] {
+        PartsInventory.consumptions(forMaintenance: record, in: modelContext)
+    }
+
+    /// Resolve a consumption's part by client id, falling back to server id.
+    func part(clientId: UUID?, serverId: Int? = nil) -> SDPart? {
+        if let clientId, let match = parts.first(where: { $0.clientId == clientId }) {
+            return match
+        }
+        if let serverId { return parts.first { $0.serverId == serverId } }
+        return nil
     }
 
     func storageLocation(clientId: UUID?) -> SDStorageLocation? {

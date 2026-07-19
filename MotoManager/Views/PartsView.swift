@@ -90,34 +90,21 @@ struct PartsView: View {
         }
         .sheet(isPresented: $showingAddPart) {
             AddPartView(viewModel: viewModel)
-                .presentationDetents([.large])
-                .presentationCornerRadius(Theme.Glass.sheetRadius)
-                .presentationBackground(.regularMaterial)
-                .presentationDragIndicator(.visible)
+                .glassSheet()
         }
-        .sheet(item: $selectedPart) { part in
+        .navigationDestination(item: $selectedPart) { part in
             PartDetailView(part: part, viewModel: viewModel)
-                .presentationDetents([.large])
-                .presentationCornerRadius(Theme.Glass.sheetRadius)
-                .presentationBackground(.regularMaterial)
-                .presentationDragIndicator(.hidden)
         }
-        // The scan result only gets stashed here; the part/location sheets are
-        // siblings of the scanner sheet, so presenting them must wait for its
-        // dismissal — onDismiss fires after the animation completes.
+        // The scan result only gets stashed here; pushing the part/location
+        // detail must wait for the scanner sheet's dismissal so the push
+        // animation doesn't fight the sheet's — onDismiss fires after the
+        // animation completes.
         .sheet(isPresented: $showingScanner, onDismiss: resolvePendingScan) {
             LabelScanSheet { pendingScan = $0 }
-                .presentationDetents([.large])
-                .presentationCornerRadius(Theme.Glass.sheetRadius)
-                .presentationBackground(.regularMaterial)
-                .presentationDragIndicator(.visible)
+                .glassSheet()
         }
-        .sheet(item: $selectedLocation) { location in
+        .navigationDestination(item: $selectedLocation) { location in
             StorageLocationDetailView(location: location, viewModel: viewModel)
-                .presentationDetents([.large])
-                .presentationCornerRadius(Theme.Glass.sheetRadius)
-                .presentationBackground(.regularMaterial)
-                .presentationDragIndicator(.hidden)
         }
         .alert("Etikett nicht gefunden", isPresented: $showingScanNotFound) {
             Button("OK", role: .cancel) {}

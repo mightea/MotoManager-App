@@ -1,8 +1,8 @@
 import SwiftUI
 
-/// Detail sheet for a storage location (opened by scanning its printed QR
-/// label): the bin's name and path plus every part stocked there, each row
-/// opening the part's detail sheet.
+/// Pushed detail page for a storage location (opened from the parts tab or by
+/// scanning its printed QR label): the bin's name and path plus every part
+/// stocked there, each row pushing the part's detail page.
 struct StorageLocationDetailView: View {
     let location: SDStorageLocation
     @ObservedObject var viewModel: PartsViewModel
@@ -10,6 +10,15 @@ struct StorageLocationDetailView: View {
 
     @State private var selectedPart: SDPart?
     @State private var showingPrintLabel = false
+    @State private var didAutoDismiss = false
+    /// Captured at init so the auto-pop guard never reads a deleted model.
+    private let locationClientId: UUID
+
+    init(location: SDStorageLocation, viewModel: PartsViewModel) {
+        self.location = location
+        self.viewModel = viewModel
+        self.locationClientId = location.clientId
+    }
 
     private var stockedParts: [(part: SDPart, quantity: Int)] {
         viewModel.stockedParts(at: location)
@@ -31,77 +40,51 @@ struct StorageLocationDetailView: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: Theme.Spacing.l) {
-                header
-                partsSection
-            }
-            .padding(Theme.Spacing.l)
-            .padding(.bottom, 40)
-        }
-        .background(Color.clear)
-        .sheet(item: $selectedPart) { part in
-            PartDetailView(part: part, viewModel: viewModel)
-                .presentationDetents([.large])
-                .presentationCornerRadius(Theme.Glass.sheetRadius)
-                .presentationBackground(.regularMaterial)
-                .presentationDragIndicator(.hidden)
-        }
-        .sheet(isPresented: $showingPrintLabel) {
-            if let content = labelContent {
-                PrintLabelView(content: content)
-                    .presentationDetents([.large])
-                    .presentationCornerRadius(Theme.Glass.sheetRadius)
-                    .presentationBackground(.regularMaterial)
-                    .presentationDragIndicator(.visible)
-            }
-        }
-    }
-
-    // MARK: - Header
-
-    private var header: some View {
-        HStack(alignment: .top) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(location.name)
-                    .font(.system(size: 24, weight: .heavy))
-                    .foregroundColor(.white)
-                if let path = viewModel.locationPath(location), path != location.name {
-                    HStack(spacing: 4) {
-                        Image(systemName: "archivebox.fill")
-                            .font(.system(size: 10))
-                        Text(path)
-                            .lineLimit(2)
-                    }
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundColor(.white.opacity(0.6))
-                }
+        DetailPage(
+            accent: Theme.Colors.primary,
+            eyebrow: location.syncState.isPending ? "LAGERORT · NICHT SYNCHRON" : "LAGERORT",
+            title: location.name,
+            subtitle: pathSubtitle,
+            heroContent: {
                 if let serverId = location.serverId {
                     Text("Lagerort #\(serverId)")
                         .font(.system(size: 11, weight: .semibold))
                         .foregroundColor(.white.opacity(0.4))
                 }
-            }
-            Spacer()
-            if labelContent != nil {
+            },
+            body: { partsSection }
+        )
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
                 Button { showingPrintLabel = true } label: {
                     Image(systemName: "printer.fill")
-                        .font(.system(size: 13, weight: .bold))
-                        .foregroundColor(.white)
-                        .frame(width: 32, height: 32)
-                        .background(Circle().fill(Color.white.opacity(0.12)))
                 }
                 .accessibilityLabel("Etikett drucken")
+                .disabled(labelContent == nil)
             }
-            Button { dismiss() } label: {
-                Image(systemName: "xmark")
-                    .font(.system(size: 14, weight: .bold))
-                    .foregroundColor(.white)
-                    .frame(width: 32, height: 32)
-                    .background(Circle().fill(Color.white.opacity(0.12)))
-            }
-            .accessibilityLabel("Schließen")
         }
+        .navigationDestination(item: $selectedPart) { part in
+            PartDetailView(part: part, viewModel: viewModel)
+        }
+        .sheet(isPresented: $showingPrintLabel) {
+            if let content = labelContent {
+                PrintLabelView(content: content)
+                    .glassSheet()
+            }
+        }
+        // Pop back if the location disappears underneath us (remote delete
+        // via sync).
+        .onReceive(viewModel.$storageLocations) { locations in
+            guard !didAutoDismiss,
+                  !locations.contains(where: { $0.clientId == locationClientId }) else { return }
+            didAutoDismiss = true
+            dismiss()
+        }
+    }
+
+    private var pathSubtitle: String? {
+        guard let path = viewModel.locationPath(location), path != location.name else { return nil }
+        return path
     }
 
     // MARK: - Stocked parts

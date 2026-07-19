@@ -34,17 +34,11 @@ struct MainTabView: View {
         ))
         .sheet(isPresented: $showingGarage) {
             GarageView()
-                .presentationDetents([.large])
-                .presentationCornerRadius(Theme.Glass.sheetRadius)
-                .presentationBackground(.regularMaterial)
-                .presentationDragIndicator(.visible)
+                .glassSheet()
         }
         .sheet(isPresented: $showingSettings) {
             SettingsView()
-                .presentationDetents([.large])
-                .presentationCornerRadius(Theme.Glass.sheetRadius)
-                .presentationBackground(.regularMaterial)
-                .presentationDragIndicator(.visible)
+                .glassSheet()
         }
         // Single load path keyed on the selected bike: fires on first appearance
         // and on every selection change, so the detail VM is created and loaded
@@ -77,6 +71,9 @@ struct MainTabView: View {
             }
         }
         .tint(Theme.Colors.primary)
+        // Tear down all four navigation stacks (including any pushed detail
+        // referring to the previous bike's records) when the bike changes.
+        .id(dVM.motorcycle.id)
     }
 
     @ViewBuilder
@@ -87,7 +84,7 @@ struct MainTabView: View {
         case .workshop:
             WorkshopView(viewModel: dVM)
         case .service:
-            MaintenanceLogsView(viewModel: dVM)
+            MaintenanceLogsView(viewModel: dVM, partsVM: partsVM)
         case .parts:
             PartsView(viewModel: partsVM, detailVM: dVM, motorcycle: dVM.motorcycle)
         }

@@ -119,10 +119,7 @@ struct AddPartView: View {
         .background(Color.clear)
         .sheet(isPresented: $showingSeriesPicker) {
             SeriesPickerView(viewModel: viewModel, selection: $selectedSeriesIds)
-                .presentationDetents([.large])
-                .presentationCornerRadius(Theme.Glass.sheetRadius)
-                .presentationBackground(.regularMaterial)
-                .presentationDragIndicator(.visible)
+                .glassSheet()
         }
         .alert("Teil löschen?", isPresented: $confirmingDelete) {
             Button("Abbrechen", role: .cancel) { }

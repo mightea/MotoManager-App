@@ -92,41 +92,27 @@ struct WorkshopView: View {
         }
         .sheet(item: $presentedDocument) { doc in
             DocumentViewerView(document: doc)
+                .glassSheet()
         }
         .sheet(isPresented: $showingAddTorque) {
             AddTorqueView(viewModel: viewModel)
-                .presentationDetents([.large])
-                .presentationCornerRadius(Theme.Glass.sheetRadius)
-                .presentationBackground(.regularMaterial)
-                .presentationDragIndicator(.visible)
+                .glassSheet()
         }
         .sheet(item: $editingTorque) { spec in
             AddTorqueView(viewModel: viewModel, existingSpec: spec)
-                .presentationDetents([.large])
-                .presentationCornerRadius(Theme.Glass.sheetRadius)
-                .presentationBackground(.regularMaterial)
-                .presentationDragIndicator(.visible)
+                .glassSheet()
         }
         .sheet(isPresented: $showingAddDetail) {
             AddDetailView(viewModel: viewModel)
-                .presentationDetents([.large])
-                .presentationCornerRadius(Theme.Glass.sheetRadius)
-                .presentationBackground(.regularMaterial)
-                .presentationDragIndicator(.visible)
+                .glassSheet()
         }
         .sheet(item: $editingDetail) { detail in
             AddDetailView(viewModel: viewModel, existingDetail: detail)
-                .presentationDetents([.large])
-                .presentationCornerRadius(Theme.Glass.sheetRadius)
-                .presentationBackground(.regularMaterial)
-                .presentationDragIndicator(.visible)
+                .glassSheet()
         }
         .sheet(isPresented: $showingTirePressure) {
             AddTirePressureView(viewModel: viewModel)
-                .presentationDetents([.large])
-                .presentationCornerRadius(Theme.Glass.sheetRadius)
-                .presentationBackground(.regularMaterial)
-                .presentationDragIndicator(.visible)
+                .glassSheet()
         }
     }
 

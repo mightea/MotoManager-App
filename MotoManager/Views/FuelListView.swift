@@ -65,17 +65,10 @@ struct FuelListView: View {
         }
         .sheet(isPresented: $showingAddFuel) {
             AddFuelView(viewModel: viewModel)
-                .presentationDetents([.large])
-                .presentationCornerRadius(Theme.Glass.sheetRadius)
-                .presentationBackground(.regularMaterial)
-                .presentationDragIndicator(.visible)
+                .glassSheet()
         }
-        .sheet(item: $selectedFuelRecord) { record in
+        .navigationDestination(item: $selectedFuelRecord) { record in
             FuelDetailView(record: record, viewModel: viewModel)
-                .presentationDetents([.large])
-                .presentationCornerRadius(Theme.Glass.sheetRadius)
-                .presentationBackground(.regularMaterial)
-                .presentationDragIndicator(.hidden)
         }
     }
 

@@ -28,6 +28,10 @@ class MotorcycleDetailViewModel: ObservableObject {
     /// Documents that aren't bound to any motorcycle — surfaced as
     /// "Allgemein" in the Workshop screen's document filter.
     @Published var commonDocuments: [Document] = []
+    /// User places (garages, MFK stations, fuel stops) for resolving a
+    /// maintenance record's `locationId` to a name/coordinates. Cached for
+    /// offline use.
+    @Published var userLocations: [Location] = []
     
     @Published var isLoading = false
     /// Blocking error — set only when there is nothing cached to show.
@@ -35,8 +39,19 @@ class MotorcycleDetailViewModel: ObservableObject {
     /// Non-blocking flag: a refresh failed but cached data is still on screen.
     @Published var refreshFailed = false
     
+    private var cancellables = Set<AnyCancellable>()
+
     init(motorcycle: Motorcycle) {
         self.motorcycle = motorcycle
+        // Re-publish the SwiftData-backed lists whenever a sync finishes, so
+        // remotely pulled changes (incl. deletions, which the pushed detail
+        // pages' auto-pop guards watch for) reach the UI without a manual
+        // refresh.
+        SyncEngine.shared.$status
+            .scan((SyncStatus.idle, SyncStatus.idle)) { pair, next in (pair.1, next) }
+            .filter { pair in pair.0 == .syncing && pair.1 != .syncing }
+            .sink { [weak self] _ in self?.reloadLocal() }
+            .store(in: &cancellables)
     }
     
     /// Pull-to-refresh / reconnect: reload the display data, then re-run the sync
@@ -72,12 +87,15 @@ class MotorcycleDetailViewModel: ObservableObject {
             async let torqueTask = NetworkManager.shared.fetchTorqueSpecs(motorcycleId: motorcycle.id)
             async let documentsTask = NetworkManager.shared.fetchDocuments()
             async let pressureTask = NetworkManager.shared.fetchTirePressure(motorcycleId: motorcycle.id)
+            async let locationsTask = NetworkManager.shared.fetchLocations()
 
-            let (maintenance, torque, allDocs, pressure) = try await (maintenanceTask, torqueTask, documentsTask, pressureTask)
+            let (maintenance, torque, allDocs, pressure, locations) =
+                try await (maintenanceTask, torqueTask, documentsTask, pressureTask, locationsTask)
 
             self.maintenanceRecords = maintenance.sorted(by: { $0.date > $1.date })
             self.torqueSpecs = torque
             self.tirePressure = pressure
+            self.userLocations = locations
 
             // Filter documents for this motorcycle
             self.documents = allDocs.filter { doc in
@@ -125,6 +143,16 @@ class MotorcycleDetailViewModel: ObservableObject {
            let cached = CacheStore.shared.load(TirePressure.self, key: CacheKey.tirePressure(motorcycleId: motorcycle.id)) {
             self.tirePressure = cached
         }
+        if userLocations.isEmpty,
+           let cached = CacheStore.shared.load([Location].self, key: CacheKey.locations) {
+            self.userLocations = cached
+        }
+    }
+
+    /// Resolve a maintenance record's `locationId` to the cached place.
+    func location(id: Int?) -> Location? {
+        guard let id else { return nil }
+        return userLocations.first { $0.id == id }
     }
 
     // MARK: - Tire pressure writes (online-only; the record has no sync metadata)
@@ -272,35 +300,67 @@ class MotorcycleDetailViewModel: ObservableObject {
         }
     }
 
+    /// Everything the maintenance form captures. Type-specific fields stay nil
+    /// for categories they don't apply to — `updateMaintenance` writes them
+    /// unconditionally so clearing a field syncs to the server.
+    struct MaintenanceDraft {
+        var type: String
+        var odo: Int
+        var date: Date
+        var cost: Double
+        var currency: String
+        var description: String?
+        var brand: String?
+        var model: String?
+        var tirePosition: String?
+        var tireSize: String?
+        var dotCode: String?
+        var batteryType: String?
+        var fluidType: String?
+        var viscosity: String?
+        var oilType: String?
+    }
+
     /// Returns the created record so callers can link follow-up entities
     /// (e.g. part consumptions) to its clientId.
     @discardableResult
-    func createMaintenance(type: String, odo: Int, date: Date, cost: Double, currency: String, description: String?) -> SDMaintenanceRecord {
+    func createMaintenance(_ draft: MaintenanceDraft) -> SDMaintenanceRecord {
         let record = SDMaintenanceRecord(
             motorcycleId: motorcycle.id,
-            date: Self.isoDay(date),
-            odo: odo,
-            recordType: type,
+            date: Self.isoDay(draft.date),
+            odo: draft.odo,
+            recordType: draft.type,
             syncState: .pendingCreate
         )
-        record.cost = cost > 0 ? cost : nil
-        record.currency = cost > 0 ? currency : nil
-        record.recordDescription = (description?.isEmpty == false) ? description : nil
+        apply(draft, to: record)
         modelContext.insert(record)
         persistAndSync()
         return record
     }
 
-    func updateMaintenance(_ record: SDMaintenanceRecord, type: String, odo: Int, date: Date, cost: Double, currency: String, description: String?) {
-        record.recordType = type
-        record.odo = odo
-        record.date = Self.isoDay(date)
-        record.cost = cost > 0 ? cost : nil
-        record.currency = cost > 0 ? currency : record.currency
-        record.recordDescription = (description?.isEmpty == false) ? description : nil
+    func updateMaintenance(_ record: SDMaintenanceRecord, draft: MaintenanceDraft) {
+        record.recordType = draft.type
+        record.odo = draft.odo
+        record.date = Self.isoDay(draft.date)
+        apply(draft, to: record)
         if record.syncState != .pendingCreate { record.syncState = .pendingUpdate }
         record.updatedAtLocal = Date()
         persistAndSync()
+    }
+
+    private func apply(_ draft: MaintenanceDraft, to record: SDMaintenanceRecord) {
+        record.cost = draft.cost > 0 ? draft.cost : nil
+        record.currency = draft.cost > 0 ? draft.currency : record.currency
+        record.recordDescription = (draft.description?.isEmpty == false) ? draft.description : nil
+        record.brand = (draft.brand?.isEmpty == false) ? draft.brand : nil
+        record.model = (draft.model?.isEmpty == false) ? draft.model : nil
+        record.tirePosition = draft.tirePosition
+        record.tireSize = (draft.tireSize?.isEmpty == false) ? draft.tireSize : nil
+        record.dotCode = (draft.dotCode?.isEmpty == false) ? draft.dotCode : nil
+        record.batteryType = draft.batteryType
+        record.fluidType = draft.fluidType
+        record.viscosity = (draft.viscosity?.isEmpty == false) ? draft.viscosity : nil
+        record.oilType = draft.oilType
     }
 
     func deleteMaintenance(_ record: SDMaintenanceRecord) {

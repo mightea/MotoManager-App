@@ -127,10 +127,7 @@ struct AddFuelView: View {
                 // Keep the full scanned value on the next tap (don't strip digits).
                 odoPrepared = true
             })
-            .presentationDetents([.large])
-            .presentationCornerRadius(Theme.Glass.sheetRadius)
-            .presentationBackground(.regularMaterial)
-            .presentationDragIndicator(.visible)
+            .glassSheet()
         }
         .onAppear {
             if focused == nil {

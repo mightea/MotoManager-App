@@ -501,10 +501,7 @@ struct GarageView_Previews: PreviewProvider {
             .sheet(isPresented: .constant(true)) {
                 GarageView()
                     .environmentObject(MotorcycleViewModel())
-                    .presentationDetents([.large])
-                    .presentationCornerRadius(Theme.Glass.sheetRadius)
-                    .presentationBackground(.regularMaterial)
-                    .presentationDragIndicator(.visible)
+                    .glassSheet()
             }
     }
 }

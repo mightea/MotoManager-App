@@ -3,69 +3,68 @@ import SwiftUI
 /// Reusable detail-page chrome matching the prototype's
 /// `motomanager-app/project/assets/details/DetailPage.jsx`.
 ///
-/// Used by `FuelDetailView` and `MaintenanceDetailView`. Provides:
+/// Used by the pushed drill-down detail views (fuel, maintenance, part,
+/// storage location). Provides:
 /// - A hero header (optional accent color, optional eyebrow, title, subtitle, free-form children).
-/// - A custom **back pill** in the top-left.
 /// - A scrollable body where the caller composes `DetailSection`s.
-/// - An optional sticky bottom action bar with primary / secondary / danger / success buttons.
 ///
-/// The system nav bar should be hidden where this is used so the back pill and hero own the chrome.
-struct DetailPage<HeroContent: View, BodyContent: View, Actions: View>: View {
-    let backLabel: String
+/// Designed for push presentation inside a `NavigationStack`: it shows the
+/// system navigation bar (native back button + swipe-back, inline title) and
+/// hides the tab bar so the detail owns the full screen. Page actions
+/// (edit/delete/print) belong in the caller's `.toolbar` as standard items.
+///
+/// `barTitle` overrides the navigation-bar title when it should differ from
+/// the hero title (e.g. fuel entries: hero shows the liters, bar the date).
+/// `heroBackground` renders behind the hero (under the accent gradient) —
+/// callers supply their own scrim to keep the text legible.
+struct DetailPage<HeroBackground: View, HeroContent: View, BodyContent: View>: View {
     let accent: Color?
     let eyebrow: String?
     let title: String
+    let barTitle: String?
     let subtitle: String?
+    let heroBackground: HeroBackground
     let heroContent: HeroContent
     let bodyContent: BodyContent
-    let actions: Actions
-    let hasActions: Bool
-    let onClose: () -> Void
 
     init(
-        backLabel: String,
         accent: Color? = nil,
         eyebrow: String? = nil,
         title: String,
+        barTitle: String? = nil,
         subtitle: String? = nil,
+        @ViewBuilder heroBackground: () -> HeroBackground = { EmptyView() },
         @ViewBuilder heroContent: () -> HeroContent = { EmptyView() },
-        @ViewBuilder body: () -> BodyContent,
-        @ViewBuilder actions: () -> Actions = { EmptyView() },
-        onClose: @escaping () -> Void
+        @ViewBuilder body: () -> BodyContent
     ) {
-        self.backLabel = backLabel
         self.accent = accent
         self.eyebrow = eyebrow
         self.title = title
+        self.barTitle = barTitle
         self.subtitle = subtitle
+        self.heroBackground = heroBackground()
         self.heroContent = heroContent()
         self.bodyContent = body()
-        self.actions = actions()
-        self.hasActions = !(Actions.self == EmptyView.self)
-        self.onClose = onClose
     }
 
     var body: some View {
-        ZStack(alignment: .bottom) {
-            ScrollView {
-                VStack(spacing: 0) {
-                    hero
-                    VStack(spacing: 14) {
-                        bodyContent
-                    }
-                    .padding(.horizontal, 14)
-                    .padding(.top, 16)
-                    .padding(.bottom, 120)
+        ScrollView {
+            VStack(spacing: 0) {
+                hero
+                VStack(spacing: 14) {
+                    bodyContent
                 }
-            }
-            .background(Theme.Colors.navy950.ignoresSafeArea())
-
-            if hasActions {
-                actionBar
+                .padding(.horizontal, 14)
+                .padding(.top, 16)
+                .padding(.bottom, 32)
             }
         }
-        .toolbar(.hidden, for: .navigationBar)
-        .navigationBarBackButtonHidden(true)
+        .background(Theme.Colors.navy950.ignoresSafeArea())
+        .toolbar(.visible, for: .navigationBar)
+        .toolbar(.hidden, for: .tabBar)
+        .toolbarColorScheme(.dark, for: .navigationBar)
+        .navigationTitle(barTitle ?? title)
+        .navigationBarTitleDisplayMode(.inline)
     }
 
     private var hero: some View {
@@ -82,8 +81,6 @@ struct DetailPage<HeroContent: View, BodyContent: View, Actions: View>: View {
             }
 
             VStack(alignment: .leading, spacing: 0) {
-                backButton
-                    .padding(.top, 8)
                 VStack(alignment: .leading, spacing: 6) {
                     if let eyebrow {
                         Text(eyebrow)
@@ -108,46 +105,13 @@ struct DetailPage<HeroContent: View, BodyContent: View, Actions: View>: View {
             }
             .padding(.horizontal, 14)
             .padding(.bottom, 18)
-            .padding(.top, 54) // status-bar inset
+            .padding(.top, 8) // nav bar provides the status-bar inset
         }
+        // Sized by the hero content; sits beneath the accent gradient.
+        .background { heroBackground }
+        .clipped()
     }
 
-    private var backButton: some View {
-        Button(action: onClose) {
-            HStack(spacing: 4) {
-                Image(systemName: "chevron.left")
-                    .font(.system(size: 14, weight: .heavy))
-                Text(backLabel)
-                    .font(.system(size: 14, weight: .semibold))
-            }
-            .foregroundColor(.white)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .glassEffect(.regular, in: Capsule())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(backLabel)
-    }
-
-    private var actionBar: some View {
-        HStack(spacing: 8) {
-            actions
-        }
-        .padding(.horizontal, 14)
-        .padding(.top, 12)
-        .padding(.bottom, 22)
-        .background(
-            LinearGradient(
-                stops: [
-                    .init(color: Theme.Colors.navy950.opacity(0.0), location: 0.0),
-                    .init(color: Theme.Colors.navy950.opacity(0.92), location: 0.4),
-                    .init(color: Theme.Colors.navy950, location: 1.0)
-                ],
-                startPoint: .top, endPoint: .bottom
-            )
-            .ignoresSafeArea(edges: .bottom)
-        )
-    }
 }
 
 // MARK: - Detail row
@@ -207,49 +171,6 @@ struct DetailSection<Content: View>: View {
             .glassEffect(.regular, in: RoundedRectangle(cornerRadius: Theme.Glass.fieldRadius))
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-    }
-}
-
-// MARK: - Action button
-
-struct DetailActionButton: View {
-    let label: String
-    let systemImage: String?
-    let variant: Variant
-    let action: () -> Void
-
-    enum Variant { case primary, secondary, danger, success }
-
-    init(_ label: String, systemImage: String? = nil, variant: Variant = .primary, action: @escaping () -> Void) {
-        self.label = label
-        self.systemImage = systemImage
-        self.variant = variant
-        self.action = action
-    }
-
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: 8) {
-                if let systemImage {
-                    Image(systemName: systemImage)
-                        .font(.system(size: 14, weight: .semibold))
-                }
-                Text(label)
-                    .font(.system(size: 14, weight: .heavy))
-            }
-            .frame(maxWidth: .infinity)
-            .frame(height: 50)
-        }
-        .glassActionButton(glassVariant, in: .roundedRectangle(radius: 14))
-    }
-
-    private var glassVariant: GlassButtonVariant {
-        switch variant {
-        case .primary:   .primary
-        case .secondary: .secondary
-        case .danger:    .danger
-        case .success:   .success
-        }
     }
 }
 

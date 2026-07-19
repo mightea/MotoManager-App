@@ -2,6 +2,7 @@ import SwiftUI
 
 struct MaintenanceLogsView: View {
     @ObservedObject var viewModel: MotorcycleDetailViewModel
+    @ObservedObject var partsVM: PartsViewModel
 
     enum ServiceTab: Hashable { case issues, maintenance }
     @State private var tab: ServiceTab = .maintenance
@@ -28,6 +29,23 @@ struct MaintenanceLogsView: View {
         lastEntry?.currency ?? viewModel.motorcycle.currencyCode ?? "EUR"
     }
 
+    /// Composite groups (same date+odo+category merge, children folded in),
+    /// bucketed by year for the section headers.
+    private var groupedByYear: [(year: String, groups: [MaintenanceGroup])] {
+        MaintenanceGrouper.byYear(
+            MaintenanceGrouper.group(serviceRecords, locations: viewModel.userLocations))
+    }
+
+    private var groupCount: Int {
+        groupedByYear.reduce(0) { $0 + $1.groups.count }
+    }
+
+    private var currentOdo: Int {
+        viewModel.motorcycle.latestOdo
+            ?? serviceRecords.map(\.odo).max()
+            ?? viewModel.motorcycle.initialOdo
+    }
+
     var body: some View {
         ScrollView {
             VStack(spacing: Theme.Spacing.m) {
@@ -50,7 +68,13 @@ struct MaintenanceLogsView: View {
                     statStrip
                         .padding(.horizontal, Theme.Spacing.pageH)
 
-                    sectionHeader("Verlauf", count: serviceRecords.count)
+                    ServiceIntervalsCard(
+                        insights: MaintenanceIntervalsEngine.insights(
+                            records: serviceRecords, currentOdo: currentOdo)
+                    )
+                    .padding(.horizontal, Theme.Spacing.pageH)
+
+                    sectionHeader("Verlauf", count: groupCount)
                         .padding(.horizontal, Theme.Spacing.pageH + 6)
 
                     maintenanceContent
@@ -72,33 +96,20 @@ struct MaintenanceLogsView: View {
         .refreshable {
             await viewModel.reconnect()
         }
-        .sheet(item: $selectedRecord) { record in
-            MaintenanceDetailView(record: record, viewModel: viewModel)
-                .presentationDetents([.large])
-                .presentationCornerRadius(Theme.Glass.sheetRadius)
-                .presentationBackground(.regularMaterial)
-                .presentationDragIndicator(.hidden)
+        .navigationDestination(item: $selectedRecord) { record in
+            MaintenanceDetailView(record: record, viewModel: viewModel, partsVM: partsVM)
         }
         .sheet(isPresented: $showingAddIssue) {
             AddIssueView(viewModel: viewModel)
-                .presentationDetents([.large])
-                .presentationCornerRadius(Theme.Glass.sheetRadius)
-                .presentationBackground(.regularMaterial)
-                .presentationDragIndicator(.visible)
+                .glassSheet()
         }
         .sheet(item: $editingIssue) { issue in
             AddIssueView(viewModel: viewModel, existingIssue: issue)
-                .presentationDetents([.large])
-                .presentationCornerRadius(Theme.Glass.sheetRadius)
-                .presentationBackground(.regularMaterial)
-                .presentationDragIndicator(.visible)
+                .glassSheet()
         }
         .sheet(isPresented: $showingAddMaintenance) {
             AddMaintenanceView(viewModel: viewModel)
-                .presentationDetents([.large])
-                .presentationCornerRadius(Theme.Glass.sheetRadius)
-                .presentationBackground(.regularMaterial)
-                .presentationDragIndicator(.visible)
+                .glassSheet()
         }
     }
 
@@ -166,18 +177,34 @@ struct MaintenanceLogsView: View {
         } else {
             // Lazy so a long service history renders cards on demand.
             LazyVStack(spacing: 10) {
-                ForEach(serviceRecords, id: \.clientId) { record in
-                    Button {
-                        selectedRecord = record
-                    } label: {
-                        MaintenanceCard(record: record, currency: currency)
+                ForEach(groupedByYear, id: \.year) { section in
+                    yearHeader(section.year)
+                    ForEach(section.groups) { group in
+                        Button {
+                            selectedRecord = group.primary
+                        } label: {
+                            MaintenanceGroupRow(group: group, fallbackCurrency: currency)
+                        }
+                        .buttonStyle(.plain)
                     }
-                    .buttonStyle(.plain)
                 }
             }
         }
     }
 
+    /// hairline — year — hairline divider between year sections.
+    private func yearHeader(_ year: String) -> some View {
+        HStack(spacing: 10) {
+            Rectangle().fill(Theme.Glass.hairline).frame(height: 0.5)
+            Text(year)
+                .font(.system(size: 11, weight: .heavy))
+                .monospacedDigit()
+                .tracking(1.5)
+                .foregroundColor(.white.opacity(0.45))
+            Rectangle().fill(Theme.Glass.hairline).frame(height: 0.5)
+        }
+        .padding(.vertical, 4)
+    }
 }
 
 // MARK: - Issues views
@@ -315,64 +342,63 @@ private struct IssueRow: View {
     }
 }
 
-// MARK: - Card
+// MARK: - Composite group row (webapp maintenance-list style)
 
-private struct MaintenanceCard: View {
-    let record: SDMaintenanceRecord
-    let currency: String
+private struct MaintenanceGroupRow: View {
+    let group: MaintenanceGroup
+    let fallbackCurrency: String
 
     var body: some View {
-        let kind = MaintenanceKind.kind(for: record.recordType)
-        return HStack(alignment: .top, spacing: 12) {
+        let category = group.category
+        HStack(alignment: .top, spacing: 12) {
             ZStack {
                 RoundedRectangle(cornerRadius: 10)
-                    .fill(kind.tint.opacity(0.22))
-                Image(systemName: kind.icon)
+                    .fill(category.tint.opacity(0.15))
+                Image(systemName: category.icon)
                     .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(kind.tint)
+                    .foregroundColor(category.tint)
             }
-            .frame(width: 36, height: 36)
+            .frame(width: 38, height: 38)
             .overlay(alignment: .topTrailing) {
-                if record.syncState.isPending { PendingBadge().offset(x: 5, y: -5) }
+                if group.isPending { PendingBadge().offset(x: 5, y: -5) }
             }
 
             VStack(alignment: .leading, spacing: 4) {
                 HStack(alignment: .firstTextBaseline) {
-                    Text(displayTitle(for: record, kind: kind))
+                    Text(Formatters.mediumDate(group.date))
                         .font(.system(size: 14, weight: .bold))
                         .foregroundColor(.white)
-                        .fixedSize(horizontal: false, vertical: true)
                     Spacer(minLength: 8)
-                    if let cost = record.cost {
-                        Text(Formatters.currency(cost, code: currency, fractionDigits: 0))
-                            .font(.system(size: 14, weight: .bold))
-                            .monospacedDigit()
-                            .foregroundColor(.white)
+                    Text("\(group.odo) km")
+                        .font(.system(size: 12, weight: .semibold))
+                        .monospacedDigit()
+                        .foregroundColor(.white.opacity(0.55))
+                }
+
+                if !group.summaries.isEmpty {
+                    HStack(alignment: .firstTextBaseline, spacing: 6) {
+                        if group.count > 1 {
+                            Text("\(group.count)×")
+                                .font(.system(size: 11, weight: .heavy))
+                                .monospacedDigit()
+                                .foregroundColor(.white.opacity(0.55))
+                        }
+                        Text(group.summaries.joined(separator: ", "))
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundColor(category.tint)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                 }
 
-                if let notes = record.summary, !notes.isEmpty {
-                    Text(notes)
-                        .font(.system(size: 12))
-                        .foregroundColor(.white.opacity(0.65))
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
                 HStack(spacing: 6) {
-                    Text(kind.label.uppercased())
+                    if let metric = MaintenanceGrouper.collapsedMetric(group, fallbackCurrency: fallbackCurrency) {
+                        Text(metric)
+                            .monospacedDigit()
+                        Text("·").foregroundColor(.white.opacity(0.4))
+                    }
+                    Text(category.label.uppercased())
                         .font(.system(size: 9, weight: .heavy))
-                        .tracking(0.4)
-                        .padding(.horizontal, 7)
-                        .padding(.vertical, 2)
-                        .background(
-                            Capsule().fill(kind.tint.opacity(0.22))
-                        )
-                        .foregroundColor(kind.tint)
-
-                    Text("·").foregroundColor(.white.opacity(0.4))
-                    Text(formatDateFull(record.date))
-                    Text("·").foregroundColor(.white.opacity(0.4))
-                    Text("\(record.odo) km").monospacedDigit()
+                        .tracking(0.6)
                 }
                 .font(.system(size: 10, weight: .semibold))
                 .foregroundColor(.white.opacity(0.55))
@@ -380,55 +406,20 @@ private struct MaintenanceCard: View {
         }
         .padding(14)
         .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 18))
+        .contentShape(Rectangle())
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(accessibilityText(for: record, kind: kind))
+        .accessibilityLabel(accessibilityText)
     }
 
-    private func accessibilityText(for record: SDMaintenanceRecord, kind: MaintenanceKind) -> String {
-        var parts: [String] = ["\(kind.label): \(displayTitle(for: record, kind: kind))"]
-        parts.append("am \(Formatters.mediumDate(record.date))")
-        parts.append("Kilometerstand \(record.odo)")
-        if let cost = record.cost {
-            parts.append("Kosten \(Formatters.currency(cost, code: currency, fractionDigits: 0))")
+    private var accessibilityText: String {
+        var parts = ["\(group.category.label): \(group.summaries.joined(separator: ", "))"]
+        parts.append("am \(Formatters.mediumDate(group.date))")
+        parts.append("Kilometerstand \(group.odo)")
+        if group.count > 1 { parts.append("\(group.count) Einträge") }
+        if group.cost > 0 {
+            parts.append("Kosten \(Formatters.currency(group.cost, code: group.currency ?? fallbackCurrency, fractionDigits: 0))")
         }
         return parts.joined(separator: ", ")
-    }
-
-    private func displayTitle(for record: SDMaintenanceRecord, kind: MaintenanceKind) -> String {
-        if let desc = record.recordDescription, !desc.isEmpty { return desc }
-        if let summary = record.summary, !summary.isEmpty { return summary }
-        return record.fluidTypeLabel ?? kind.label
-    }
-
-    private func formatDateFull(_ iso: String) -> String {
-        Formatters.mediumDate(iso)
-    }
-}
-
-private struct MaintenanceKind {
-    let label: String
-    let icon: String
-    let tint: Color
-
-    static func kind(for type: String) -> MaintenanceKind {
-        switch type.lowercased() {
-        case "oil", "engineoil", "gearboxoil", "finaldriveoil", "forkoil":
-            return MaintenanceKind(label: "Öl", icon: "drop.fill", tint: .green)
-        case "tire", "tires":
-            return MaintenanceKind(label: "Reifen", icon: "circle.dotted", tint: Color(hex: 0x0EA5E9))
-        case "inspection":
-            return MaintenanceKind(label: "Inspektion", icon: "list.clipboard.fill", tint: .orange)
-        case "chain":
-            return MaintenanceKind(label: "Antrieb", icon: "link", tint: .purple)
-        case "brakes", "brakefluid":
-            return MaintenanceKind(label: "Bremsen", icon: "hammer.fill", tint: Theme.Colors.accent)
-        case "battery", "electric":
-            return MaintenanceKind(label: "Elektrik", icon: "bolt.fill", tint: Color(hex: 0xF59E0B))
-        case "coolant", "fluid":
-            return MaintenanceKind(label: "Kühler", icon: "drop.halffull", tint: Color(hex: 0x0EA5E9))
-        default:
-            return MaintenanceKind(label: type.capitalized, icon: "wrench.and.screwdriver.fill", tint: Theme.Colors.primary)
-        }
     }
 }
 
@@ -469,7 +460,7 @@ struct MaintenanceLogsView_Previews: PreviewProvider {
     static var previews: some View {
         ZStack {
             LiquidBackgroundView().ignoresSafeArea()
-            MaintenanceLogsView(viewModel: .mock)
+            MaintenanceLogsView(viewModel: .mock, partsVM: PartsViewModel())
         }
     }
 }

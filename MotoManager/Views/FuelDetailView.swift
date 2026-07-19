@@ -13,34 +13,60 @@ struct FuelDetailView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var showingEdit = false
     @State private var confirmingDelete = false
+    @State private var didAutoDismiss = false
+    /// Captured at init so the auto-pop guard never reads a deleted model.
+    private let recordClientId: UUID
+
+    init(record: SDMaintenanceRecord, viewModel: MotorcycleDetailViewModel) {
+        self.record = record
+        self.viewModel = viewModel
+        self.recordClientId = record.clientId
+    }
 
     var body: some View {
         DetailPage(
-            backLabel: "Tanken",
             accent: Theme.Colors.primary,
             eyebrow: record.syncState.isPending ? "TANKUNG · NICHT SYNCHRON" : "TANKUNG",
             title: titleString,
+            barTitle: Formatters.mediumDate(record.date),
             subtitle: subtitle,
+            heroBackground: { heroMap },
             heroContent: { heroStats },
-            body: { sections },
-            actions: { actionBar },
-            onClose: { dismiss() }
+            body: { sections }
         )
+        .toolbar {
+            ToolbarItemGroup(placement: .topBarTrailing) {
+                Button { showingEdit = true } label: {
+                    Image(systemName: "pencil")
+                }
+                .accessibilityLabel("Bearbeiten")
+                Button(role: .destructive) { confirmingDelete = true } label: {
+                    Image(systemName: "trash")
+                }
+                .accessibilityLabel("Löschen")
+            }
+        }
         .sheet(isPresented: $showingEdit) {
             AddFuelView(viewModel: viewModel, existingRecord: record)
-                .presentationDetents([.large])
-                .presentationCornerRadius(Theme.Glass.sheetRadius)
-                .presentationBackground(.regularMaterial)
-                .presentationDragIndicator(.visible)
+                .glassSheet()
         }
         .alert("Tankung löschen?", isPresented: $confirmingDelete) {
             Button("Abbrechen", role: .cancel) { }
             Button("Löschen", role: .destructive) {
+                didAutoDismiss = true
                 viewModel.deleteFuelRecord(record)
                 dismiss()
             }
         } message: {
             Text("Diese Tankung kann nicht wiederhergestellt werden.")
+        }
+        // Pop back if the record disappears underneath us (remote delete via
+        // sync, or delete from within the edit sheet).
+        .onReceive(viewModel.$fuelRecords) { records in
+            guard !didAutoDismiss,
+                  !records.contains(where: { $0.clientId == recordClientId }) else { return }
+            didAutoDismiss = true
+            dismiss()
         }
     }
 
@@ -50,8 +76,41 @@ struct FuelDetailView: View {
         String(format: "%.1f L", record.fuelAmount ?? 0)
     }
 
+    /// The bar title already carries the date, so the hero subline only names
+    /// the bike.
     private var subtitle: String {
-        "\(Formatters.mediumDate(record.date)) · \(viewModel.motorcycle.make) \(viewModel.motorcycle.model)"
+        "\(viewModel.motorcycle.make) \(viewModel.motorcycle.model)"
+    }
+
+    /// Dimmed, non-interactive map of the fuel stop behind the hero — only
+    /// when the record carries coordinates. The scrim keeps the hero text
+    /// legible; the interactive map with "In Karten öffnen" stays in the
+    /// TANKSTELLE section below.
+    @ViewBuilder
+    private var heroMap: some View {
+        if let lat = record.latitude, let lon = record.longitude {
+            Map(initialPosition: .region(MKCoordinateRegion(
+                center: CLLocationCoordinate2D(latitude: lat, longitude: lon),
+                latitudinalMeters: 900, longitudinalMeters: 900
+            ))) {
+                Marker(record.locationName ?? "Tankstelle",
+                       coordinate: CLLocationCoordinate2D(latitude: lat, longitude: lon))
+                    .tint(Theme.Colors.primary)
+            }
+            .mapControlVisibility(.hidden)
+            .allowsHitTesting(false)
+            .environment(\.colorScheme, .dark)
+            .overlay(
+                LinearGradient(
+                    stops: [
+                        .init(color: Theme.Colors.navy950.opacity(0.55), location: 0.0),
+                        .init(color: Theme.Colors.navy950.opacity(0.45), location: 0.5),
+                        .init(color: Theme.Colors.navy950.opacity(0.9), location: 1.0)
+                    ],
+                    startPoint: .top, endPoint: .bottom
+                )
+            )
+        }
     }
 
     private var currency: String {
@@ -184,19 +243,6 @@ struct FuelDetailView: View {
         let item = MKMapItem(placemark: placemark)
         item.name = name ?? "Tankstelle"
         item.openInMaps()
-    }
-
-    // MARK: - Action bar
-
-    private var actionBar: some View {
-        Group {
-            DetailActionButton("Bearbeiten", systemImage: "pencil", variant: .secondary) {
-                showingEdit = true
-            }
-            DetailActionButton("Löschen", systemImage: "trash", variant: .danger) {
-                confirmingDelete = true
-            }
-        }
     }
 
     // MARK: - Helpers
