@@ -36,6 +36,13 @@ enum Formatters {
         return f
     }()
 
+    private static let dayMonthNameFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.locale = displayLocale
+        f.dateFormat = "d. MMM"
+        return f
+    }()
+
     private static func parseDay(_ iso: String) -> Date? {
         dayParser.date(from: String(iso.prefix(10)))
     }
@@ -50,6 +57,13 @@ enum Formatters {
     static func dayMonth(_ iso: String) -> String {
         guard let date = parseDay(iso) else { return iso }
         return dayMonthFormatter.string(from: date)
+    }
+
+    /// e.g. `"15. Okt"` — day + month name without the year, for rows that sit
+    /// under a year section header. Returns the raw input if it can't be parsed.
+    static func dayMonthName(_ iso: String) -> String {
+        guard let date = parseDay(iso) else { return iso }
+        return dayMonthNameFormatter.string(from: date)
     }
 
     // MARK: - Currency

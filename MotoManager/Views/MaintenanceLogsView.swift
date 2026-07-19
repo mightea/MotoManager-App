@@ -219,7 +219,7 @@ struct MaintenanceLogsView: View {
             // Lazy so a long service history renders cards on demand.
             LazyVStack(spacing: 10) {
                 ForEach(groupedByYear, id: \.year) { section in
-                    yearHeader(section.year)
+                    YearHeader(section.year)
                     ForEach(section.groups) { group in
                         Button {
                             selectedRecord = group.primary
@@ -233,19 +233,6 @@ struct MaintenanceLogsView: View {
         }
     }
 
-    /// hairline — year — hairline divider between year sections.
-    private func yearHeader(_ year: String) -> some View {
-        HStack(spacing: 10) {
-            Rectangle().fill(Theme.Glass.hairline).frame(height: 0.5)
-            Text(year)
-                .font(.system(size: 11, weight: .heavy))
-                .monospacedDigit()
-                .tracking(1.5)
-                .foregroundColor(.white.opacity(0.45))
-            Rectangle().fill(Theme.Glass.hairline).frame(height: 0.5)
-        }
-        .padding(.vertical, 4)
-    }
 }
 
 // MARK: - Issues views
