@@ -1,26 +1,33 @@
 # Build, test and upload MotoManager to TestFlight.
 #
-# Trigger: push a tag like v1.2 (MARKETING_VERSION is taken from the tag),
-# or run manually via workflow_dispatch (keeps the project's version).
+# Trigger: push a tag like v1.2.3 (MARKETING_VERSION is taken from the tag),
+# or run manually via workflow_dispatch (MARKETING_VERSION comes from the
+# release-please version.txt at the dispatched ref).
 #
-# Signing model (no Fastlane): the Apple Distribution certificate (.p12)
-# lives in GitHub secrets and is imported into a throwaway keychain per run;
-# provisioning profiles are fetched on the fly by xcodebuild cloud signing
-# authenticated with an App Store Connect API key. The export step uploads
-# the archive directly to App Store Connect.
+# Signing model (no Fastlane, no cloud signing): the Apple Distribution
+# certificate (.p12) and the App Store provisioning profile live in GitHub
+# secrets; the cert is imported into a throwaway keychain per run, the
+# profile installed for the export step, and the export signs MANUALLY with
+# exactly those two. Cloud signing is deliberately avoided — creating
+# cloud-managed distribution certificates requires an Admin API key, which
+# CI should not hold. The export step uploads the archive directly to App
+# Store Connect, authenticated with an App Manager API key.
 #
 # Required configuration (Settings → Environments → "testflight"):
 #   secrets:
-#     ASC_API_KEY_ID       App Store Connect API key ID
+#     ASC_API_KEY_ID       App Store Connect API key ID (Team key, App Manager)
 #     ASC_API_ISSUER_ID    ASC issuer UUID
 #     ASC_API_KEY_P8       contents of the AuthKey_*.p8, base64-encoded
 #     DIST_CERT_P12        Apple Distribution cert + private key, base64 p12
 #     DIST_CERT_PASSWORD   password of that p12
+#     DIST_PROFILE_B64     App Store provisioning profile for the app's
+#                          bundle id, base64 .mobileprovision
 #   variables:
 #     APPLE_TEAM_ID        the paid team's ID (not the personal team)
 #
-# Annual chore: the distribution certificate expires after one year —
-# re-export the p12 and update DIST_CERT_P12 / DIST_CERT_PASSWORD.
+# Annual chore: the distribution certificate expires after one year, and the
+# provisioning profile with it — re-export the p12, regenerate + re-download
+# the profile, update DIST_CERT_P12 / DIST_CERT_PASSWORD / DIST_PROFILE_B64.
 
 name: TestFlight
 
@@ -93,13 +100,32 @@ jobs:
           set -euo pipefail
           echo -n "$ASC_API_KEY_P8" | base64 --decode > "$RUNNER_TEMP/AuthKey_${ASC_API_KEY_ID}.p8"
 
+      - name: Install provisioning profile
+        id: profile
+        env:
+          DIST_PROFILE_B64: ${{ secrets.DIST_PROFILE_B64 }}
+        run: |
+          set -euo pipefail
+          PROFILE_DIR="$HOME/Library/MobileDevice/Provisioning Profiles"
+          mkdir -p "$PROFILE_DIR"
+          echo -n "$DIST_PROFILE_B64" | base64 --decode > "$PROFILE_DIR/motomanager-appstore.mobileprovision"
+          # The export options must reference the profile by its portal name —
+          # read it from the profile itself so a rename never breaks CI.
+          NAME=$(security cms -D -i "$PROFILE_DIR/motomanager-appstore.mobileprovision" | plutil -extract Name raw -)
+          echo "Installed profile: $NAME"
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+
       - name: Determine version
         id: version
         run: |
-          # Tag v1.2 → MARKETING_VERSION 1.2; manual runs keep the project's
-          # setting. Build number: run number + attempt, unique across re-runs.
+          # Tag v1.2.3 → MARKETING_VERSION 1.2.3; manual dispatches use the
+          # release-please version.txt at the dispatched ref (falls back to
+          # the project setting when the file is absent). Build number: run
+          # number + attempt, unique across re-runs.
           if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
             echo "marketing_args=MARKETING_VERSION=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT"
+          elif [[ -f version.txt ]]; then
+            echo "marketing_args=MARKETING_VERSION=$(tr -d '[:space:]' < version.txt)" >> "$GITHUB_OUTPUT"
           else
             echo "marketing_args=" >> "$GITHUB_OUTPUT"
           fi
@@ -133,8 +159,12 @@ jobs:
           ASC_API_KEY_ID: ${{ secrets.ASC_API_KEY_ID }}
           ASC_API_ISSUER_ID: ${{ secrets.ASC_API_ISSUER_ID }}
           APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
+          PROFILE_NAME: ${{ steps.profile.outputs.name }}
         run: |
           set -euo pipefail
+          # Manual signing: exactly the imported cert + installed profile.
+          # No -allowProvisioningUpdates — the API key only authenticates the
+          # upload, never cloud signing.
           cat > "$RUNNER_TEMP/exportOptions.plist" <<EOF
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -146,6 +176,15 @@ jobs:
             <string>upload</string>
             <key>teamID</key>
             <string>${APPLE_TEAM_ID}</string>
+            <key>signingStyle</key>
+            <string>manual</string>
+            <key>signingCertificate</key>
+            <string>Apple Distribution</string>
+            <key>provisioningProfiles</key>
+            <dict>
+              <key>ltd.herrmann.MotoManager</key>
+              <string>${PROFILE_NAME}</string>
+            </dict>
             <key>manageAppVersionAndBuildNumber</key>
             <false/>
           </dict>
@@ -155,7 +194,6 @@ jobs:
             -archivePath "$RUNNER_TEMP/MotoManager.xcarchive" \
             -exportOptionsPlist "$RUNNER_TEMP/exportOptions.plist" \
             -exportPath "$RUNNER_TEMP/export" \
-            -allowProvisioningUpdates \
             -authenticationKeyPath "$RUNNER_TEMP/AuthKey_${ASC_API_KEY_ID}.p8" \
             -authenticationKeyID "$ASC_API_KEY_ID" \
             -authenticationKeyIssuerID "$ASC_API_ISSUER_ID" \
@@ -166,3 +204,4 @@ jobs:
         run: |
           security delete-keychain "$RUNNER_TEMP/build.keychain-db" || true
           rm -f "$RUNNER_TEMP"/AuthKey_*.p8 "$RUNNER_TEMP/cert.p12" "$RUNNER_TEMP/exportOptions.plist"
+          rm -f "$HOME/Library/MobileDevice/Provisioning Profiles/motomanager-appstore.mobileprovision"
