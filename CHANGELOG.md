@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.3.0](https://github.com/mightea/MotoManager-App/compare/v0.2.1...v0.3.0) (2026-07-19)
+
+
+### Features
+
+* consumption-first fuel list with year sections, trips and trend ([c7d7b6f](https://github.com/mightea/MotoManager-App/commit/c7d7b6f8d8eda33a84e6afcba16876655be8ed6d))
+* photo header with inventory pills on the parts tab ([75747be](https://github.com/mightea/MotoManager-App/commit/75747be7717643305388fca6965b1cc854226292))
+
+
+### Bug Fixes
+
+* decode the publicKey-wrapped passkey options from the server ([784be72](https://github.com/mightea/MotoManager-App/commit/784be7219f7a4c31fe03bd7a67d2fd1ba517212b))
+
 ## [0.2.1](https://github.com/mightea/MotoManager-App/compare/v0.2.0...v0.2.1) (2026-07-19)
 
 
