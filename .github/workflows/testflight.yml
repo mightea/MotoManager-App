@@ -4,6 +4,10 @@
 # or run manually via workflow_dispatch (MARKETING_VERSION comes from the
 # release-please version.txt at the dispatched ref).
 #
+# After the upload, a follow-up job waits for App Store Connect to finish
+# processing the build and sets its TestFlight "What to Test" text from the
+# version's CHANGELOG.md section.
+#
 # Signing model (no Fastlane, no cloud signing): the Apple Distribution
 # certificate (.p12) and the App Store provisioning profile live in GitHub
 # secrets; the cert is imported into a throwaway keychain per run, the
@@ -70,6 +74,9 @@ jobs:
     needs: test
     runs-on: macos-26
     environment: testflight
+    outputs:
+      marketing_version: ${{ steps.version.outputs.marketing_version }}
+      build_number: ${{ steps.version.outputs.build_number }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
@@ -124,16 +131,18 @@ jobs:
           # that stays unique across re-runs (Apple rejects reused build
           # numbers per version) and monotonic across runs.
           if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
-            echo "marketing_args=MARKETING_VERSION=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT"
+            VERSION="${GITHUB_REF#refs/tags/v}"
           else
             git fetch --tags --force --depth=1 origin
             LATEST=$(git tag --list 'v*' --sort=-v:refname | head -1)
-            if [[ -n "$LATEST" ]]; then
-              echo "marketing_args=MARKETING_VERSION=${LATEST#v}" >> "$GITHUB_OUTPUT"
-            else
-              echo "marketing_args=" >> "$GITHUB_OUTPUT"
-            fi
+            VERSION="${LATEST#v}"
           fi
+          if [[ -n "$VERSION" ]]; then
+            echo "marketing_args=MARKETING_VERSION=$VERSION" >> "$GITHUB_OUTPUT"
+          else
+            echo "marketing_args=" >> "$GITHUB_OUTPUT"
+          fi
+          echo "marketing_version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "build_number=$((GITHUB_RUN_NUMBER * 100 + GITHUB_RUN_ATTEMPT))" >> "$GITHUB_OUTPUT"
 
       - name: Archive
@@ -210,3 +219,131 @@ jobs:
           security delete-keychain "$RUNNER_TEMP/build.keychain-db" || true
           rm -f "$RUNNER_TEMP"/AuthKey_*.p8 "$RUNNER_TEMP/cert.p12" "$RUNNER_TEMP/exportOptions.plist"
           rm -f "$HOME/Library/MobileDevice/Provisioning Profiles/motomanager-appstore.mobileprovision"
+
+  # Attach the release-please changelog section for this version as the
+  # build's TestFlight "What to Test" text. Runs on a cheap Linux runner
+  # because App Store Connect takes minutes to process an upload and the
+  # notes can only be set once processing finishes.
+  release_notes:
+    name: Attach release notes in TestFlight
+    needs: upload
+    if: needs.upload.outputs.marketing_version != ''
+    runs-on: ubuntu-latest
+    environment: testflight
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Extract this version's changelog section
+        id: notes
+        env:
+          VERSION: ${{ needs.upload.outputs.marketing_version }}
+        run: |
+          set -euo pipefail
+          # Section between this version's "## x.y.z" heading and the next
+          # version heading; markdown links and heading markers stripped for
+          # TestFlight's plain-text field.
+          awk -v ver="$VERSION" '
+            $0 ~ "^#+ +\\[?" ver "[] (]" {grab=1; next}
+            grab && /^#+ +\[?[0-9]+\./ {exit}
+            grab {print}
+          ' CHANGELOG.md \
+            | sed -E 's/\[([^]]*)\]\([^)]*\)/\1/g; s/^#+ +//' \
+            | awk 'NF {blank=0; print} !NF {if (++blank < 2) print}' > notes.txt
+          if [[ -s notes.txt ]]; then
+            echo "Notes for $VERSION:"; cat notes.txt
+            echo "has_notes=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "No changelog section found for $VERSION — skipping."
+            echo "has_notes=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Set the build's What to Test
+        if: steps.notes.outputs.has_notes == 'true'
+        env:
+          ASC_API_KEY_ID: ${{ secrets.ASC_API_KEY_ID }}
+          ASC_API_ISSUER_ID: ${{ secrets.ASC_API_ISSUER_ID }}
+          ASC_API_KEY_P8: ${{ secrets.ASC_API_KEY_P8 }}
+          VERSION: ${{ needs.upload.outputs.marketing_version }}
+          BUILD_NUMBER: ${{ needs.upload.outputs.build_number }}
+        run: |
+          set -euo pipefail
+          pip install --quiet PyJWT cryptography
+          python3 - <<'EOF'
+          import base64, json, os, sys, time
+          from urllib.request import Request, urlopen
+
+          import jwt
+
+          KEY_ID = os.environ["ASC_API_KEY_ID"]
+          ISSUER = os.environ["ASC_API_ISSUER_ID"]
+          KEY = base64.b64decode(os.environ["ASC_API_KEY_P8"]).decode()
+          VERSION = os.environ["VERSION"]
+          BUILD_NUMBER = os.environ["BUILD_NUMBER"]
+          BUNDLE_ID = "ltd.herrmann.MotoManager"
+          API = "https://api.appstoreconnect.apple.com"
+          # TestFlight caps whatsNew at 4000 characters.
+          NOTES = open("notes.txt").read().strip()[:4000]
+
+          def call(method, path, body=None):
+              now = int(time.time())
+              token = jwt.encode(
+                  {"iss": ISSUER, "iat": now, "exp": now + 600,
+                   "aud": "appstoreconnect-v1"},
+                  KEY, algorithm="ES256", headers={"kid": KEY_ID})
+              req = Request(
+                  API + path, method=method,
+                  headers={"Authorization": f"Bearer {token}",
+                           "Content-Type": "application/json"},
+                  data=json.dumps(body).encode() if body else None)
+              with urlopen(req) as resp:
+                  data = resp.read()
+                  return json.loads(data) if data else {}
+
+          app = call("GET", f"/v1/apps?filter[bundleId]={BUNDLE_ID}")["data"][0]
+
+          # The upload finishes before App Store Connect ingests the build;
+          # poll until it appears and leaves the PROCESSING state.
+          build = None
+          deadline = time.time() + 40 * 60
+          while time.time() < deadline:
+              try:
+                  r = call("GET",
+                           f"/v1/builds?filter[app]={app['id']}"
+                           f"&filter[version]={BUILD_NUMBER}"
+                           f"&filter[preReleaseVersion.version]={VERSION}&limit=1")
+              except Exception as err:  # transient API hiccup — keep polling
+                  print(f"Poll failed ({err}), retrying...", flush=True)
+                  time.sleep(60)
+                  continue
+              if r["data"]:
+                  build = r["data"][0]
+                  state = build["attributes"]["processingState"]
+                  if state == "VALID":
+                      break
+                  if state in ("FAILED", "INVALID"):
+                      sys.exit(f"Build {VERSION} ({BUILD_NUMBER}) processing ended in {state}")
+              print(f"Waiting for build {VERSION} ({BUILD_NUMBER}) to finish processing...",
+                    flush=True)
+              time.sleep(60)
+          else:
+              sys.exit("Timed out waiting for App Store Connect to process the build")
+
+          locs = call("GET",
+                      f"/v1/builds/{build['id']}/betaBuildLocalizations"
+                      "?fields[betaBuildLocalizations]=locale")["data"]
+          if locs:
+              for loc in locs:
+                  call("PATCH", f"/v1/betaBuildLocalizations/{loc['id']}",
+                       {"data": {"id": loc["id"], "type": "betaBuildLocalizations",
+                                 "attributes": {"whatsNew": NOTES}}})
+                  print(f"Updated What to Test ({loc['attributes']['locale']})")
+          else:
+              locale = app["attributes"]["primaryLocale"]
+              call("POST", "/v1/betaBuildLocalizations",
+                   {"data": {"type": "betaBuildLocalizations",
+                             "attributes": {"locale": locale, "whatsNew": NOTES},
+                             "relationships": {"build": {"data": {"type": "builds",
+                                                                  "id": build["id"]}}}}})
+              print(f"Created What to Test ({locale})")
+          EOF
