@@ -12,8 +12,29 @@ struct LoginResponse: Codable {
 // MARK: - Passkey Models
 
 struct PasskeyOptionsResponse: Codable {
-    let options: PublicKeyCredentialRequestOptions
+    let options: PasskeyRequestOptionsEnvelope
     let challengeId: String
+}
+
+/// The server (webauthn-rs `RequestChallengeResponse`) wraps the WebAuthn
+/// request options in a `publicKey` envelope — the same shape browsers pass to
+/// `navigator.credentials.get()`. Accept the bare options too, mirroring the
+/// webapp's `options.publicKey || options` fallback.
+struct PasskeyRequestOptionsEnvelope: Codable {
+    let publicKey: PublicKeyCredentialRequestOptions
+
+    private enum CodingKeys: String, CodingKey {
+        case publicKey
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        if let wrapped = try container.decodeIfPresent(PublicKeyCredentialRequestOptions.self, forKey: .publicKey) {
+            publicKey = wrapped
+        } else {
+            publicKey = try PublicKeyCredentialRequestOptions(from: decoder)
+        }
+    }
 }
 
 struct PublicKeyCredentialRequestOptions: Codable {

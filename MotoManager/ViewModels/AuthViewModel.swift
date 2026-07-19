@@ -64,11 +64,12 @@ class AuthViewModel: NSObject, ObservableObject {
         do {
             let response = try await NetworkManager.shared.fetchPasskeyLoginOptions(username: username)
             self.currentChallengeId = response.challengeId
-            
-            let publicKeyProvider = ASAuthorizationPlatformPublicKeyCredentialProvider(relyingPartyIdentifier: response.options.rpId ?? AuthConfig.relyingPartyId)
-            
+            let options = response.options.publicKey
+
+            let publicKeyProvider = ASAuthorizationPlatformPublicKeyCredentialProvider(relyingPartyIdentifier: options.rpId ?? AuthConfig.relyingPartyId)
+
             // Use base64url decoding for the challenge
-            guard let challengeData = Data(base64Encoded: response.options.challenge.base64URLtoBase64()) else {
+            guard let challengeData = Data(base64Encoded: options.challenge.base64URLtoBase64()) else {
                 throw NSError(domain: "AuthError", code: 0, userInfo: [NSLocalizedDescriptionKey: "Invalid challenge data"])
             }
             
