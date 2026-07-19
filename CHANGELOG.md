@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.2.0](https://github.com/mightea/MotoManager-App/compare/v0.1.0...v0.2.0) (2026-07-19)
+
+
+### Features
+
+* extended photo headers with stat pills on service and workshop tabs ([152d4bb](https://github.com/mightea/MotoManager-App/commit/152d4bbcdc6db023037e564431463025b6aef08d))
+
+
+### Bug Fixes
+
+* restore the add buttons on the fuel and service tabs ([11cead5](https://github.com/mightea/MotoManager-App/commit/11cead54c471e4e5ee30954779bea80a8dfd5941))
+
 ## 0.1.0 (2026-07-19)
 
 
