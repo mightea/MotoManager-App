@@ -119,15 +119,19 @@ jobs:
         id: version
         run: |
           # Tag v1.2.3 → MARKETING_VERSION 1.2.3; manual dispatches use the
-          # release-please version.txt at the dispatched ref (falls back to
-          # the project setting when the file is absent). Build number: run
-          # number + attempt, unique across re-runs.
+          # newest v* tag (falls back to the project setting when no release
+          # exists yet). Build number: run number + attempt, unique across
+          # re-runs.
           if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
             echo "marketing_args=MARKETING_VERSION=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT"
-          elif [[ -f version.txt ]]; then
-            echo "marketing_args=MARKETING_VERSION=$(tr -d '[:space:]' < version.txt)" >> "$GITHUB_OUTPUT"
           else
-            echo "marketing_args=" >> "$GITHUB_OUTPUT"
+            git fetch --tags --force --depth=1 origin
+            LATEST=$(git tag --list 'v*' --sort=-v:refname | head -1)
+            if [[ -n "$LATEST" ]]; then
+              echo "marketing_args=MARKETING_VERSION=${LATEST#v}" >> "$GITHUB_OUTPUT"
+            else
+              echo "marketing_args=" >> "$GITHUB_OUTPUT"
+            fi
           fi
           echo "build_number=${GITHUB_RUN_NUMBER}.${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_OUTPUT"
 
