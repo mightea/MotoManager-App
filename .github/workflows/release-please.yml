@@ -1,0 +1,50 @@
+# Automated releases via release-please: every push to main updates a
+# rolling release PR from the Conventional Commit history; merging that PR
+# creates the GitHub release + tag (v1.2.3) and kicks off the TestFlight
+# pipeline for exactly that tag.
+#
+# Why the explicit dispatch: tags created with the default GITHUB_TOKEN
+# never trigger `on: push` workflows (GitHub's recursion guard), so the
+# testflight.yml tag trigger would not fire on its own. workflow_dispatch
+# is exempt from that guard, and dispatching at the tag ref makes
+# GITHUB_REF a refs/tags/v* ref — testflight.yml then derives
+# MARKETING_VERSION from the tag exactly as on a manual tag push. The
+# build number stays the TestFlight run's GITHUB_RUN_NUMBER.RUN_ATTEMPT,
+# so it increments monotonically regardless of how the run was started.
+#
+# Versioning: feat → minor, fix → patch, feat!/BREAKING CHANGE → major.
+# First release starts at 1.0.0. release-please maintains version.txt and
+# CHANGELOG.md; the Xcode project's MARKETING_VERSION is intentionally
+# left untouched (the pipeline injects the version at archive time, and
+# Xcode rewrites project.pbxproj too aggressively for annotations).
+
+name: Release Please
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: write # dispatch the TestFlight workflow for the new tag
+    steps:
+      - name: Update release PR / create release
+        id: release
+        uses: googleapis/release-please-action@5c625bfb5d1ff62eadeeb3772007f7f66fdcf071 # v4.4.1
+        with:
+          release-type: simple
+
+      - name: Trigger TestFlight pipeline for the new tag
+        if: ${{ steps.release.outputs.release_created == 'true' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.release.outputs.tag_name }}
+        run: gh workflow run testflight.yml --repo "$GITHUB_REPOSITORY" --ref "$TAG"
