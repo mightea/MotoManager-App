@@ -193,10 +193,10 @@
 				};
 			};
 			buildConfigurationList = F643E1AA2F901D3F007719D8 /* Build configuration list for PBXProject "MotoManager" */;
-			developmentRegion = en;
+			developmentRegion = "de-CH";
 			hasScannedForEncodings = 0;
 			knownRegions = (
-				en,
+				"de-CH",
 				Base,
 			);
 			mainGroup = F643E1A62F901D3F007719D8;

@@ -15,9 +15,10 @@
 	<!-- Detect the fuel station when logging a fill-up, to match or create it. -->
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>MotoManager nutzt deinen Standort, um beim Erfassen einer Tankung die passende Tankstelle zu finden oder anzulegen.</string>
-	<!-- Scan the odometer reading from the dashboard when logging a fill-up or service. -->
+	<!-- Odometer OCR when logging a fill-up or service, and QR scanning of
+	     printed part/storage-location labels. -->
 	<key>NSCameraUsageDescription</key>
-	<string>MotoManager nutzt die Kamera, um den Kilometerstand vom Kombiinstrument abzulesen.</string>
+	<string>MotoManager nutzt die Kamera, um den Kilometerstand vom Kombiinstrument abzulesen und Etiketten von Teilen und Lagerorten zu scannen.</string>
 	<!-- Only standard HTTPS is used — exempt from export-compliance review,
 	     so TestFlight builds skip the manual encryption question. -->
 	<key>ITSAppUsesNonExemptEncryption</key>
