@@ -129,9 +129,13 @@ struct AddFuelView: View {
             })
             .glassSheet()
         }
-        .onAppear {
+        .task {
+            // Mirrors FuelEntrySheet.jsx setActiveField("liters") on open —
+            // but only after the presentation transition has settled. Focusing
+            // during presentation makes the sheet wait for the keyboard, which
+            // visibly delays it on device (worst on the first open).
+            try? await Task.sleep(for: .milliseconds(500))
             if focused == nil {
-                // Mirrors FuelEntrySheet.jsx setActiveField("liters") on open.
                 focused = .liters
             }
         }
