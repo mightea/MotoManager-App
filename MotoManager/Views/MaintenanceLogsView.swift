@@ -86,13 +86,16 @@ struct MaintenanceLogsView: View {
         .ignoresSafeArea(edges: .top)
         .background(Color.clear)
         // One context-aware add button: red for Mängel, blue for Wartung.
+        // `addAction:` must stay a labeled argument: a trailing closure
+        // backward-matches to `secondaryAction` and the button vanishes.
         .bottomActionBar(
             detailVM: viewModel,
             addTint: tab == .issues ? Theme.Colors.accent : Theme.Colors.primary,
-            addLabel: tab == .issues ? "Mangel erfassen" : "Wartung erfassen"
-        ) {
-            if tab == .issues { showingAddIssue = true } else { showingAddMaintenance = true }
-        }
+            addLabel: tab == .issues ? "Mangel erfassen" : "Wartung erfassen",
+            addAction: {
+                if tab == .issues { showingAddIssue = true } else { showingAddMaintenance = true }
+            }
+        )
         .refreshable {
             await viewModel.reconnect()
         }

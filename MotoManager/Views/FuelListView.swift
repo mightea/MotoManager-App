@@ -57,9 +57,13 @@ struct FuelListView: View {
         }
         .ignoresSafeArea(edges: .top)
         .background(Color.clear)
-        .bottomActionBar(detailVM: viewModel, addLabel: "Neue Tankung erfassen") {
-            showingAddFuel = true
-        }
+        // `addAction:` must stay a labeled argument: a trailing closure
+        // backward-matches to `secondaryAction` and the button vanishes.
+        .bottomActionBar(
+            detailVM: viewModel,
+            addLabel: "Neue Tankung erfassen",
+            addAction: { showingAddFuel = true }
+        )
         .refreshable {
             await viewModel.reconnect()
         }
