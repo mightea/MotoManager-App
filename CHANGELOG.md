@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.0](https://github.com/mightea/MotoManager-App/compare/v0.3.0...v0.4.0) (2026-07-21)
+
+
+### Features
+
+* improve accessibility and persistence UX ([ba80cb1](https://github.com/mightea/MotoManager-App/commit/ba80cb1194050c951da6ffb7de76f2532e4dba74))
+
 ## [0.3.0](https://github.com/mightea/MotoManager-App/compare/v0.2.1...v0.3.0) (2026-07-19)
 
 
