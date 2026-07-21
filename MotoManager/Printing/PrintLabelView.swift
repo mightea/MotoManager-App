@@ -53,12 +53,12 @@ struct PrintLabelView: View {
     private var header: some View {
         HStack(alignment: .firstTextBaseline) {
             Text("Etikett drucken")
-                .font(.system(size: 17, weight: .bold))
+                .scaledFont(17, weight: .bold)
                 .foregroundColor(.white)
             Spacer(minLength: 8)
             Button { dismiss() } label: {
                 Image(systemName: "xmark")
-                    .font(.system(size: 12, weight: .bold))
+                    .scaledFont(12, weight: .bold)
                     .foregroundColor(.white.opacity(0.7))
                     .frame(width: 30, height: 30)
                     .background(Circle().fill(Color.white.opacity(0.12)))
@@ -91,7 +91,7 @@ struct PrintLabelView: View {
                         .padding(.vertical, 32)
                 } else {
                     Text("Vorschau nicht verfügbar")
-                        .font(.system(size: 13))
+                        .scaledFont(13)
                         .foregroundColor(.black.opacity(0.5))
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 24)
@@ -104,7 +104,7 @@ struct PrintLabelView: View {
                     .stroke(Theme.Glass.border, lineWidth: 0.5)
             )
             Text(content.url)
-                .font(.system(size: 10, design: .monospaced))
+                .scaledFont(10, design: .monospaced)
                 .foregroundColor(.white.opacity(0.4))
                 .lineLimit(1)
                 .truncationMode(.middle)
@@ -131,12 +131,12 @@ struct PrintLabelView: View {
             VStack(spacing: 0) {
                 HStack(spacing: 12) {
                     Image(systemName: "printer.fill")
-                        .font(.system(size: 13, weight: .semibold))
+                        .scaledFont(13, weight: .semibold)
                         .foregroundColor(.white.opacity(0.75))
                         .frame(width: 30, height: 30)
                         .background(RoundedRectangle(cornerRadius: 8).fill(Color.white.opacity(0.10)))
                     TextField("IP-Adresse (z. B. 192.168.1.50)", text: $printerIP)
-                        .font(.system(size: 14, design: .monospaced))
+                        .scaledFont(14, design: .monospaced)
                         .foregroundColor(.white)
                         .keyboardType(.decimalPad)
                         .autocorrectionDisabled()
@@ -156,10 +156,10 @@ struct PrintLabelView: View {
                             ProgressView().tint(.white).scaleEffect(0.8)
                         } else {
                             Image(systemName: "magnifyingglass")
-                                .font(.system(size: 12, weight: .bold))
+                                .scaledFont(12, weight: .bold)
                         }
                         Text(isSearching ? "Suche läuft…" : "Im Netzwerk suchen")
-                            .font(.system(size: 13, weight: .semibold))
+                            .scaledFont(13, weight: .semibold)
                     }
                     .foregroundColor(.white.opacity(0.85))
                     .frame(maxWidth: .infinity)
@@ -179,16 +179,16 @@ struct PrintLabelView: View {
                         HStack(spacing: 12) {
                             Image(systemName: printerIP == printer.ipAddress
                                   ? "checkmark.circle.fill" : "circle")
-                                .font(.system(size: 15, weight: .semibold))
+                                .scaledFont(15, weight: .semibold)
                                 .foregroundColor(printerIP == printer.ipAddress
                                                  ? Theme.Colors.primary : .white.opacity(0.35))
                                 .frame(width: 30)
                             VStack(alignment: .leading, spacing: 1) {
                                 Text(printer.modelName)
-                                    .font(.system(size: 14, weight: .medium))
+                                    .scaledFont(14, weight: .medium)
                                     .foregroundColor(.white)
                                 Text(printer.ipAddress)
-                                    .font(.system(size: 11, design: .monospaced))
+                                    .scaledFont(11, design: .monospaced)
                                     .foregroundColor(Theme.Glass.mutedText)
                             }
                             Spacer(minLength: 0)
@@ -205,7 +205,7 @@ struct PrintLabelView: View {
                         .background(Color.white.opacity(0.06))
                         .padding(.leading, 56)
                     Text("Kein Drucker gefunden. IP-Adresse manuell eingeben (auf dem Gerät: Menü → WLAN-Status).")
-                        .font(.system(size: 11))
+                        .scaledFont(11)
                         .foregroundColor(.white.opacity(0.45))
                         .padding(.horizontal, 14)
                         .padding(.vertical, 10)
@@ -233,10 +233,10 @@ struct PrintLabelView: View {
                     ProgressView().tint(.white).scaleEffect(0.8)
                 } else {
                     Image(systemName: "printer.fill")
-                        .font(.system(size: 14, weight: .semibold))
+                        .scaledFont(14, weight: .semibold)
                 }
                 Text(isPrinting ? "Wird gedruckt…" : "Drucken")
-                    .font(.system(size: 14, weight: .semibold))
+                    .scaledFont(14, weight: .semibold)
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 13)
@@ -249,12 +249,12 @@ struct PrintLabelView: View {
     private var statusText: some View {
         if let successMessage {
             Label(successMessage, systemImage: "checkmark.circle.fill")
-                .font(.system(size: 13, weight: .semibold))
+                .scaledFont(13, weight: .semibold)
                 .foregroundColor(.green)
                 .frame(maxWidth: .infinity)
         } else if let errorMessage {
             Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
-                .font(.system(size: 13, weight: .semibold))
+                .scaledFont(13, weight: .semibold)
                 .foregroundColor(Theme.Colors.accent)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
@@ -262,7 +262,7 @@ struct PrintLabelView: View {
 
     private func sectionTitle(_ text: String) -> some View {
         Text(text)
-            .font(.system(size: 10, weight: .heavy))
+            .scaledFont(10, weight: .heavy)
             .tracking(1.2)
             .foregroundColor(Theme.Glass.mutedText)
     }

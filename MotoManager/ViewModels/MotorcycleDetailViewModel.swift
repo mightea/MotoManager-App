@@ -214,17 +214,17 @@ class MotorcycleDetailViewModel: ObservableObject {
                         fuelAdditiveAdded: fuelAdditiveAdded, leadSubstituteAdded: leadSubstituteAdded,
                         locationId: locationId, latitude: latitude, longitude: longitude)
         modelContext.insert(record)
-        persistAndSync()
-        return true
+        return persistAndSync()
     }
 
+    @discardableResult
     func updateFuelRecord(
         _ record: SDMaintenanceRecord,
         odo: Int, amount: Double, cost: Double, pricePerUnit: Double,
         currency: String, date: Date, fuelType: String,
         locationName: String?, notes: String?,
         fuelAdditiveAdded: Bool = false, leadSubstituteAdded: Bool = false
-    ) {
+    ) -> Bool {
         record.odo = odo
         record.date = Self.isoDay(date)
         applyFuelFields(record, amount: amount, cost: cost, pricePerUnit: pricePerUnit,
@@ -233,10 +233,11 @@ class MotorcycleDetailViewModel: ObservableObject {
         // A record still waiting to be created stays pendingCreate.
         if record.syncState != .pendingCreate { record.syncState = .pendingUpdate }
         record.updatedAtLocal = Date()
-        persistAndSync()
+        return persistAndSync()
     }
 
-    func deleteFuelRecord(_ record: SDMaintenanceRecord) {
+    @discardableResult
+    func deleteFuelRecord(_ record: SDMaintenanceRecord) -> Bool {
         if record.serverId == nil {
             // Never reached the server — drop it locally.
             modelContext.delete(record)
@@ -244,7 +245,7 @@ class MotorcycleDetailViewModel: ObservableObject {
             record.syncState = .pendingDelete
             record.updatedAtLocal = Date()
         }
-        persistAndSync()
+        return persistAndSync()
     }
 
     private func applyFuelFields(
@@ -271,10 +272,15 @@ class MotorcycleDetailViewModel: ObservableObject {
         if let longitude { record.longitude = longitude }
     }
 
-    private func persistAndSync() {
-        try? modelContext.save()
+    @discardableResult
+    private func persistAndSync() -> Bool {
+        guard PersistenceMonitor.shared.save(modelContext, operation: "Lokale Änderung speichern") else {
+            reloadLocal()
+            return false
+        }
         reloadLocal()
         SyncEngine.shared.requestSync(motorcycleIds: [motorcycle.id])
+        return true
     }
 
     /// Refresh all SwiftData-backed lists from the store.
@@ -324,7 +330,7 @@ class MotorcycleDetailViewModel: ObservableObject {
     /// Returns the created record so callers can link follow-up entities
     /// (e.g. part consumptions) to its clientId.
     @discardableResult
-    func createMaintenance(_ draft: MaintenanceDraft) -> SDMaintenanceRecord {
+    func createMaintenance(_ draft: MaintenanceDraft) -> SDMaintenanceRecord? {
         let record = SDMaintenanceRecord(
             motorcycleId: motorcycle.id,
             date: Self.isoDay(draft.date),
@@ -334,18 +340,18 @@ class MotorcycleDetailViewModel: ObservableObject {
         )
         apply(draft, to: record)
         modelContext.insert(record)
-        persistAndSync()
-        return record
+        return persistAndSync() ? record : nil
     }
 
-    func updateMaintenance(_ record: SDMaintenanceRecord, draft: MaintenanceDraft) {
+    @discardableResult
+    func updateMaintenance(_ record: SDMaintenanceRecord, draft: MaintenanceDraft) -> Bool {
         record.recordType = draft.type
         record.odo = draft.odo
         record.date = Self.isoDay(draft.date)
         apply(draft, to: record)
         if record.syncState != .pendingCreate { record.syncState = .pendingUpdate }
         record.updatedAtLocal = Date()
-        persistAndSync()
+        return persistAndSync()
     }
 
     private func apply(_ draft: MaintenanceDraft, to record: SDMaintenanceRecord) {
@@ -363,14 +369,15 @@ class MotorcycleDetailViewModel: ObservableObject {
         record.oilType = draft.oilType
     }
 
-    func deleteMaintenance(_ record: SDMaintenanceRecord) {
+    @discardableResult
+    func deleteMaintenance(_ record: SDMaintenanceRecord) -> Bool {
         if record.serverId == nil {
             modelContext.delete(record)
         } else {
             record.syncState = .pendingDelete
             record.updatedAtLocal = Date()
         }
-        persistAndSync()
+        return persistAndSync()
     }
 
     // MARK: - Torque writes (offline-first via SwiftData + SyncEngine)
@@ -401,11 +408,11 @@ class MotorcycleDetailViewModel: ObservableObject {
             syncState: .pendingCreate
         )
         modelContext.insert(spec)
-        persistAndSync()
-        return true
+        return persistAndSync()
     }
 
-    func updateTorque(_ spec: SDTorqueSpec, category: String, name: String, torque value: Double, torqueEnd: Double?, variation: Double?, toolSize: String?, description: String?, unverified: Bool) {
+    @discardableResult
+    func updateTorque(_ spec: SDTorqueSpec, category: String, name: String, torque value: Double, torqueEnd: Double?, variation: Double?, toolSize: String?, description: String?, unverified: Bool) -> Bool {
         spec.category = category
         spec.name = name
         spec.torque = value
@@ -416,17 +423,18 @@ class MotorcycleDetailViewModel: ObservableObject {
         spec.unverified = unverified
         if spec.syncState != .pendingCreate { spec.syncState = .pendingUpdate }
         spec.updatedAtLocal = Date()
-        persistAndSync()
+        return persistAndSync()
     }
 
-    func deleteTorque(_ spec: SDTorqueSpec) {
+    @discardableResult
+    func deleteTorque(_ spec: SDTorqueSpec) -> Bool {
         if spec.serverId == nil {
             modelContext.delete(spec)
         } else {
             spec.syncState = .pendingDelete
             spec.updatedAtLocal = Date()
         }
-        persistAndSync()
+        return persistAndSync()
     }
 
     // MARK: - Motorcycle detail writes (offline-first via SwiftData + SyncEngine)
@@ -451,26 +459,27 @@ class MotorcycleDetailViewModel: ObservableObject {
             syncState: .pendingCreate
         )
         modelContext.insert(detail)
-        persistAndSync()
-        return true
+        return persistAndSync()
     }
 
-    func updateDetail(_ detail: SDMotorcycleDetail, title: String, value: String) {
+    @discardableResult
+    func updateDetail(_ detail: SDMotorcycleDetail, title: String, value: String) -> Bool {
         detail.title = title
         detail.value = value
         if detail.syncState != .pendingCreate { detail.syncState = .pendingUpdate }
         detail.updatedAtLocal = Date()
-        persistAndSync()
+        return persistAndSync()
     }
 
-    func deleteDetail(_ detail: SDMotorcycleDetail) {
+    @discardableResult
+    func deleteDetail(_ detail: SDMotorcycleDetail) -> Bool {
         if detail.serverId == nil {
             modelContext.delete(detail)
         } else {
             detail.syncState = .pendingDelete
             detail.updatedAtLocal = Date()
         }
-        persistAndSync()
+        return persistAndSync()
     }
 
     // MARK: - Issue writes (offline-first via SwiftData + SyncEngine)
@@ -502,11 +511,11 @@ class MotorcycleDetailViewModel: ObservableObject {
             syncState: .pendingCreate
         )
         modelContext.insert(issue)
-        persistAndSync()
-        return true
+        return persistAndSync()
     }
 
-    func updateIssue(_ issue: SDIssue, odo: Int, title: String, description: String?, priority: String, status: String, date: Date) {
+    @discardableResult
+    func updateIssue(_ issue: SDIssue, odo: Int, title: String, description: String?, priority: String, status: String, date: Date) -> Bool {
         issue.odo = odo
         issue.title = title
         issue.recordDescription = (description?.isEmpty == false) ? description : nil
@@ -515,17 +524,18 @@ class MotorcycleDetailViewModel: ObservableObject {
         issue.date = Self.isoDay(date)
         if issue.syncState != .pendingCreate { issue.syncState = .pendingUpdate }
         issue.updatedAtLocal = Date()
-        persistAndSync()
+        return persistAndSync()
     }
 
-    func deleteIssue(_ issue: SDIssue) {
+    @discardableResult
+    func deleteIssue(_ issue: SDIssue) -> Bool {
         if issue.serverId == nil {
             modelContext.delete(issue)
         } else {
             issue.syncState = .pendingDelete
             issue.updatedAtLocal = Date()
         }
-        persistAndSync()
+        return persistAndSync()
     }
 
     private static func isoDay(_ date: Date) -> String {

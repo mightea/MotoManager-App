@@ -79,7 +79,7 @@ struct AddTirePressureView: View {
 
                 if state(of: config) == .incomplete {
                     Text("Vorder- und Hinterreifen zusammen erfassen.")
-                        .font(.system(size: 11, weight: .semibold))
+                        .scaledFont(11, weight: .semibold)
                         .foregroundColor(Theme.Colors.accent)
                 }
 
@@ -108,12 +108,12 @@ struct AddTirePressureView: View {
     private var header: some View {
         HStack {
             Text(isEditing ? "Reifendruck bearbeiten" : "Reifendruck erfassen")
-                .font(.system(size: 22, weight: .heavy))
+                .scaledFont(22, weight: .heavy)
                 .foregroundColor(.white)
             Spacer()
             Button { dismiss() } label: {
                 Image(systemName: "xmark")
-                    .font(.system(size: 14, weight: .bold))
+                    .scaledFont(14, weight: .bold)
                     .foregroundColor(.white)
                     .frame(width: 32, height: 32)
                     .background(Circle().fill(Color.white.opacity(0.12)))
@@ -125,7 +125,7 @@ struct AddTirePressureView: View {
     private var unitPicker: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text("EINHEIT")
-                .font(.system(size: 10, weight: .heavy)).tracking(1.4)
+                .scaledFont(10, weight: .heavy).tracking(1.4)
                 .foregroundColor(Theme.Glass.mutedText)
             GlassSegmentedControl(
                 segments: [
@@ -143,7 +143,7 @@ struct AddTirePressureView: View {
     private var configPicker: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text("KONFIGURATION")
-                .font(.system(size: 10, weight: .heavy)).tracking(1.4)
+                .scaledFont(10, weight: .heavy).tracking(1.4)
                 .foregroundColor(Theme.Glass.mutedText)
             GlassSegmentedControl(
                 segments: PressureConfig.allCases.map { cfg in
@@ -152,7 +152,7 @@ struct AddTirePressureView: View {
                 selection: $config
             )
             Text("Mindestens eine Konfiguration erfassen — Felder leer lassen, um eine zu entfernen.")
-                .font(.system(size: 10, weight: .medium))
+                .scaledFont(10, weight: .medium)
                 .foregroundColor(.white.opacity(0.45))
         }
     }
@@ -160,14 +160,14 @@ struct AddTirePressureView: View {
     private func pressureField(_ label: String, text: Binding<String>) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(label)
-                .font(.system(size: 10, weight: .heavy)).tracking(1.4)
+                .scaledFont(10, weight: .heavy).tracking(1.4)
                 .foregroundColor(Theme.Glass.mutedText)
             HStack {
                 TextField("", text: text, prompt: Text(unit == "psi" ? "z. B. 32" : "z. B. 2.2").foregroundColor(.white.opacity(0.3)))
                     .keyboardType(.decimalPad)
                     .foregroundColor(.white)
                 Text(unit)
-                    .font(.system(size: 11, weight: .heavy)).tracking(1)
+                    .scaledFont(11, weight: .heavy).tracking(1)
                     .foregroundColor(.white.opacity(0.5))
             }
             .padding(.horizontal, 14).padding(.vertical, 12)
@@ -176,7 +176,7 @@ struct AddTirePressureView: View {
 
             if let bar = PressureUnitFormat.parseToBar(text.wrappedValue, unit: unit) {
                 Text(PressureUnitFormat.secondary(bar: bar, unit: unit))
-                    .font(.system(size: 10, weight: .semibold))
+                    .scaledFont(10, weight: .semibold)
                     .foregroundColor(.white.opacity(0.45))
             }
         }

@@ -175,13 +175,13 @@ struct WorkshopView: View {
         VStack(alignment: .leading, spacing: Theme.Spacing.s) {
             HStack {
                 Text("Reifendruck".uppercased())
-                    .font(.system(size: 11, weight: .heavy))
+                    .scaledFont(11, weight: .heavy)
                     .tracking(2)
                     .foregroundColor(.white.opacity(0.55))
                 Spacer()
                 Button { showingTirePressure = true } label: {
                     Image(systemName: viewModel.tirePressure == nil ? "plus" : "pencil")
-                        .font(.system(size: 12, weight: .heavy))
+                        .scaledFont(12, weight: .heavy)
                         .frame(width: 26, height: 26)
                 }
                 .glassActionButton(.primary, in: .circle)
@@ -194,7 +194,7 @@ struct WorkshopView: View {
             } else {
                 Button { showingTirePressure = true } label: {
                     Text("Keine Werte erfasst — tippen zum Hinzufügen.")
-                        .font(.system(size: 12, weight: .medium))
+                        .scaledFont(12, weight: .medium)
                         .foregroundColor(.white.opacity(0.6))
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 24)
@@ -211,12 +211,12 @@ struct WorkshopView: View {
         VStack(alignment: .leading, spacing: Theme.Spacing.s) {
             HStack {
                 Text("Dokumente".uppercased())
-                    .font(.system(size: 11, weight: .heavy))
+                    .scaledFont(11, weight: .heavy)
                     .tracking(2)
                     .foregroundColor(.white.opacity(0.55))
                 Spacer()
                 Text("\(displayedDocuments.count) \(displayedDocuments.count == 1 ? "Eintrag" : "Einträge")")
-                    .font(.system(size: 11, weight: .semibold))
+                    .scaledFont(11, weight: .semibold)
                     .foregroundColor(.white.opacity(0.5))
             }
             .padding(.horizontal, 6)
@@ -254,13 +254,13 @@ struct WorkshopView: View {
         VStack(alignment: .leading, spacing: Theme.Spacing.s) {
             HStack {
                 Text("Drehmoment-Spezifikationen".uppercased())
-                    .font(.system(size: 11, weight: .heavy))
+                    .scaledFont(11, weight: .heavy)
                     .tracking(2)
                     .foregroundColor(.white.opacity(0.55))
                 Spacer()
                 Button { showingAddTorque = true } label: {
                     Image(systemName: "plus")
-                        .font(.system(size: 12, weight: .heavy))
+                        .scaledFont(12, weight: .heavy)
                         .frame(width: 26, height: 26)
                 }
                 .glassActionButton(.primary, in: .circle)
@@ -271,7 +271,7 @@ struct WorkshopView: View {
             if viewModel.torque.isEmpty {
                 Button { showingAddTorque = true } label: {
                     Text("Keine Werte erfasst — tippen zum Hinzufügen.")
-                        .font(.system(size: 12, weight: .medium))
+                        .scaledFont(12, weight: .medium)
                         .foregroundColor(.white.opacity(0.6))
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 24)
@@ -301,7 +301,7 @@ struct WorkshopView: View {
             }
         } label: {
             Text(label)
-                .font(.system(size: 12, weight: .semibold))
+                .scaledFont(12, weight: .semibold)
                 .foregroundColor(active ? .white : .white.opacity(0.7))
                 .padding(.horizontal, 12)
                 .padding(.vertical, 6)
@@ -318,12 +318,12 @@ struct WorkshopView: View {
         VStack(spacing: 0) {
             HStack {
                 Text("BAUTEIL")
-                    .font(.system(size: 9, weight: .heavy))
+                    .scaledFont(9, weight: .heavy)
                     .tracking(1.5)
                     .foregroundColor(.white.opacity(0.5))
                 Spacer()
                 Text("DREHMOMENT")
-                    .font(.system(size: 9, weight: .heavy))
+                    .scaledFont(9, weight: .heavy)
                     .tracking(1.5)
                     .foregroundColor(.white.opacity(0.5))
             }
@@ -354,13 +354,13 @@ extension WorkshopView {
         VStack(alignment: .leading, spacing: Theme.Spacing.s) {
             HStack {
                 Text("Details".uppercased())
-                    .font(.system(size: 11, weight: .heavy))
+                    .scaledFont(11, weight: .heavy)
                     .tracking(2)
                     .foregroundColor(.white.opacity(0.55))
                 Spacer()
                 Button { showingAddDetail = true } label: {
                     Image(systemName: "plus")
-                        .font(.system(size: 12, weight: .heavy))
+                        .scaledFont(12, weight: .heavy)
                         .frame(width: 26, height: 26)
                 }
                 .glassActionButton(.primary, in: .circle)
@@ -371,7 +371,7 @@ extension WorkshopView {
             if viewModel.details.isEmpty {
                 Button { showingAddDetail = true } label: {
                     Text("Keine Details erfasst — tippen zum Hinzufügen.")
-                        .font(.system(size: 12, weight: .medium))
+                        .scaledFont(12, weight: .medium)
                         .foregroundColor(.white.opacity(0.6))
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 24)
@@ -388,12 +388,12 @@ extension WorkshopView {
         VStack(spacing: 0) {
             HStack {
                 Text("TITEL")
-                    .font(.system(size: 9, weight: .heavy))
+                    .scaledFont(9, weight: .heavy)
                     .tracking(1.5)
                     .foregroundColor(.white.opacity(0.5))
                 Spacer()
                 Text("WERT")
-                    .font(.system(size: 9, weight: .heavy))
+                    .scaledFont(9, weight: .heavy)
                     .tracking(1.5)
                     .foregroundColor(.white.opacity(0.5))
             }
@@ -426,7 +426,7 @@ private struct MotorcycleDetailRow: View {
         HStack(alignment: .top) {
             HStack(spacing: 6) {
                 Text(detail.title)
-                    .font(.system(size: 13, weight: .semibold))
+                    .scaledFont(13, weight: .semibold)
                     .foregroundColor(.white)
                     .multilineTextAlignment(.leading)
                     .fixedSize(horizontal: false, vertical: true)
@@ -434,7 +434,7 @@ private struct MotorcycleDetailRow: View {
             }
             Spacer(minLength: 8)
             Text(detail.value)
-                .font(.system(size: 13, weight: .medium))
+                .scaledFont(13, weight: .medium)
                 .foregroundColor(.white.opacity(0.8))
                 .multilineTextAlignment(.trailing)
                 .fixedSize(horizontal: false, vertical: true)
@@ -465,7 +465,7 @@ private struct TirePressureTable: View {
                     Color.clear.frame(width: 70, height: 1)
                     ForEach(configs) { cfg in
                         Text(cfg.label.uppercased())
-                            .font(.system(size: 9, weight: .heavy))
+                            .scaledFont(9, weight: .heavy)
                             .tracking(1.5)
                             .foregroundColor(.white.opacity(0.5))
                             .frame(maxWidth: .infinity, alignment: .trailing)
@@ -493,7 +493,7 @@ private struct TirePressureTable: View {
     ) -> some View {
         HStack(alignment: .firstTextBaseline) {
             Text(label.uppercased())
-                .font(.system(size: 9, weight: .heavy))
+                .scaledFont(9, weight: .heavy)
                 .tracking(1.5)
                 .foregroundColor(.white.opacity(0.5))
                 .frame(width: 70, alignment: .leading)
@@ -510,15 +510,15 @@ private struct TirePressureTable: View {
         VStack(alignment: .trailing, spacing: 2) {
             if let bar {
                 Text(PressureUnitFormat.display(bar: bar, unit: pressure.preferredUnit))
-                    .font(.system(size: 14, weight: .bold))
+                    .scaledFont(14, weight: .bold)
                     .monospacedDigit()
                     .foregroundColor(Theme.Colors.primary)
                 Text(PressureUnitFormat.secondary(bar: bar, unit: pressure.preferredUnit))
-                    .font(.system(size: 9, weight: .semibold))
+                    .scaledFont(9, weight: .semibold)
                     .foregroundColor(.white.opacity(0.45))
             } else {
                 Text("—")
-                    .font(.system(size: 14, weight: .bold))
+                    .scaledFont(14, weight: .bold)
                     .foregroundColor(.white.opacity(0.25))
             }
         }
@@ -536,14 +536,14 @@ private struct TorqueRow: View {
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 6) {
                     Text(spec.name)
-                        .font(.system(size: 13, weight: .semibold))
+                        .scaledFont(13, weight: .semibold)
                         .foregroundColor(.white)
                         .fixedSize(horizontal: false, vertical: true)
                     if spec.syncState.isPending { PendingBadge() }
                     if spec.unverified {
                         Label("Unverifiziert", systemImage: "exclamationmark.triangle.fill")
                             .labelStyle(.titleAndIcon)
-                            .font(.system(size: 9, weight: .heavy))
+                            .scaledFont(9, weight: .heavy)
                             .tracking(0.4)
                             .padding(.horizontal, 6)
                             .padding(.vertical, 1.5)
@@ -556,7 +556,7 @@ private struct TorqueRow: View {
                     HStack(spacing: 6) {
                         if showGroup {
                             Text(spec.category.uppercased())
-                                .font(.system(size: 9, weight: .heavy))
+                                .scaledFont(9, weight: .heavy)
                                 .tracking(0.4)
                                 .padding(.horizontal, 6)
                                 .padding(.vertical, 1.5)
@@ -565,7 +565,7 @@ private struct TorqueRow: View {
                         }
                         if let tool = spec.toolSize, !tool.isEmpty {
                             Text(tool)
-                                .font(.system(size: 10, weight: .semibold))
+                                .scaledFont(10, weight: .semibold)
                                 .foregroundColor(.white.opacity(0.6))
                         }
                     }
@@ -575,14 +575,14 @@ private struct TorqueRow: View {
                 // vertically instead of truncating.
                 if let description = spec.recordDescription, !description.isEmpty {
                     Text(description)
-                        .font(.system(size: 11))
+                        .scaledFont(11)
                         .foregroundColor(.white.opacity(0.6))
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
             Spacer(minLength: 8)
             Text(torqueDisplay)
-                .font(.system(size: 15, weight: .bold))
+                .scaledFont(15, weight: .bold)
                 .monospacedDigit()
                 .foregroundColor(spec.unverified ? .orange : Theme.Colors.primary)
         }
@@ -618,7 +618,7 @@ private struct DocumentTile: View {
                     )
 
                 Text(fileBadge)
-                    .font(.system(size: 9, weight: .black))
+                    .scaledFont(9, weight: .black)
                     .tracking(0.4)
                     .foregroundColor(Theme.Colors.accent)
                     .padding(.horizontal, 6)
@@ -632,12 +632,12 @@ private struct DocumentTile: View {
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(document.title)
-                    .font(.system(size: 13, weight: .bold))
+                    .scaledFont(13, weight: .bold)
                     .foregroundColor(.white)
                     .lineLimit(2)
                     .multilineTextAlignment(.leading)
                 Text(document.createdAt.prefix(10))
-                    .font(.system(size: 10, weight: .medium))
+                    .scaledFont(10, weight: .medium)
                     .foregroundColor(.white.opacity(0.55))
             }
         }
@@ -664,9 +664,9 @@ private struct UploadDocumentTile: View {
         Button(action: action) {
             VStack(spacing: 8) {
                 Image(systemName: "plus")
-                    .font(.system(size: 22, weight: .semibold))
+                    .scaledFont(22, weight: .semibold)
                 Text("Hochladen")
-                    .font(.system(size: 12, weight: .semibold))
+                    .scaledFont(12, weight: .semibold)
             }
             .foregroundColor(.white.opacity(0.55))
             .frame(maxWidth: .infinity, minHeight: 132)

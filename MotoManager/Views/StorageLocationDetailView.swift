@@ -48,7 +48,7 @@ struct StorageLocationDetailView: View {
             heroContent: {
                 if let serverId = location.serverId {
                     Text("Lagerort #\(serverId)")
-                        .font(.system(size: 11, weight: .semibold))
+                        .scaledFont(11, weight: .semibold)
                         .foregroundColor(.white.opacity(0.4))
                 }
             },
@@ -95,7 +95,7 @@ struct StorageLocationDetailView: View {
 
             if stockedParts.isEmpty {
                 Text("Keine Teile an diesem Lagerort eingelagert.")
-                    .font(.system(size: 13))
+                    .scaledFont(13)
                     .foregroundColor(.white.opacity(0.5))
             } else {
                 VStack(spacing: 8) {
@@ -118,7 +118,7 @@ struct StorageLocationDetailView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 10))
             } else {
                 Image(systemName: "shippingbox.fill")
-                    .font(.system(size: 15, weight: .semibold))
+                    .scaledFont(15, weight: .semibold)
                     .foregroundColor(Theme.Colors.primary)
                     .frame(width: 40, height: 40)
                     .background(Circle().fill(Theme.Colors.primary.opacity(0.15)))
@@ -126,21 +126,21 @@ struct StorageLocationDetailView: View {
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(part.name)
-                    .font(.system(size: 13, weight: .bold))
+                    .scaledFont(13, weight: .bold)
                     .foregroundColor(.white)
                     .lineLimit(1)
                 Text(part.partNumber)
-                    .font(.system(size: 11, weight: .semibold))
+                    .scaledFont(11, weight: .semibold)
                     .monospaced()
                     .foregroundColor(.white.opacity(0.5))
             }
             Spacer(minLength: 0)
             Text("\(quantity)×")
-                .font(.system(size: 16, weight: .heavy))
+                .scaledFont(16, weight: .heavy)
                 .monospacedDigit()
                 .foregroundColor(Theme.Colors.primary)
             Image(systemName: "chevron.right")
-                .font(.system(size: 11, weight: .semibold))
+                .scaledFont(11, weight: .semibold)
                 .foregroundColor(.white.opacity(0.3))
         }
         .padding(12)
@@ -151,11 +151,11 @@ struct StorageLocationDetailView: View {
     private func sectionHeader(_ label: String, count: Int) -> some View {
         HStack {
             Text(label.uppercased())
-                .font(.system(size: 11, weight: .heavy)).tracking(2)
+                .scaledFont(11, weight: .heavy).tracking(2)
                 .foregroundColor(.white.opacity(0.55))
             Spacer()
             Text("\(count) \(count == 1 ? "Teil" : "Teile")")
-                .font(.system(size: 11, weight: .semibold))
+                .scaledFont(11, weight: .semibold)
                 .foregroundColor(.white.opacity(0.5))
         }
     }

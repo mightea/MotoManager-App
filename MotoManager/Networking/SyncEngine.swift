@@ -117,7 +117,10 @@ final class SyncEngine: ObservableObject {
         deleteAll(SDPartStock.self)
         deleteAll(SDPartConsumption.self)
         deleteAll(SDStorageLocation.self)
-        try? context.save()
+        guard PersistenceMonitor.shared.save(context, operation: "Lokale Daten beim Abmelden löschen") else {
+            status = .error("Lokale Daten konnten nicht gelöscht werden.")
+            return
+        }
         SyncCursor.clearAll()
         knownMotorcycleIds = []
         refreshStatus()
@@ -173,7 +176,7 @@ final class SyncEngine: ObservableObject {
                 AppLog.error("Push maintenance \(record.clientId) failed (attempt \(record.syncAttempts)): \(error.localizedDescription)")
             }
         }
-        try? context.save()
+        try context.save()
     }
 
     private func pushTorque() async throws {
@@ -205,7 +208,7 @@ final class SyncEngine: ObservableObject {
                 AppLog.error("Push torque \(spec.clientId) failed (attempt \(spec.syncAttempts)): \(error.localizedDescription)")
             }
         }
-        try? context.save()
+        try context.save()
     }
 
     private func pushIssues() async throws {
@@ -237,7 +240,7 @@ final class SyncEngine: ObservableObject {
                 AppLog.error("Push issue \(issue.clientId) failed (attempt \(issue.syncAttempts)): \(error.localizedDescription)")
             }
         }
-        try? context.save()
+        try context.save()
     }
 
     private func pushDetails() async throws {
@@ -269,7 +272,7 @@ final class SyncEngine: ObservableObject {
                 AppLog.error("Push detail \(detail.clientId) failed (attempt \(detail.syncAttempts)): \(error.localizedDescription)")
             }
         }
-        try? context.save()
+        try context.save()
     }
 
     private func pushStorageLocations() async throws {
@@ -326,7 +329,7 @@ final class SyncEngine: ObservableObject {
             }
             pending = deferred
         }
-        try? context.save()
+        try context.save()
     }
 
     private func pushParts() async throws {
@@ -356,7 +359,7 @@ final class SyncEngine: ObservableObject {
                 AppLog.error("Push part \(part.clientId) failed (attempt \(part.syncAttempts)): \(error.localizedDescription)")
             }
         }
-        try? context.save()
+        try context.save()
     }
 
     private func pushPartStocks() async throws {
@@ -405,7 +408,7 @@ final class SyncEngine: ObservableObject {
                 AppLog.error("Push part stock \(stock.clientId) failed (attempt \(stock.syncAttempts)): \(error.localizedDescription)")
             }
         }
-        try? context.save()
+        try context.save()
     }
 
     private func pushPartConsumptions() async throws {
@@ -454,7 +457,7 @@ final class SyncEngine: ObservableObject {
                 AppLog.error("Push part consumption \(consumption.clientId) failed (attempt \(consumption.syncAttempts)): \(error.localizedDescription)")
             }
         }
-        try? context.save()
+        try context.save()
     }
 
     // MARK: - Cross-entity resolution (clientId graph -> server ids)
@@ -766,7 +769,10 @@ final class SyncEngine: ObservableObject {
         clear(SDPartStock.self)
         clear(SDPartConsumption.self)
         clear(SDStorageLocation.self)
-        try? context.save()
+        guard PersistenceMonitor.shared.save(context, operation: "Synchronisierung erneut vorbereiten") else {
+            status = .error("Synchronisierung konnte nicht vorbereitet werden.")
+            return
+        }
         requestSync(motorcycleIds: motorcycleIds)
     }
 }

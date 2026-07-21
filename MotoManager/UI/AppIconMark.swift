@@ -52,7 +52,7 @@ struct AppIconMark: View {
         // Match that ratio with size * 0.76 and lock weight to .black for the
         // densest available glyph. Offset slightly upward to leave room for stripe.
         Text("M")
-            .font(.system(size: size * 0.76, weight: .black))
+            .scaledFont(size * 0.76, weight: .black)
             .foregroundStyle(
                 LinearGradient(
                     colors: [.white, Color(red: 230/255, green: 233/255, blue: 240/255)],

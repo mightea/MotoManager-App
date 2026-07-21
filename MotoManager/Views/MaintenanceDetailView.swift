@@ -62,8 +62,8 @@ struct MaintenanceDetailView: View {
         .alert("Wartung löschen?", isPresented: $confirmingDelete) {
             Button("Abbrechen", role: .cancel) { }
             Button("Löschen", role: .destructive) {
+                guard viewModel.deleteMaintenance(record) else { return }
                 didAutoDismiss = true
-                viewModel.deleteMaintenance(record)
                 dismiss()
             }
         } message: {
@@ -84,9 +84,9 @@ struct MaintenanceDetailView: View {
     private func categoryPill(_ category: MaintenanceCategory) -> some View {
         HStack(spacing: 6) {
             Image(systemName: category.icon)
-                .font(.system(size: 12, weight: .semibold))
+                .scaledFont(12, weight: .semibold)
             Text(record.fluidTypeLabel ?? category.label)
-                .font(.system(size: 12, weight: .heavy))
+                .scaledFont(12, weight: .heavy)
         }
         .foregroundColor(category.tint)
         .padding(.horizontal, 12)
@@ -169,7 +169,7 @@ struct MaintenanceDetailView: View {
         if let notes = record.recordDescription ?? record.summary, !notes.isEmpty {
             DetailSection("NOTIZEN") {
                 Text(notes)
-                    .font(.system(size: 14))
+                    .scaledFont(14)
                     .foregroundColor(.white.opacity(0.92))
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, 14)
@@ -290,18 +290,18 @@ struct MaintenanceDetailView: View {
         } label: {
             HStack(spacing: 10) {
                 Text("\(consumption.quantity)×")
-                    .font(.system(size: 14, weight: .heavy))
+                    .scaledFont(14, weight: .heavy)
                     .monospacedDigit()
                     .foregroundColor(Theme.Colors.primary)
                     .frame(width: 36, alignment: .leading)
                 VStack(alignment: .leading, spacing: 1) {
                     Text(part?.name ?? "Unbekanntes Teil")
-                        .font(.system(size: 14, weight: .bold))
+                        .scaledFont(14, weight: .bold)
                         .foregroundColor(.white)
                         .lineLimit(1)
                     if let number = part?.partNumber {
                         Text(number)
-                            .font(.system(size: 11, weight: .semibold))
+                            .scaledFont(11, weight: .semibold)
                             .monospaced()
                             .foregroundColor(.white.opacity(0.5))
                     }
@@ -309,7 +309,7 @@ struct MaintenanceDetailView: View {
                 Spacer(minLength: 0)
                 if part != nil {
                     Image(systemName: "chevron.right")
-                        .font(.system(size: 11, weight: .semibold))
+                        .scaledFont(11, weight: .semibold)
                         .foregroundColor(.white.opacity(0.3))
                 }
             }
@@ -376,22 +376,22 @@ struct MaintenanceDetailView: View {
                     RoundedRectangle(cornerRadius: 8)
                         .fill(category.tint.opacity(0.15))
                     Image(systemName: category.icon)
-                        .font(.system(size: 12, weight: .semibold))
+                        .scaledFont(12, weight: .semibold)
                         .foregroundColor(category.tint)
                 }
                 .frame(width: 28, height: 28)
                 VStack(alignment: .leading, spacing: 1) {
                     Text(MaintenanceSummarizer.summarize(other, locations: viewModel.userLocations))
-                        .font(.system(size: 14, weight: .bold))
+                        .scaledFont(14, weight: .bold)
                         .foregroundColor(.white)
                         .lineLimit(1)
                     Text(category.label)
-                        .font(.system(size: 11, weight: .semibold))
+                        .scaledFont(11, weight: .semibold)
                         .foregroundColor(.white.opacity(0.5))
                 }
                 Spacer(minLength: 0)
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 11, weight: .semibold))
+                    .scaledFont(11, weight: .semibold)
                     .foregroundColor(.white.opacity(0.3))
             }
             .padding(.horizontal, 14)
@@ -406,11 +406,11 @@ struct MaintenanceDetailView: View {
     private func statCard(eyebrow: String, value: String, accent: Color? = nil) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(eyebrow)
-                .font(.system(size: 10, weight: .heavy))
+                .scaledFont(10, weight: .heavy)
                 .tracking(1.2)
                 .foregroundColor(Theme.Glass.mutedText)
             Text(value)
-                .font(.system(size: 22, weight: .heavy))
+                .scaledFont(22, weight: .heavy)
                 .monospacedDigit()
                 .foregroundColor(accent ?? .white)
                 .lineLimit(1)

@@ -188,7 +188,7 @@ class PartsViewModel: ObservableObject {
     func createPart(
         partNumber: String, name: String, manufacturer: String,
         description: String?, isPublic: Bool, seriesIds: [Int]
-    ) -> SDPart {
+    ) -> SDPart? {
         let part = SDPart(
             partNumber: partNumber,
             name: name,
@@ -199,15 +199,65 @@ class PartsViewModel: ObservableObject {
             syncState: .pendingCreate
         )
         modelContext.insert(part)
-        persistAndSync()
-        return part
+        return persistAndSync() ? part : nil
     }
 
+    /// Create the catalog entry, optional new location, and mandatory initial
+    /// stock in one SwiftData transaction. A storage failure therefore leaves
+    /// no half-created part that the user has to repair on the next attempt.
+    @discardableResult
+    func createPartWithInitialStock(
+        partNumber: String, name: String, manufacturer: String,
+        description: String?, isPublic: Bool, seriesIds: [Int],
+        quantity: Int, price: Double?, currency: String?, purchaseDate: Date,
+        storageLocation: SDStorageLocation?, newLocationName: String
+    ) -> SDPart? {
+        let part = SDPart(
+            partNumber: partNumber,
+            name: name,
+            manufacturer: manufacturer.isEmpty ? "BMW" : manufacturer,
+            partDescription: (description?.isEmpty == false) ? description : nil,
+            isPublic: isPublic,
+            seriesIds: seriesIds,
+            syncState: .pendingCreate
+        )
+        modelContext.insert(part)
+
+        var location = storageLocation
+        let trimmedLocationName = newLocationName.trimmingCharacters(in: .whitespaces)
+        if !trimmedLocationName.isEmpty {
+            let createdLocation = SDStorageLocation(
+                name: trimmedLocationName,
+                parentClientId: storageLocation?.clientId,
+                parentServerId: storageLocation?.serverId,
+                syncState: .pendingCreate
+            )
+            modelContext.insert(createdLocation)
+            location = createdLocation
+        }
+
+        let stock = SDPartStock(
+            partClientId: part.clientId,
+            partServerId: nil,
+            quantity: max(1, quantity),
+            syncState: .pendingCreate
+        )
+        stock.price = price
+        stock.currency = price != nil ? currency : nil
+        stock.purchaseDate = Self.isoDay(purchaseDate)
+        stock.storageLocationClientId = location?.clientId
+        stock.storageLocationServerId = location?.serverId
+        modelContext.insert(stock)
+
+        return persistAndSync() ? part : nil
+    }
+
+    @discardableResult
     func updatePart(
         _ part: SDPart,
         partNumber: String, name: String, manufacturer: String,
         description: String?, isPublic: Bool, seriesIds: [Int]
-    ) {
+    ) -> Bool {
         part.partNumber = partNumber
         part.name = name
         part.manufacturer = manufacturer.isEmpty ? "BMW" : manufacturer
@@ -216,10 +266,11 @@ class PartsViewModel: ObservableObject {
         part.seriesIds = seriesIds
         if part.syncState != .pendingCreate { part.syncState = .pendingUpdate }
         part.updatedAtLocal = Date()
-        persistAndSync()
+        return persistAndSync()
     }
 
-    func deletePart(_ part: SDPart) {
+    @discardableResult
+    func deletePart(_ part: SDPart) -> Bool {
         // The server soft-cascades a part delete onto its stocks and
         // consumptions, so those must NOT push their own deletes (they would
         // 404 against already-tombstoned rows). Remove them locally only.
@@ -235,7 +286,7 @@ class PartsViewModel: ObservableObject {
             part.syncState = .pendingDelete
             part.updatedAtLocal = Date()
         }
-        persistAndSync()
+        return persistAndSync()
     }
 
     // MARK: - Stock writes
@@ -245,7 +296,7 @@ class PartsViewModel: ObservableObject {
         part: SDPart, quantity: Int, price: Double?, currency: String?,
         purchaseDate: Date, storageLocation: SDStorageLocation?, notes: String?,
         isUsed: Bool = false
-    ) -> SDPartStock {
+    ) -> SDPartStock? {
         let stock = SDPartStock(
             partClientId: part.clientId,
             partServerId: part.serverId,
@@ -260,15 +311,15 @@ class PartsViewModel: ObservableObject {
         stock.notes = (notes?.isEmpty == false) ? notes : nil
         stock.isUsed = isUsed
         modelContext.insert(stock)
-        persistAndSync()
-        return stock
+        return persistAndSync() ? stock : nil
     }
 
+    @discardableResult
     func updateStock(
         _ stock: SDPartStock, quantity: Int, price: Double?, currency: String?,
         purchaseDate: Date, storageLocation: SDStorageLocation?, notes: String?,
         isUsed: Bool = false
-    ) {
+    ) -> Bool {
         stock.quantity = max(1, quantity)
         stock.price = price
         stock.currency = price != nil ? currency : nil
@@ -279,17 +330,18 @@ class PartsViewModel: ObservableObject {
         stock.isUsed = isUsed
         if stock.syncState != .pendingCreate { stock.syncState = .pendingUpdate }
         stock.updatedAtLocal = Date()
-        persistAndSync()
+        return persistAndSync()
     }
 
-    func deleteStock(_ stock: SDPartStock) {
+    @discardableResult
+    func deleteStock(_ stock: SDPartStock) -> Bool {
         if stock.serverId == nil {
             modelContext.delete(stock)
         } else {
             stock.syncState = .pendingDelete
             stock.updatedAtLocal = Date()
         }
-        persistAndSync()
+        return persistAndSync()
     }
 
     // MARK: - Consumption writes
@@ -302,24 +354,24 @@ class PartsViewModel: ObservableObject {
             part: part, quantity: quantity, date: Self.isoDay(date),
             notes: notes, in: modelContext)
         guard created != nil else { return false }
-        persistAndSync()
-        return true
+        return persistAndSync()
     }
 
-    func deleteConsumption(_ consumption: SDPartConsumption) {
+    @discardableResult
+    func deleteConsumption(_ consumption: SDPartConsumption) -> Bool {
         if consumption.serverId == nil {
             modelContext.delete(consumption)
         } else {
             consumption.syncState = .pendingDelete
             consumption.updatedAtLocal = Date()
         }
-        persistAndSync()
+        return persistAndSync()
     }
 
     // MARK: - Storage location writes
 
     @discardableResult
-    func createStorageLocation(name: String, parent: SDStorageLocation?) -> SDStorageLocation {
+    func createStorageLocation(name: String, parent: SDStorageLocation?) -> SDStorageLocation? {
         let location = SDStorageLocation(
             name: name,
             parentClientId: parent?.clientId,
@@ -327,26 +379,31 @@ class PartsViewModel: ObservableObject {
             syncState: .pendingCreate
         )
         modelContext.insert(location)
-        persistAndSync()
-        return location
+        return persistAndSync() ? location : nil
     }
 
-    func deleteStorageLocation(_ location: SDStorageLocation) {
+    @discardableResult
+    func deleteStorageLocation(_ location: SDStorageLocation) -> Bool {
         if location.serverId == nil {
             modelContext.delete(location)
         } else {
             location.syncState = .pendingDelete
             location.updatedAtLocal = Date()
         }
-        persistAndSync()
+        return persistAndSync()
     }
 
     // MARK: - Plumbing
 
-    private func persistAndSync() {
-        try? modelContext.save()
+    @discardableResult
+    private func persistAndSync() -> Bool {
+        guard PersistenceMonitor.shared.save(modelContext, operation: "Teilebestand speichern") else {
+            reloadLocal()
+            return false
+        }
         reloadLocal()
         SyncEngine.shared.requestSync(motorcycleIds: [])
+        return true
     }
 
     private static func isoDay(_ date: Date) -> String {

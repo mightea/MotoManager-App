@@ -5,7 +5,7 @@ import SwiftUI
 struct PendingBadge: View {
     var body: some View {
         Image(systemName: "arrow.triangle.2.circlepath")
-            .font(.system(size: 8, weight: .black))
+            .scaledFont(8, weight: .black)
             .foregroundColor(.white)
             .padding(3)
             .background(Circle().fill(Theme.Colors.primary))

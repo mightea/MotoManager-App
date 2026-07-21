@@ -17,10 +17,10 @@ struct SyncStatusPill: View {
                 ProgressView().controlSize(.mini).tint(.white)
             } else {
                 Image(systemName: style.icon)
-                    .font(.system(size: 11, weight: .bold))
+                    .scaledFont(11, weight: .bold)
             }
             Text(style.label)
-                .font(.system(size: 11, weight: .heavy))
+                .scaledFont(11, weight: .heavy)
         }
         .foregroundColor(.white)
         .padding(.horizontal, 10)

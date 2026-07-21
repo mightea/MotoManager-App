@@ -12,7 +12,7 @@ struct FloatingAddButton: View {
     var body: some View {
         Button(action: action) {
             Image(systemName: systemImage)
-                .font(.system(size: 24, weight: .bold))
+                .scaledFont(24, weight: .bold)
                 .foregroundStyle(.white)
                 .frame(width: 60, height: 60)
                 .glassEffect(.regular.tint(tint).interactive(), in: Circle())

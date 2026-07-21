@@ -5,7 +5,7 @@ import Foundation
 // (`seriesIds`) embedded by the API; on-device the SwiftData models re-derive
 // on-hand locally so offline writes stay consistent.
 
-struct Part: Codable, Identifiable {
+nonisolated struct Part: Codable, Identifiable {
     let id: Int
     let userId: Int
     let partNumber: String
@@ -59,7 +59,7 @@ struct PartConsumption: Codable, Identifiable {
     let deletedAt: String?
 }
 
-struct StorageLocation: Codable, Identifiable {
+nonisolated struct StorageLocation: Codable, Identifiable {
     let id: Int
     let userId: Int
     let name: String
@@ -184,7 +184,7 @@ enum ModelSeriesCatalog {
 /// Another user's part as returned by `/api/parts/public`. Catalog data is
 /// always visible; availability and stock detail (prices, purchase dates,
 /// storage locations) are only present when the owner made the part public.
-struct PublicPart: Codable, Identifiable {
+nonisolated struct PublicPart: Codable, Identifiable {
     let id: Int
     let partNumber: String
     let name: String

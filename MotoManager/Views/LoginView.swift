@@ -8,9 +8,8 @@ import SwiftUI
 /// - Motorsport stripe at top.
 /// - MM wheel brand mark + wordmark + eyebrow.
 /// - "Willkommen zurück." headline + sub-line.
-/// - Glass form card with username + password (show/hide), Passwort vergessen
-///   link, primary "Anmelden" button, "Oder" divider, secondary "Mit Passkey
-///   anmelden" button.
+/// - Glass form card with username + password (show/hide), primary "Anmelden"
+///   button, "Oder" divider, and secondary "Mit Passkey anmelden" button.
 struct LoginView: View {
     @EnvironmentObject var authVM: AuthViewModel
 
@@ -26,15 +25,21 @@ struct LoginView: View {
 
     private var canSubmit: Bool {
         !identifier.trimmingCharacters(in: .whitespaces).isEmpty
-            && password.count >= 4
+            && !password.isEmpty
             && !authVM.isLoading
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            Spacer(minLength: 0)
-            brandBlock
-            form
+        GeometryReader { geometry in
+            ScrollView {
+                VStack(spacing: 0) {
+                    Spacer(minLength: 40)
+                    brandBlock
+                    form
+                }
+                .frame(maxWidth: .infinity, minHeight: geometry.size.height)
+            }
+            .scrollDismissesKeyboard(.interactively)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(alignment: .top) {
@@ -111,22 +116,22 @@ struct LoginView: View {
                 wheelMark
                 VStack(alignment: .leading, spacing: 1) {
                     Text("DEINE DIGITALE GARAGE")
-                        .font(.system(size: 9, weight: .heavy))
+                        .scaledFont(9, weight: .heavy)
                         .tracking(1.8)
                         .foregroundColor(.white.opacity(0.55))
                     Text("MotoManager")
-                        .font(.system(size: 17, weight: .black))
+                        .scaledFont(17, weight: .black)
                         .foregroundColor(.white)
                 }
             }
             Text("Willkommen\nzurück.")
-                .font(.system(size: 30, weight: .heavy))
+                .scaledFont(30, weight: .heavy)
                 .foregroundColor(.white)
                 .multilineTextAlignment(.leading)
                 .lineSpacing(2)
                 .shadow(color: .black.opacity(0.4), radius: 6, x: 0, y: 1)
             Text("Melde dich an, um deine Garage zu öffnen.")
-                .font(.system(size: 13, weight: .medium))
+                .scaledFont(13, weight: .medium)
                 .foregroundColor(.white.opacity(0.65))
                 .shadow(color: .black.opacity(0.4), radius: 2, x: 0, y: 1)
         }
@@ -144,7 +149,7 @@ struct LoginView: View {
 
             // Wheel + spokes mark — mirrors the SVG in BrandMark
             Image(systemName: "circle.dotted.circle")
-                .font(.system(size: 19, weight: .semibold))
+                .scaledFont(19, weight: .semibold)
                 .foregroundColor(.white)
         }
     }
@@ -174,23 +179,12 @@ struct LoginView: View {
                         showPassword.toggle()
                     } label: {
                         Image(systemName: showPassword ? "eye.slash.fill" : "eye.fill")
-                            .font(.system(size: 13, weight: .semibold))
+                            .scaledFont(13, weight: .semibold)
                             .foregroundColor(.white.opacity(0.5))
                             .frame(width: 30, height: 30)
                     }
                 )
             )
-
-            HStack {
-                Spacer()
-                Button {
-                    // Forgot-password hook — not wired yet.
-                } label: {
-                    Text("Passwort vergessen?")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundColor(Theme.Colors.primary)
-                }
-            }
 
             if let error = authVM.errorMessage {
                 HStack(spacing: 6) {
@@ -198,7 +192,7 @@ struct LoginView: View {
                     Text(error)
                         .lineLimit(2)
                 }
-                .font(.system(size: 12, weight: .semibold))
+                .scaledFont(12, weight: .semibold)
                 .foregroundColor(Theme.Colors.accent)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
@@ -238,10 +232,10 @@ struct LoginView: View {
         return VStack(alignment: .leading, spacing: 2) {
             HStack(spacing: 5) {
                 Image(systemName: icon)
-                    .font(.system(size: 10, weight: .semibold))
+                    .scaledFont(10, weight: .semibold)
                     .foregroundColor(focused ? Theme.Colors.primary : .white.opacity(0.5))
                 Text(label)
-                    .font(.system(size: 9, weight: .heavy))
+                    .scaledFont(9, weight: .heavy)
                     .tracking(0.6)
                     .foregroundColor(focused ? Theme.Colors.primary : .white.opacity(0.5))
             }
@@ -255,9 +249,9 @@ struct LoginView: View {
                 }
                 .focused($focusedField, equals: field)
                 .textContentType(contentType)
-                .textInputAutocapitalization(field == .identifier ? .never : .sentences)
+                .textInputAutocapitalization(.never)
                 .autocorrectionDisabled(field == .identifier || field == .password)
-                .font(.system(size: 16, weight: .semibold))
+                .scaledFont(16, weight: .semibold)
                 .foregroundColor(.white)
                 .submitLabel(field == .identifier ? .next : .go)
                 .onSubmit {
@@ -299,7 +293,7 @@ struct LoginView: View {
                     Text("Anmelden")
                 }
             }
-            .font(.system(size: 15, weight: .heavy))
+            .scaledFont(15, weight: .heavy)
             .frame(maxWidth: .infinity)
             .frame(height: 50)
         }
@@ -314,7 +308,7 @@ struct LoginView: View {
                 .fill(Color.white.opacity(0.12))
                 .frame(height: 0.5)
             Text("ODER")
-                .font(.system(size: 11, weight: .heavy))
+                .scaledFont(11, weight: .heavy)
                 .tracking(0.6)
                 .foregroundColor(Theme.Glass.mutedText)
             Rectangle()
@@ -332,9 +326,9 @@ struct LoginView: View {
         } label: {
             HStack(spacing: 10) {
                 Image(systemName: "person.badge.key.fill")
-                    .font(.system(size: 16, weight: .semibold))
+                    .scaledFont(16, weight: .semibold)
                 Text("Mit Passkey anmelden")
-                    .font(.system(size: 15, weight: .bold))
+                    .scaledFont(15, weight: .bold)
             }
             .frame(maxWidth: .infinity)
             .frame(height: 50)

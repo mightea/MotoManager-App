@@ -149,12 +149,12 @@ struct FuelListView: View {
         VStack(alignment: .leading, spacing: Theme.Spacing.s) {
             HStack {
                 Text("Letzte Tankungen".uppercased())
-                    .font(.system(size: 11, weight: .heavy))
+                    .scaledFont(11, weight: .heavy)
                     .tracking(2)
                     .foregroundColor(.white.opacity(0.55))
                 Spacer()
                 Text("\(fuelRecords.count) \(fuelRecords.count == 1 ? "Eintrag" : "Einträge")")
-                    .font(.system(size: 11, weight: .semibold))
+                    .scaledFont(11, weight: .semibold)
                     .foregroundColor(.white.opacity(0.5))
             }
             .padding(.horizontal, 6)
@@ -175,10 +175,10 @@ struct FuelListView: View {
         } else if fuelRecords.isEmpty {
             VStack(spacing: 6) {
                 Image(systemName: "fuelpump.slash")
-                    .font(.system(size: 28))
+                    .scaledFont(28)
                     .foregroundColor(.white.opacity(0.45))
                 Text("Noch keine Tankungen erfasst.")
-                    .font(.system(size: 13, weight: .medium))
+                    .scaledFont(13, weight: .medium)
                     .foregroundColor(.white.opacity(0.65))
             }
             .frame(maxWidth: .infinity)
@@ -357,7 +357,7 @@ struct FuelRow: View {
             RoundedRectangle(cornerRadius: 10)
                 .fill(Theme.Colors.primary.opacity(0.22))
             Image(systemName: "fuelpump.fill")
-                .font(.system(size: 15, weight: .semibold))
+                .scaledFont(15, weight: .semibold)
                 .foregroundColor(Theme.Colors.primary)
         }
         .frame(width: 36, height: 36)
@@ -391,11 +391,11 @@ struct ConsumptionTrendCard: View {
         HStack(spacing: Theme.Spacing.m) {
             VStack(alignment: .leading, spacing: 3) {
                 Text("Verbrauchstrend".uppercased())
-                    .font(.system(size: 9, weight: .heavy))
+                    .scaledFont(9, weight: .heavy)
                     .tracking(1.2)
                     .foregroundColor(.white.opacity(0.55))
                 Text("Letzte \(values.count) Tankungen")
-                    .font(.system(size: 11, weight: .medium))
+                    .scaledFont(11, weight: .medium)
                     .foregroundColor(.white.opacity(0.6))
             }
 

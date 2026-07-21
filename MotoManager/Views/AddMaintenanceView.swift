@@ -147,7 +147,7 @@ struct AddMaintenanceView: View {
                             showingOdoScanner = true
                         } label: {
                             Image(systemName: "camera.viewfinder")
-                                .font(.system(size: 26, weight: .semibold))
+                                .scaledFont(26, weight: .semibold)
                                 .foregroundColor(Theme.Colors.primary)
                                 .frame(width: 52, height: 44)
                                 .contentShape(Rectangle())
@@ -199,7 +199,8 @@ struct AddMaintenanceView: View {
         .alert("Eintrag löschen?", isPresented: $confirmingDelete) {
             Button("Abbrechen", role: .cancel) { }
             Button("Löschen", role: .destructive) {
-                if let r = existingRecord { viewModel.deleteMaintenance(r) }
+                guard let record = existingRecord,
+                      viewModel.deleteMaintenance(record) else { return }
                 dismiss()
             }
         }
@@ -304,12 +305,12 @@ struct AddMaintenanceView: View {
     private var header: some View {
         HStack {
             Text(existingRecord == nil ? "Wartung erfassen" : "Wartung bearbeiten")
-                .font(.system(size: 22, weight: .heavy))
+                .scaledFont(22, weight: .heavy)
                 .foregroundColor(.white)
             Spacer()
             Button { dismiss() } label: {
                 Image(systemName: "xmark")
-                    .font(.system(size: 14, weight: .bold))
+                    .scaledFont(14, weight: .bold)
                     .foregroundColor(.white)
                     .frame(width: 32, height: 32)
                     .background(Circle().fill(Color.white.opacity(0.12)))
@@ -321,7 +322,7 @@ struct AddMaintenanceView: View {
     private func field<Content: View>(_ label: String, @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(label)
-                .font(.system(size: 10, weight: .heavy)).tracking(1.4)
+                .scaledFont(10, weight: .heavy).tracking(1.4)
                 .foregroundColor(Theme.Glass.mutedText)
             content()
                 .padding(.horizontal, 14).padding(.vertical, 12)
@@ -361,11 +362,11 @@ struct AddMaintenanceView: View {
         return HStack(spacing: 10) {
             VStack(alignment: .leading, spacing: 1) {
                 Text(part.name)
-                    .font(.system(size: 13, weight: .bold))
+                    .scaledFont(13, weight: .bold)
                     .foregroundColor(.white)
                     .lineLimit(1)
                 Text("\(part.partNumber) · \(maxQuantity) auf Lager")
-                    .font(.system(size: 10, weight: .semibold))
+                    .scaledFont(10, weight: .semibold)
                     .foregroundColor(.white.opacity(0.5))
             }
             Spacer(minLength: 0)
@@ -377,7 +378,7 @@ struct AddMaintenanceView: View {
                 in: 1...max(1, maxQuantity)
             ) {
                 Text("\(quantity)×")
-                    .font(.system(size: 13, weight: .heavy))
+                    .scaledFont(13, weight: .heavy)
                     .monospacedDigit()
                     .foregroundColor(Theme.Colors.primary)
             }
@@ -404,9 +405,9 @@ struct AddMaintenanceView: View {
             } label: {
                 HStack(spacing: 6) {
                     Image(systemName: "plus.circle.fill")
-                        .font(.system(size: 14))
+                        .scaledFont(14)
                     Text("Teil hinzufügen")
-                        .font(.system(size: 13, weight: .bold))
+                        .scaledFont(13, weight: .bold)
                 }
                 .foregroundColor(Theme.Colors.primary)
             }
@@ -476,9 +477,9 @@ struct AddMaintenanceView: View {
         }
 
         if let r = existingRecord {
-            viewModel.updateMaintenance(r, draft: draft)
+            guard viewModel.updateMaintenance(r, draft: draft) else { return }
         } else {
-            let record = viewModel.createMaintenance(draft)
+            guard let record = viewModel.createMaintenance(draft) else { return }
             recordUsedParts(for: record)
         }
         withAnimation { savedAnim = true }
@@ -505,6 +506,6 @@ struct AddMaintenanceView: View {
                 in: context
             )
         }
-        try? context.save()
+        _ = PersistenceMonitor.shared.save(context, operation: "Verwendete Teile speichern")
     }
 }

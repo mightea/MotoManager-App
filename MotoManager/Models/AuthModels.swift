@@ -11,7 +11,7 @@ struct LoginResponse: Codable {
 
 // MARK: - Passkey Models
 
-struct PasskeyOptionsResponse: Codable {
+nonisolated struct PasskeyOptionsResponse: Codable {
     let options: PasskeyRequestOptionsEnvelope
     let challengeId: String
 }
@@ -20,7 +20,7 @@ struct PasskeyOptionsResponse: Codable {
 /// request options in a `publicKey` envelope — the same shape browsers pass to
 /// `navigator.credentials.get()`. Accept the bare options too, mirroring the
 /// webapp's `options.publicKey || options` fallback.
-struct PasskeyRequestOptionsEnvelope: Codable {
+nonisolated struct PasskeyRequestOptionsEnvelope: Codable {
     let publicKey: PublicKeyCredentialRequestOptions
 
     private enum CodingKeys: String, CodingKey {
@@ -37,7 +37,7 @@ struct PasskeyRequestOptionsEnvelope: Codable {
     }
 }
 
-struct PublicKeyCredentialRequestOptions: Codable {
+nonisolated struct PublicKeyCredentialRequestOptions: Codable {
     let challenge: String
     let timeout: Int?
     let rpId: String?
@@ -45,7 +45,7 @@ struct PublicKeyCredentialRequestOptions: Codable {
     let userVerification: String?
 }
 
-struct AllowCredential: Codable {
+nonisolated struct AllowCredential: Codable {
     let id: String
     let type: String
     let transports: [String]?
@@ -69,4 +69,3 @@ struct AuthenticatorAssertionResponse: Codable {
     let signature: String
     let userHandle: String?
 }
-

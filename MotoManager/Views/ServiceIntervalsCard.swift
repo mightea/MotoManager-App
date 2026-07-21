@@ -58,13 +58,13 @@ struct ServiceIntervalsCard: View {
     private var header: some View {
         HStack(spacing: 8) {
             Text("SERVICE-INTERVALLE")
-                .font(.system(size: 11, weight: .heavy))
+                .scaledFont(11, weight: .heavy)
                 .tracking(2)
                 .foregroundColor(.white.opacity(0.55))
             Spacer(minLength: 8)
             tally
             Image(systemName: "chevron.down")
-                .font(.system(size: 11, weight: .bold))
+                .scaledFont(11, weight: .bold)
                 .foregroundColor(.white.opacity(0.5))
                 .rotationEffect(.degrees(expanded ? 180 : 0))
         }
@@ -84,9 +84,9 @@ struct ServiceIntervalsCard: View {
     private func tallyItem(_ icon: String, count: Int, color: Color) -> some View {
         HStack(spacing: 3) {
             Image(systemName: icon)
-                .font(.system(size: 10, weight: .semibold))
+                .scaledFont(10, weight: .semibold)
             Text("\(count)")
-                .font(.system(size: 10, weight: .heavy))
+                .scaledFont(10, weight: .heavy)
                 .monospacedDigit()
         }
         .foregroundColor(color)
@@ -97,7 +97,7 @@ struct ServiceIntervalsCard: View {
     private func categorySection(_ category: MaintenanceInsight.Category, items: [MaintenanceInsight]) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(category.rawValue.uppercased())
-                .font(.system(size: 9, weight: .heavy))
+                .scaledFont(9, weight: .heavy)
                 .tracking(1.4)
                 .foregroundColor(Theme.Glass.mutedText)
             VStack(spacing: 8) {
@@ -111,15 +111,15 @@ struct ServiceIntervalsCard: View {
     private func row(_ insight: MaintenanceInsight) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
             Image(systemName: icon(for: insight.status))
-                .font(.system(size: 12, weight: .semibold))
+                .scaledFont(12, weight: .semibold)
                 .foregroundColor(color(for: insight.status))
                 .frame(width: 16)
             VStack(alignment: .leading, spacing: 2) {
                 Text(insight.label)
-                    .font(.system(size: 13, weight: .semibold))
+                    .scaledFont(13, weight: .semibold)
                     .foregroundColor(.white)
                 Text(meta(for: insight))
-                    .font(.system(size: 10, weight: .semibold))
+                    .scaledFont(10, weight: .semibold)
                     .monospacedDigit()
                     .foregroundColor(.white.opacity(0.5))
             }

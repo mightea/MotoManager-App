@@ -3,6 +3,7 @@ import SwiftUI
 struct MainTabView: View {
     @EnvironmentObject var authVM: AuthViewModel
     @EnvironmentObject var fleetVM: MotorcycleViewModel
+    @EnvironmentObject private var persistenceMonitor: PersistenceMonitor
     @State private var detailVM: MotorcycleDetailViewModel?
     @StateObject private var partsVM = PartsViewModel()
     @State private var activeTab: AppTab = .fuel
@@ -49,6 +50,13 @@ struct MainTabView: View {
             let dVM = MotorcycleDetailViewModel(motorcycle: selected)
             self.detailVM = dVM
             await dVM.reconnect()
+        }
+        .alert(item: $persistenceMonitor.issue) { issue in
+            Alert(
+                title: Text(issue.title),
+                message: Text(issue.message),
+                dismissButton: .default(Text("OK"))
+            )
         }
     }
 
@@ -121,7 +129,7 @@ struct MainTabView: View {
     private func glassIconButton(systemImage: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: systemImage)
-                .font(.system(size: 16, weight: .semibold))
+                .scaledFont(16, weight: .semibold)
                 .foregroundStyle(.white)
                 .frame(width: 38, height: 38)
                 .glassEffect(.regular, in: Circle())
@@ -143,14 +151,14 @@ struct EmptyFleetView: View {
                     .frame(width: 140, height: 140)
 
                 Image(systemName: "bicycle")
-                    .font(.system(size: 60))
+                    .scaledFont(60)
                     .foregroundColor(Theme.Colors.primary)
             }
             .padding(.top, 40)
 
             VStack(spacing: Theme.Spacing.m) {
                 Text("Your Garage is Empty")
-                    .font(.system(size: 28, weight: .bold, design: .rounded))
+                    .scaledFont(28, weight: .bold, design: .rounded)
 
                 Text("Start tracking your fleet by adding your first motorcycle.")
                     .font(.subheadline)
@@ -175,7 +183,7 @@ struct EmptyFleetView: View {
                     Label("Service", systemImage: "wrench.fill")
                     Label("Specs", systemImage: "bolt.fill")
                 }
-                .font(.system(size: 10, weight: .bold))
+                .scaledFont(10, weight: .bold)
                 .foregroundColor(.secondary.opacity(0.7))
             }
             .padding(Theme.Spacing.l)
@@ -191,4 +199,5 @@ struct EmptyFleetView: View {
     MainTabView()
         .environmentObject(AuthViewModel())
         .environmentObject(MotorcycleViewModel())
+        .environmentObject(PersistenceMonitor.shared)
 }

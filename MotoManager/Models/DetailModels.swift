@@ -1,6 +1,6 @@
 import Foundation
 
-struct MaintenanceRecord: Codable, Identifiable {
+nonisolated struct MaintenanceRecord: Codable, Identifiable {
     let id: Int
     let date: String
     let odo: Int

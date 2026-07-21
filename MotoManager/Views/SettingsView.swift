@@ -38,7 +38,7 @@ struct SettingsView: View {
                     .padding(.top, 4)
 
                 Text(versionString)
-                    .font(.system(size: 10, weight: .medium))
+                    .scaledFont(10, weight: .medium)
                     .foregroundColor(.white.opacity(0.35))
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 4)
@@ -55,14 +55,14 @@ struct SettingsView: View {
     private var header: some View {
         HStack(alignment: .firstTextBaseline) {
             Text("Einstellungen")
-                .font(.system(size: 17, weight: .bold))
+                .scaledFont(17, weight: .bold)
                 .foregroundColor(.white)
             Spacer(minLength: 8)
             Button {
                 dismiss()
             } label: {
                 Image(systemName: "xmark")
-                    .font(.system(size: 12, weight: .bold))
+                    .scaledFont(12, weight: .bold)
                     .foregroundColor(.white.opacity(0.7))
                     .frame(width: 30, height: 30)
                     .background(Circle().fill(Color.white.opacity(0.12)))
@@ -81,7 +81,7 @@ struct SettingsView: View {
     private func section(title: String, @ViewBuilder content: () -> some View) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(title)
-                .font(.system(size: 10, weight: .heavy))
+                .scaledFont(10, weight: .heavy)
                 .tracking(1.2)
                 .foregroundColor(Theme.Glass.mutedText)
                 .padding(.horizontal, 26)
@@ -108,7 +108,7 @@ struct SettingsView: View {
                 settingIcon("server.rack")
 
                 Text("Backend")
-                    .font(.system(size: 14, weight: .medium))
+                    .scaledFont(14, weight: .medium)
                     .foregroundColor(.white)
                 Spacer(minLength: 0)
                 Picker("Backend", selection: $selectedBaseURL) {
@@ -133,11 +133,11 @@ struct SettingsView: View {
             HStack(spacing: 12) {
                 settingIcon("network")
                 Text("Endpoint")
-                    .font(.system(size: 14, weight: .medium))
+                    .scaledFont(14, weight: .medium)
                     .foregroundColor(.white)
                 Spacer(minLength: 0)
                 Text(selectedBaseURL)
-                    .font(.system(size: 11, design: .monospaced))
+                    .scaledFont(11, design: .monospaced)
                     .foregroundColor(Theme.Glass.mutedText)
                     .lineLimit(1)
                     .truncationMode(.middle)
@@ -152,7 +152,7 @@ struct SettingsView: View {
         ZStack {
             RoundedRectangle(cornerRadius: 8).fill(Color.white.opacity(0.10))
             Image(systemName: systemImage)
-                .font(.system(size: 13, weight: .semibold))
+                .scaledFont(13, weight: .semibold)
                 .foregroundColor(.white.opacity(0.75))
         }
         .frame(width: 30, height: 30)
@@ -167,9 +167,9 @@ struct SettingsView: View {
         } label: {
             HStack(spacing: 8) {
                 Image(systemName: "rectangle.portrait.and.arrow.right")
-                    .font(.system(size: 14, weight: .semibold))
+                    .scaledFont(14, weight: .semibold)
                 Text("Abmelden")
-                    .font(.system(size: 14, weight: .semibold))
+                    .scaledFont(14, weight: .semibold)
             }
             .foregroundColor(Theme.Colors.accent)
             .frame(maxWidth: .infinity)

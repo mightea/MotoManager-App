@@ -1,4 +1,5 @@
 import CoreLocation
+import MapKit
 import SwiftUI
 
 /// Glass bottom-sheet fuel-entry flow.
@@ -198,10 +199,10 @@ struct AddFuelView: View {
         HStack(alignment: .firstTextBaseline, spacing: 10) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(isEditing ? "Tankung bearbeiten" : "Neue Tankung")
-                    .font(.system(size: 17, weight: .bold))
+                    .scaledFont(17, weight: .bold)
                     .foregroundColor(.white)
                 Text(subtitle)
-                    .font(.system(size: 11, weight: .medium))
+                    .scaledFont(11, weight: .medium)
                     .foregroundColor(Theme.Glass.mutedText)
                     .lineLimit(1)
             }
@@ -243,7 +244,7 @@ struct AddFuelView: View {
                     showingOdoScanner = true
                 } label: {
                     Image(systemName: "camera.viewfinder")
-                        .font(.system(size: 26, weight: .semibold))
+                        .scaledFont(26, weight: .semibold)
                         .foregroundColor(Theme.Colors.primary)
                         .frame(width: 60, height: 60)
                         .contentShape(Rectangle())
@@ -346,7 +347,7 @@ struct AddFuelView: View {
             HStack(spacing: 8) {
                 if savedAnim {
                     Image(systemName: "checkmark")
-                        .font(.system(size: 16, weight: .bold))
+                        .scaledFont(16, weight: .bold)
                     Text("Gespeichert")
                 } else if viewModel.isLoading {
                     ProgressView().tint(.white)
@@ -357,7 +358,7 @@ struct AddFuelView: View {
             .frame(maxWidth: .infinity)
             .frame(height: 50)
             .foregroundColor(saveTextColor)
-            .font(.system(size: 15, weight: .heavy))
+            .scaledFont(15, weight: .heavy)
             .background(
                 RoundedRectangle(cornerRadius: 14)
                     .fill(saveButtonColor)
@@ -399,11 +400,11 @@ struct AddFuelView: View {
         } label: {
             HStack(spacing: 4) {
                 Image(systemName: "dollarsign.circle")
-                    .font(.system(size: 11, weight: .semibold))
+                    .scaledFont(11, weight: .semibold)
                 Text(currency)
-                    .font(.system(size: 12, weight: .heavy))
+                    .scaledFont(12, weight: .heavy)
                 Image(systemName: "chevron.down")
-                    .font(.system(size: 9, weight: .heavy))
+                    .scaledFont(9, weight: .heavy)
                     .opacity(0.6)
             }
             .foregroundColor(.white)
@@ -424,7 +425,7 @@ struct AddFuelView: View {
             dismiss()
         } label: {
             Image(systemName: "xmark")
-                .font(.system(size: 12, weight: .bold))
+                .scaledFont(12, weight: .bold)
                 .foregroundColor(.white.opacity(0.7))
                 .frame(width: 30, height: 30)
                 .background(Circle().fill(Color.white.opacity(0.12)))
@@ -447,7 +448,7 @@ struct AddFuelView: View {
                         .frame(width: 16, height: 16)
                     if fullTank {
                         Image(systemName: "checkmark")
-                            .font(.system(size: 9, weight: .heavy))
+                            .scaledFont(9, weight: .heavy)
                             .foregroundColor(.white)
                     } else {
                         Circle()
@@ -456,7 +457,7 @@ struct AddFuelView: View {
                     }
                 }
                 Text("Voll getankt")
-                    .font(.system(size: 11, weight: .semibold))
+                    .scaledFont(11, weight: .semibold)
                     .foregroundColor(fullTank ? Color.green : .white)
             }
             .padding(.horizontal, 10)
@@ -494,7 +495,7 @@ struct AddFuelView: View {
                         .frame(width: 16, height: 16)
                     if isOn.wrappedValue {
                         Image(systemName: "checkmark")
-                            .font(.system(size: 9, weight: .heavy))
+                            .scaledFont(9, weight: .heavy)
                             .foregroundColor(.white)
                     } else {
                         Circle()
@@ -503,7 +504,7 @@ struct AddFuelView: View {
                     }
                 }
                 Text(label)
-                    .font(.system(size: 11, weight: .semibold))
+                    .scaledFont(11, weight: .semibold)
                     .foregroundColor(isOn.wrappedValue ? Color.green : .white)
             }
             .padding(.horizontal, 10)
@@ -532,9 +533,9 @@ struct AddFuelView: View {
         let color: Color = isHigh ? .orange : .green
         return HStack(spacing: 5) {
             Image(systemName: "chart.line.uptrend.xyaxis")
-                .font(.system(size: 10, weight: .heavy))
+                .scaledFont(10, weight: .heavy)
             Text(String(format: "%.1f L/100 km", value))
-                .font(.system(size: 11, weight: .heavy))
+                .scaledFont(11, weight: .heavy)
                 .monospacedDigit()
         }
         .foregroundColor(color)
@@ -634,7 +635,7 @@ struct AddFuelView: View {
     private var stationRow: some View {
         HStack(spacing: 10) {
             Image(systemName: "fuelpump.fill")
-                .font(.system(size: 14, weight: .semibold))
+                .scaledFont(14, weight: .semibold)
                 .foregroundColor(Theme.Colors.primary)
                 .frame(width: 22)
             stationContent
@@ -654,23 +655,23 @@ struct AddFuelView: View {
         case .idle:
             Button { Task { await detectStation() } } label: {
                 Text("Tankstelle in der Nähe suchen")
-                    .font(.system(size: 13, weight: .semibold))
+                    .scaledFont(13, weight: .semibold)
                     .foregroundColor(Theme.Colors.primary)
             }
             Spacer(minLength: 0)
         case .detecting:
             ProgressView().controlSize(.small)
             Text("Tankstelle wird gesucht…")
-                .font(.system(size: 13))
+                .scaledFont(13)
                 .foregroundColor(Theme.Glass.mutedText)
             Spacer(minLength: 0)
         case .matched:
             VStack(alignment: .leading, spacing: 1) {
                 Text("TANKSTELLE")
-                    .font(.system(size: 9, weight: .heavy)).tracking(1)
+                    .scaledFont(9, weight: .heavy).tracking(1)
                     .foregroundColor(Theme.Glass.mutedText)
                 Text(stationName)
-                    .font(.system(size: 14, weight: .semibold))
+                    .scaledFont(14, weight: .semibold)
                     .foregroundColor(.white).lineLimit(1)
             }
             Spacer(minLength: 0)
@@ -681,26 +682,26 @@ struct AddFuelView: View {
         case .suggestCreate:
             VStack(alignment: .leading, spacing: 2) {
                 Text("NEUE TANKSTELLE")
-                    .font(.system(size: 9, weight: .heavy)).tracking(1)
+                    .scaledFont(9, weight: .heavy).tracking(1)
                     .foregroundColor(Theme.Glass.mutedText)
                 TextField("Name der Tankstelle", text: $stationName)
-                    .font(.system(size: 14, weight: .semibold))
+                    .scaledFont(14, weight: .semibold)
                     .foregroundColor(.white)
                     .textFieldStyle(.plain)
             }
             Spacer(minLength: 0)
             Button { Task { await createStation() } } label: {
-                Text("Anlegen").font(.system(size: 13, weight: .heavy))
+                Text("Anlegen").scaledFont(13, weight: .heavy)
                     .foregroundColor(Theme.Colors.primary)
             }
             .disabled(stationName.trimmingCharacters(in: .whitespaces).isEmpty)
         case .denied:
             Text("Standortzugriff verweigert")
-                .font(.system(size: 13)).foregroundColor(Theme.Glass.mutedText)
+                .scaledFont(13).foregroundColor(Theme.Glass.mutedText)
             Spacer(minLength: 0)
         case .failed:
             Text("Keine Tankstelle gefunden")
-                .font(.system(size: 13)).foregroundColor(Theme.Glass.mutedText)
+                .scaledFont(13).foregroundColor(Theme.Glass.mutedText)
             Spacer(minLength: 0)
             Button { Task { await detectStation() } } label: {
                 Image(systemName: "arrow.clockwise").foregroundColor(Theme.Colors.primary)
@@ -758,11 +759,13 @@ struct AddFuelView: View {
     }
 
     private func reverseGeocodedName(_ coord: CLLocationCoordinate2D) async throws -> String {
-        let placemarks = try await CLGeocoder().reverseGeocodeLocation(
-            CLLocation(latitude: coord.latitude, longitude: coord.longitude))
-        guard let p = placemarks.first else { return "" }
-        if let name = p.name, !name.isEmpty { return name }
-        return [p.thoroughfare, p.locality].compactMap { $0 }.joined(separator: ", ")
+        let location = CLLocation(latitude: coord.latitude, longitude: coord.longitude)
+        guard let request = MKReverseGeocodingRequest(location: location) else { return "" }
+        let items = try await request.mapItems
+        guard let item = items.first else { return "" }
+        if let name = item.name, !name.isEmpty { return name }
+        if let address = item.address?.shortAddress, !address.isEmpty { return address }
+        return item.addressRepresentations?.cityWithContext ?? ""
     }
 
     // MARK: - Coupling logic
@@ -840,8 +843,9 @@ struct AddFuelView: View {
         let totalCost = totalValue
 
         // Optimistic, offline-first: writes to the local store and queues sync.
+        let saved: Bool
         if let record = existingRecord {
-            viewModel.updateFuelRecord(
+            saved = viewModel.updateFuelRecord(
                 record,
                 odo: odoValue, amount: litersValue, cost: totalCost, pricePerUnit: pricePerLiter,
                 currency: currency, date: date, fuelType: fuelType,
@@ -851,7 +855,7 @@ struct AddFuelView: View {
                 leadSubstituteAdded: leadSubstituteAdded
             )
         } else {
-            viewModel.createFuelRecord(
+            saved = viewModel.createFuelRecord(
                 odo: odoValue, amount: litersValue, cost: totalCost, pricePerUnit: pricePerLiter,
                 currency: currency, date: date, fuelType: fuelType,
                 locationName: stationName.isEmpty ? (locationName.isEmpty ? nil : locationName) : stationName,
@@ -863,6 +867,7 @@ struct AddFuelView: View {
                 longitude: stationCoord?.longitude
             )
         }
+        guard saved else { return }
 
         withAnimation { savedAnim = true }
         Task {

@@ -190,12 +190,12 @@ struct MaintenanceLogsView: View {
     private func sectionHeader(_ label: String, count: Int) -> some View {
         HStack {
             Text(label.uppercased())
-                .font(.system(size: 11, weight: .heavy))
+                .scaledFont(11, weight: .heavy)
                 .tracking(2)
                 .foregroundColor(.white.opacity(0.55))
             Spacer()
             Text("\(count) \(count == 1 ? "Eintrag" : "Einträge")")
-                .font(.system(size: 11, weight: .semibold))
+                .scaledFont(11, weight: .semibold)
                 .foregroundColor(.white.opacity(0.5))
         }
     }
@@ -247,16 +247,16 @@ private struct IssuesEmptyCard: View {
                     .fill(Color.green.opacity(0.18))
                     .frame(width: 56, height: 56)
                 Image(systemName: "checkmark.circle.fill")
-                    .font(.system(size: 28, weight: .semibold))
+                    .scaledFont(28, weight: .semibold)
                     .foregroundColor(.green)
             }
 
             Text("Super! Keine Mängel")
-                .font(.system(size: 16, weight: .bold))
+                .scaledFont(16, weight: .bold)
                 .foregroundColor(.white)
 
             Text("Es sind keine offenen Mängel für \(motorcycle.make) \(motorcycle.model) erfasst.")
-                .font(.system(size: 13))
+                .scaledFont(13)
                 .foregroundColor(Theme.Glass.mutedText)
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: 260)
@@ -277,17 +277,17 @@ private struct IssuesPlaceholderCard: View {
                 RoundedRectangle(cornerRadius: 10)
                     .fill(Theme.Colors.accent.opacity(0.22))
                 Image(systemName: "exclamationmark.triangle.fill")
-                    .font(.system(size: 16, weight: .semibold))
+                    .scaledFont(16, weight: .semibold)
                     .foregroundColor(Theme.Colors.accent)
             }
             .frame(width: 36, height: 36)
 
             VStack(alignment: .leading, spacing: 4) {
                 Text("\(count) offene\(count == 1 ? "r" : "") Mangel")
-                    .font(.system(size: 14, weight: .bold))
+                    .scaledFont(14, weight: .bold)
                     .foregroundColor(.white)
                 Text("Detaillierte Mängel werden hier sichtbar, sobald sie verfügbar sind.")
-                    .font(.system(size: 12))
+                    .scaledFont(12)
                     .foregroundColor(Theme.Glass.mutedText)
                     .lineLimit(3)
             }
@@ -309,7 +309,7 @@ private struct IssueRow: View {
                 RoundedRectangle(cornerRadius: 10)
                     .fill(priorityColor.opacity(0.22))
                 Image(systemName: "exclamationmark.triangle.fill")
-                    .font(.system(size: 16, weight: .semibold))
+                    .scaledFont(16, weight: .semibold)
                     .foregroundColor(priorityColor)
             }
             .frame(width: 36, height: 36)
@@ -319,18 +319,18 @@ private struct IssueRow: View {
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(issue.title)
-                    .font(.system(size: 14, weight: .bold))
+                    .scaledFont(14, weight: .bold)
                     .foregroundColor(.white)
                     .lineLimit(2)
                 if let notes = issue.recordDescription, !notes.isEmpty {
                     Text(notes)
-                        .font(.system(size: 12))
+                        .scaledFont(12)
                         .foregroundColor(.white.opacity(0.65))
                         .lineLimit(2)
                 }
                 HStack(spacing: 6) {
                     Text(statusLabel.uppercased())
-                        .font(.system(size: 9, weight: .heavy))
+                        .scaledFont(9, weight: .heavy)
                         .tracking(0.4)
                         .padding(.horizontal, 7)
                         .padding(.vertical, 2)
@@ -341,7 +341,7 @@ private struct IssueRow: View {
                     Text("·").foregroundColor(.white.opacity(0.4))
                     Text("\(issue.odo) km").monospacedDigit()
                 }
-                .font(.system(size: 10, weight: .semibold))
+                .scaledFont(10, weight: .semibold)
                 .foregroundColor(.white.opacity(0.55))
             }
             Spacer(minLength: 0)
@@ -383,7 +383,7 @@ private struct MaintenanceGroupRow: View {
                 RoundedRectangle(cornerRadius: 10)
                     .fill(category.tint.opacity(0.15))
                 Image(systemName: category.icon)
-                    .font(.system(size: 16, weight: .semibold))
+                    .scaledFont(16, weight: .semibold)
                     .foregroundColor(category.tint)
             }
             .frame(width: 38, height: 38)
@@ -394,11 +394,11 @@ private struct MaintenanceGroupRow: View {
             VStack(alignment: .leading, spacing: 4) {
                 HStack(alignment: .firstTextBaseline) {
                     Text(Formatters.mediumDate(group.date))
-                        .font(.system(size: 14, weight: .bold))
+                        .scaledFont(14, weight: .bold)
                         .foregroundColor(.white)
                     Spacer(minLength: 8)
                     Text("\(group.odo) km")
-                        .font(.system(size: 12, weight: .semibold))
+                        .scaledFont(12, weight: .semibold)
                         .monospacedDigit()
                         .foregroundColor(.white.opacity(0.55))
                 }
@@ -407,12 +407,12 @@ private struct MaintenanceGroupRow: View {
                     HStack(alignment: .firstTextBaseline, spacing: 6) {
                         if group.count > 1 {
                             Text("\(group.count)×")
-                                .font(.system(size: 11, weight: .heavy))
+                                .scaledFont(11, weight: .heavy)
                                 .monospacedDigit()
                                 .foregroundColor(.white.opacity(0.55))
                         }
                         Text(group.summaries.joined(separator: ", "))
-                            .font(.system(size: 13, weight: .medium))
+                            .scaledFont(13, weight: .medium)
                             .foregroundColor(category.tint)
                             .fixedSize(horizontal: false, vertical: true)
                     }
@@ -425,10 +425,10 @@ private struct MaintenanceGroupRow: View {
                         Text("·").foregroundColor(.white.opacity(0.4))
                     }
                     Text(category.label.uppercased())
-                        .font(.system(size: 9, weight: .heavy))
+                        .scaledFont(9, weight: .heavy)
                         .tracking(0.6)
                 }
-                .font(.system(size: 10, weight: .semibold))
+                .scaledFont(10, weight: .semibold)
                 .foregroundColor(.white.opacity(0.55))
             }
         }
@@ -464,13 +464,13 @@ struct EmptyStateView: View {
                     .frame(width: 100, height: 100)
 
                 Image(systemName: icon)
-                    .font(.system(size: 42))
+                    .scaledFont(42)
                     .foregroundColor(Theme.Colors.primary.opacity(0.85))
             }
             .padding(.bottom, Theme.Spacing.s)
 
             Text(title)
-                .font(.system(size: 18, weight: .bold, design: .rounded))
+                .scaledFont(18, weight: .bold, design: .rounded)
                 .foregroundColor(.white)
 
             Text(message)

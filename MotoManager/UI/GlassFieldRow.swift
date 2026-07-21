@@ -68,7 +68,7 @@ struct GlassFieldRow: View {
 
                 if let hint, !hint.isEmpty {
                     Text(hint)
-                        .font(.system(size: 10, weight: .medium))
+                        .scaledFont(10, weight: .medium)
                         .foregroundColor(Theme.Glass.mutedText)
                         .lineLimit(1)
                 }
@@ -93,17 +93,17 @@ struct GlassFieldRow: View {
         HStack(spacing: 6) {
             if let icon {
                 Image(systemName: icon)
-                    .font(.system(size: 10, weight: .semibold))
+                    .scaledFont(10, weight: .semibold)
                     .foregroundColor(isActive ? Theme.Colors.primary : Theme.Glass.mutedText)
             }
             Text(eyebrow)
-                .font(.system(size: 9, weight: .heavy))
+                .scaledFont(9, weight: .heavy)
                 .tracking(1.4)
                 .foregroundColor(isActive ? Theme.Colors.primary : Theme.Glass.mutedText)
             if derived {
                 Spacer(minLength: 4)
                 Text("BERECHNET")
-                    .font(.system(size: 8, weight: .heavy))
+                    .scaledFont(8, weight: .heavy)
                     .tracking(0.4)
                     .foregroundColor(Theme.Glass.mutedText)
                     .padding(.horizontal, 6)

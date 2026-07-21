@@ -3,13 +3,10 @@ import SwiftUI
 /// A drop-in replacement for `.font(.system(size:weight:design:))` that scales the
 /// given point size with the user's Dynamic Type setting.
 ///
-/// The app's design uses fixed `.system(size:)` fonts, which do not respond to the
-/// accessibility text-size slider — a significant accessibility gap. This modifier
-/// keeps the exact same rendered size at the default content-size category (so the
-/// default look is unchanged) while scaling proportionally at larger sizes.
+/// Keeps the exact rendered size at the default content-size category while
+/// scaling with the user's preferred content size.
 ///
-/// Usage: `.scaledFont(15, weight: .semibold)` in place of
-/// `.font(.system(size: 15, weight: .semibold))`.
+/// Usage: `.scaledFont(15, weight: .semibold)` in place of a fixed system font.
 private struct ScaledSystemFont: ViewModifier {
     @ScaledMetric private var size: CGFloat
     private let weight: Font.Weight

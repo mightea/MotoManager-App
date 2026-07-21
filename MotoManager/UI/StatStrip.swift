@@ -25,21 +25,21 @@ struct StatStrip: View {
     private func tileView(_ tile: StatTile) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(tile.eyebrow.uppercased())
-                .font(.system(size: 9, weight: .heavy))
+                .scaledFont(9, weight: .heavy)
                 .tracking(1.2)
                 .foregroundColor(.white.opacity(0.55))
                 .lineLimit(1)
                 .minimumScaleFactor(0.75)
 
             Text(tile.value)
-                .font(.system(size: 17, weight: .bold, design: .rounded))
+                .scaledFont(17, weight: .bold, design: .rounded)
                 .foregroundColor(tile.accent ?? .white)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
 
             if let unit = tile.unit, !unit.isEmpty {
                 Text(unit)
-                    .font(.system(size: 10, weight: .medium))
+                    .scaledFont(10, weight: .medium)
                     .foregroundColor(.white.opacity(0.6))
                     .lineLimit(1)
             }

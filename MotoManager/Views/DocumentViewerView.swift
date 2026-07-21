@@ -51,7 +51,7 @@ struct DocumentViewerView: View {
     private var failureState: some View {
         VStack(spacing: Theme.Spacing.m) {
             Image(systemName: loadWasOffline ? "wifi.slash" : "exclamationmark.triangle.fill")
-                .font(.system(size: 48))
+                .scaledFont(48)
                 .foregroundColor(.orange)
             Text(loadWasOffline ? "Offline" : "Dokument konnte nicht geladen werden")
                 .font(.headline)

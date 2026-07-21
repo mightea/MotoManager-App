@@ -85,7 +85,8 @@ struct AddTorqueView: View {
         .alert("Drehmoment löschen?", isPresented: $confirmingDelete) {
             Button("Abbrechen", role: .cancel) { }
             Button("Löschen", role: .destructive) {
-                if let s = existingSpec { viewModel.deleteTorque(s) }
+                guard let spec = existingSpec,
+                      viewModel.deleteTorque(spec) else { return }
                 dismiss()
             }
         }
@@ -94,12 +95,12 @@ struct AddTorqueView: View {
     private var header: some View {
         HStack {
             Text(existingSpec == nil ? "Drehmoment hinzufügen" : "Drehmoment bearbeiten")
-                .font(.system(size: 22, weight: .heavy))
+                .scaledFont(22, weight: .heavy)
                 .foregroundColor(.white)
             Spacer()
             Button { dismiss() } label: {
                 Image(systemName: "xmark")
-                    .font(.system(size: 14, weight: .bold))
+                    .scaledFont(14, weight: .bold)
                     .foregroundColor(.white)
                     .frame(width: 32, height: 32)
                     .background(Circle().fill(Color.white.opacity(0.12)))
@@ -111,7 +112,7 @@ struct AddTorqueView: View {
     private func field<Content: View>(_ label: String, @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(label)
-                .font(.system(size: 10, weight: .heavy)).tracking(1.4)
+                .scaledFont(10, weight: .heavy).tracking(1.4)
                 .foregroundColor(Theme.Glass.mutedText)
             content()
                 .padding(.horizontal, 14).padding(.vertical, 12)
@@ -135,7 +136,7 @@ struct AddTorqueView: View {
                         .frame(width: 18, height: 18)
                     if unverified {
                         Image(systemName: "checkmark")
-                            .font(.system(size: 10, weight: .heavy))
+                            .scaledFont(10, weight: .heavy)
                             .foregroundColor(.white)
                     } else {
                         Circle()
@@ -145,10 +146,10 @@ struct AddTorqueView: View {
                 }
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Unverifiziert")
-                        .font(.system(size: 13, weight: .semibold))
+                        .scaledFont(13, weight: .semibold)
                         .foregroundColor(unverified ? Color.orange : .white)
                     Text("Wert aus unsicherer Quelle")
-                        .font(.system(size: 11, weight: .regular))
+                        .scaledFont(11, weight: .regular)
                         .foregroundColor(.white.opacity(0.5))
                 }
                 Spacer()
@@ -195,15 +196,17 @@ struct AddTorqueView: View {
         guard canSave, let torqueValue = Self.parse(torque) else { return }
         let cat = category.trimmingCharacters(in: .whitespaces)
         let nm = name.trimmingCharacters(in: .whitespaces)
+        let saved: Bool
         if let s = existingSpec {
-            viewModel.updateTorque(s, category: cat, name: nm, torque: torqueValue,
+            saved = viewModel.updateTorque(s, category: cat, name: nm, torque: torqueValue,
                                    torqueEnd: Self.parse(torqueEnd), variation: Self.parse(variation),
                                    toolSize: toolSize, description: notes, unverified: unverified)
         } else {
-            viewModel.createTorque(category: cat, name: nm, torque: torqueValue,
+            saved = viewModel.createTorque(category: cat, name: nm, torque: torqueValue,
                                    torqueEnd: Self.parse(torqueEnd), variation: Self.parse(variation),
                                    toolSize: toolSize, description: notes, unverified: unverified)
         }
+        guard saved else { return }
         withAnimation { savedAnim = true }
         Task {
             try? await Task.sleep(nanoseconds: 400_000_000)
@@ -211,10 +214,10 @@ struct AddTorqueView: View {
         }
     }
 
-    private static func parse(_ s: String) -> Double? {
+    nonisolated private static func parse(_ s: String) -> Double? {
         Double(s.replacingOccurrences(of: ",", with: "."))
     }
-    private static func num(_ d: Double) -> String {
+    nonisolated private static func num(_ d: Double) -> String {
         d == d.rounded() ? String(Int(d)) : String(d)
     }
 }

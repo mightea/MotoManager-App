@@ -165,16 +165,11 @@ extension AuthViewModel: ASAuthorizationControllerPresentationContextProviding {
             return window
         }
         
-        if let scene = windowScene {
-            return UIWindow(windowScene: scene)
+        guard let scene = windowScene else {
+            AppLog.error("No window scene available for passkey presentation")
+            preconditionFailure("Passkey presentation requires a window scene")
         }
-
-        // No active window scene — surface an error and return an empty anchor so
-        // the authorization request fails gracefully instead of crashing the app.
-        AppLog.error("No window scene available for passkey presentation")
-        errorMessage = "Anmeldung konnte nicht angezeigt werden."
-        isLoading = false
-        return UIWindow(frame: .zero)
+        return UIWindow(windowScene: scene)
     }
 }
 

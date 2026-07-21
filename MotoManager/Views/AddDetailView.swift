@@ -48,7 +48,8 @@ struct AddDetailView: View {
         .alert("Detail löschen?", isPresented: $confirmingDelete) {
             Button("Abbrechen", role: .cancel) { }
             Button("Löschen", role: .destructive) {
-                if let d = existingDetail { viewModel.deleteDetail(d) }
+                guard let detail = existingDetail,
+                      viewModel.deleteDetail(detail) else { return }
                 dismiss()
             }
         }
@@ -57,12 +58,12 @@ struct AddDetailView: View {
     private var header: some View {
         HStack {
             Text(existingDetail == nil ? "Detail hinzufügen" : "Detail bearbeiten")
-                .font(.system(size: 22, weight: .heavy))
+                .scaledFont(22, weight: .heavy)
                 .foregroundColor(.white)
             Spacer()
             Button { dismiss() } label: {
                 Image(systemName: "xmark")
-                    .font(.system(size: 14, weight: .bold))
+                    .scaledFont(14, weight: .bold)
                     .foregroundColor(.white)
                     .frame(width: 32, height: 32)
                     .background(Circle().fill(Color.white.opacity(0.12)))
@@ -74,7 +75,7 @@ struct AddDetailView: View {
     private func field<Content: View>(_ label: String, @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(label)
-                .font(.system(size: 10, weight: .heavy)).tracking(1.4)
+                .scaledFont(10, weight: .heavy).tracking(1.4)
                 .foregroundColor(Theme.Glass.mutedText)
             content()
                 .padding(.horizontal, 14).padding(.vertical, 12)
@@ -109,11 +110,13 @@ struct AddDetailView: View {
         guard canSave else { return }
         let t = title.trimmingCharacters(in: .whitespacesAndNewlines)
         let v = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        let saved: Bool
         if let d = existingDetail {
-            viewModel.updateDetail(d, title: t, value: v)
+            saved = viewModel.updateDetail(d, title: t, value: v)
         } else {
-            viewModel.createDetail(title: t, value: v)
+            saved = viewModel.createDetail(title: t, value: v)
         }
+        guard saved else { return }
         withAnimation { savedAnim = true }
         Task {
             try? await Task.sleep(nanoseconds: 400_000_000)

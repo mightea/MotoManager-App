@@ -10,9 +10,9 @@ struct RefreshBanner: View {
         if viewModel.refreshFailed {
             HStack(spacing: 8) {
                 Image(systemName: "wifi.exclamationmark")
-                    .font(.system(size: 13, weight: .semibold))
+                    .scaledFont(13, weight: .semibold)
                 Text("Aktualisierung fehlgeschlagen – gespeicherte Daten werden angezeigt.")
-                    .font(.system(size: 12, weight: .semibold))
+                    .scaledFont(12, weight: .semibold)
                     .lineLimit(2)
                     .minimumScaleFactor(0.8)
                 Spacer(minLength: 4)
@@ -22,7 +22,7 @@ struct RefreshBanner: View {
                     }
                 } label: {
                     Image(systemName: "xmark")
-                        .font(.system(size: 12, weight: .bold))
+                        .scaledFont(12, weight: .bold)
                         // Comfortable tap target for the small glyph.
                         .frame(width: 32, height: 32)
                         .contentShape(Rectangle())

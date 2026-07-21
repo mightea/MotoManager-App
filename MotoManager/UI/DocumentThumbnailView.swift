@@ -20,7 +20,7 @@ struct DocumentThumbnailView: View {
             } else {
                 Rectangle().fill(Theme.Colors.accent.opacity(0.16))
                 Image(systemName: DocumentThumbnailer.iconName(for: document))
-                    .font(.system(size: 20, weight: .semibold))
+                    .scaledFont(20, weight: .semibold)
                     .foregroundColor(Theme.Colors.accent.opacity(0.9))
             }
         }

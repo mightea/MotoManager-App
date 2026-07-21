@@ -12,6 +12,7 @@ import SwiftData
 struct MotoManagerApp: App {
     @StateObject private var connectivity = ConnectivityMonitor.shared
     @StateObject private var syncEngine = SyncEngine.shared
+    @StateObject private var persistenceMonitor = PersistenceMonitor.shared
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {
@@ -20,6 +21,7 @@ struct MotoManagerApp: App {
                 .preferredColorScheme(.dark)
                 .environmentObject(connectivity)
                 .environmentObject(syncEngine)
+                .environmentObject(persistenceMonitor)
                 .modelContainer(PersistenceController.shared)
                 .onChange(of: scenePhase) { _, phase in
                     // Flush pending changes whenever the app returns to the foreground.

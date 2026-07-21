@@ -195,7 +195,7 @@ struct PartsView: View {
     private var searchField: some View {
         HStack(spacing: 8) {
             Image(systemName: "magnifyingglass")
-                .font(.system(size: 13, weight: .semibold))
+                .scaledFont(13, weight: .semibold)
                 .foregroundColor(.white.opacity(0.5))
             TextField(
                 "",
@@ -257,7 +257,7 @@ struct PartsView: View {
             if let moto = motorcycle, moto.seriesId != nil {
                 Toggle(isOn: $filterBySelectedBike) {
                     Text("Passend für \(moto.make) \(moto.model)")
-                        .font(.system(size: 13, weight: .semibold))
+                        .scaledFont(13, weight: .semibold)
                         .foregroundColor(.white.opacity(0.8))
                 }
                 .tint(Theme.Colors.primary)
@@ -385,7 +385,7 @@ private struct StorageLocationCard: View {
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: "archivebox.fill")
-                .font(.system(size: 17, weight: .semibold))
+                .scaledFont(17, weight: .semibold)
                 .foregroundColor(Theme.Colors.primary)
                 .frame(width: 40, height: 40)
                 .background(Circle().fill(Theme.Colors.primary.opacity(0.15)))
@@ -395,12 +395,12 @@ private struct StorageLocationCard: View {
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(location.name)
-                    .font(.system(size: 15, weight: .bold))
+                    .scaledFont(15, weight: .bold)
                     .foregroundColor(.white)
                     .fixedSize(horizontal: false, vertical: true)
                 if let parentPath {
                     Text(parentPath)
-                        .font(.system(size: 11, weight: .semibold))
+                        .scaledFont(11, weight: .semibold)
                         .foregroundColor(.white.opacity(0.55))
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -409,16 +409,16 @@ private struct StorageLocationCard: View {
 
             VStack(alignment: .trailing, spacing: 2) {
                 Text("\(partCount)")
-                    .font(.system(size: 17, weight: .heavy))
+                    .scaledFont(17, weight: .heavy)
                     .monospacedDigit()
                     .foregroundColor(partCount > 0 ? Theme.Colors.primary : .white.opacity(0.35))
                 Text(partCount == 1 ? "Teil" : "Teile")
-                    .font(.system(size: 9, weight: .heavy))
+                    .scaledFont(9, weight: .heavy)
                     .tracking(1)
                     .foregroundColor(.white.opacity(0.4))
             }
             Image(systemName: "chevron.right")
-                .font(.system(size: 12, weight: .bold))
+                .scaledFont(12, weight: .bold)
                 .foregroundColor(.white.opacity(0.35))
         }
         .padding(14)
@@ -440,7 +440,7 @@ private struct PartCard: View {
                     .clipShape(RoundedRectangle(cornerRadius: 10))
             } else {
                 Image(systemName: "shippingbox.fill")
-                    .font(.system(size: 17, weight: .semibold))
+                    .scaledFont(17, weight: .semibold)
                     .foregroundColor(Theme.Colors.primary)
                     .frame(width: 40, height: 40)
                     .background(Circle().fill(Theme.Colors.primary.opacity(0.15)))
@@ -449,22 +449,22 @@ private struct PartCard: View {
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 6) {
                     Text(part.name)
-                        .font(.system(size: 15, weight: .bold))
+                        .scaledFont(15, weight: .bold)
                         .foregroundColor(.white)
                         .lineLimit(1)
                     if part.isPublic {
                         Image(systemName: "globe")
-                            .font(.system(size: 10, weight: .bold))
+                            .scaledFont(10, weight: .bold)
                             .foregroundColor(.white.opacity(0.45))
                     }
                 }
                 Text(part.partNumber)
-                    .font(.system(size: 11, weight: .semibold))
+                    .scaledFont(11, weight: .semibold)
                     .monospaced()
                     .foregroundColor(.white.opacity(0.55))
                 if !part.seriesIds.isEmpty {
                     Text(seriesSummary)
-                        .font(.system(size: 10, weight: .semibold))
+                        .scaledFont(10, weight: .semibold)
                         .foregroundColor(.white.opacity(0.45))
                         .lineLimit(1)
                 }
@@ -473,11 +473,11 @@ private struct PartCard: View {
 
             VStack(alignment: .trailing, spacing: 2) {
                 Text("\(onHand)")
-                    .font(.system(size: 17, weight: .heavy))
+                    .scaledFont(17, weight: .heavy)
                     .monospacedDigit()
                     .foregroundColor(onHand > 0 ? Theme.Colors.primary : .white.opacity(0.35))
                 Text("Bestand")
-                    .font(.system(size: 9, weight: .heavy))
+                    .scaledFont(9, weight: .heavy)
                     .tracking(1)
                     .foregroundColor(.white.opacity(0.4))
             }
@@ -506,7 +506,7 @@ private struct PublicPartCard: View {
                     .clipShape(RoundedRectangle(cornerRadius: 10))
             } else {
                 Image(systemName: "globe")
-                    .font(.system(size: 17, weight: .semibold))
+                    .scaledFont(17, weight: .semibold)
                     .foregroundColor(.white.opacity(0.7))
                     .frame(width: 40, height: 40)
                     .background(Circle().fill(Color.white.opacity(0.08)))
@@ -514,11 +514,11 @@ private struct PublicPartCard: View {
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(part.name)
-                    .font(.system(size: 15, weight: .bold))
+                    .scaledFont(15, weight: .bold)
                     .foregroundColor(.white)
                     .lineLimit(1)
                 Text(part.partNumber)
-                    .font(.system(size: 11, weight: .semibold))
+                    .scaledFont(11, weight: .semibold)
                     .monospaced()
                     .foregroundColor(.white.opacity(0.55))
                 HStack(spacing: 6) {
@@ -529,7 +529,7 @@ private struct PublicPartCard: View {
                             .lineLimit(1)
                     }
                 }
-                .font(.system(size: 10, weight: .semibold))
+                .scaledFont(10, weight: .semibold)
                 .foregroundColor(.white.opacity(0.45))
             }
             Spacer(minLength: 0)
@@ -538,7 +538,7 @@ private struct PublicPartCard: View {
             // catalog data with a neutral badge.
             let availability = part.hasStock
             Text(availability == nil ? "Bestand privat" : (availability == true ? "Auf Lager" : "Nicht auf Lager"))
-                .font(.system(size: 10, weight: .heavy))
+                .scaledFont(10, weight: .heavy)
                 .foregroundColor(availability == true ? .white : .white.opacity(0.5))
                 .padding(.horizontal, 9)
                 .padding(.vertical, 5)

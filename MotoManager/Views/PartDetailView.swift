@@ -153,20 +153,20 @@ struct PartDetailView: View {
                 Spacer()
                 VStack(alignment: .trailing, spacing: 0) {
                     Text("\(onHand)")
-                        .font(.system(size: 26, weight: .heavy))
+                        .scaledFont(26, weight: .heavy)
                         .monospacedDigit()
                         .foregroundColor(onHand > 0 ? Theme.Colors.primary : .white.opacity(0.35))
                     Text("AUF LAGER")
-                        .font(.system(size: 8, weight: .heavy)).tracking(1.2)
+                        .scaledFont(8, weight: .heavy).tracking(1.2)
                         .foregroundColor(.white.opacity(0.4))
                     if totalStockValue > 0 {
                         Text(Formatters.currency(totalStockValue, code: "CHF"))
-                            .font(.system(size: 12, weight: .bold))
+                            .scaledFont(12, weight: .bold)
                             .monospacedDigit()
                             .foregroundColor(.white.opacity(0.7))
                             .padding(.top, 6)
                         Text("EINKAUFSWERT")
-                            .font(.system(size: 8, weight: .heavy)).tracking(1.2)
+                            .scaledFont(8, weight: .heavy).tracking(1.2)
                             .foregroundColor(.white.opacity(0.4))
                     }
                 }
@@ -178,7 +178,7 @@ struct PartDetailView: View {
 
             if let description = part.partDescription, !description.isEmpty {
                 Text(description)
-                    .font(.system(size: 13))
+                    .scaledFont(13)
                     .foregroundColor(.white.opacity(0.7))
             }
         }
@@ -192,7 +192,7 @@ struct PartDetailView: View {
             HStack(spacing: 6) {
                 ForEach(part.seriesIds, id: \.self) { id in
                     Text(viewModel.seriesName(id))
-                        .font(.system(size: 11, weight: .semibold))
+                        .scaledFont(11, weight: .semibold)
                         .foregroundColor(.white.opacity(0.8))
                         .padding(.horizontal, 9).padding(.vertical, 4)
                         .background(Capsule().fill(Color.white.opacity(0.10)))
@@ -203,8 +203,8 @@ struct PartDetailView: View {
 
     private func infoPill(_ text: String, icon: String) -> some View {
         HStack(spacing: 4) {
-            Image(systemName: icon).font(.system(size: 9, weight: .bold))
-            Text(text).font(.system(size: 11, weight: .semibold))
+            Image(systemName: icon).scaledFont(9, weight: .bold)
+            Text(text).scaledFont(11, weight: .semibold)
         }
         .foregroundColor(.white.opacity(0.75))
         .padding(.horizontal, 9).padding(.vertical, 4)
@@ -224,7 +224,7 @@ struct PartDetailView: View {
 
             if stocks.isEmpty {
                 Text("Noch kein Bestand erfasst.")
-                    .font(.system(size: 13))
+                    .scaledFont(13)
                     .foregroundColor(.white.opacity(0.5))
             } else {
                 VStack(spacing: 8) {
@@ -257,7 +257,7 @@ struct PartDetailView: View {
     private func stockRow(_ stock: SDPartStock) -> some View {
         HStack(spacing: 12) {
             Text("\(stock.quantity)×")
-                .font(.system(size: 16, weight: .heavy))
+                .scaledFont(16, weight: .heavy)
                 .monospacedDigit()
                 .foregroundColor(Theme.Colors.primary)
                 .frame(width: 44, alignment: .leading)
@@ -267,26 +267,26 @@ struct PartDetailView: View {
                     if let price = stock.price {
                         let unit = price / Double(max(1, stock.quantity))
                         Text("\(Formatters.currency(unit, code: stock.currency ?? "CHF")) / Stk.")
-                            .font(.system(size: 13, weight: .bold))
+                            .scaledFont(13, weight: .bold)
                             .foregroundColor(.white)
                         if stock.quantity > 1 {
                             Text("· \(Formatters.currency(price, code: stock.currency ?? "CHF")) gesamt")
-                                .font(.system(size: 12))
+                                .scaledFont(12)
                                 .foregroundColor(.white.opacity(0.55))
                         }
                     } else {
                         Text("Ohne Preis")
-                            .font(.system(size: 13, weight: .semibold))
+                            .scaledFont(13, weight: .semibold)
                             .foregroundColor(.white.opacity(0.5))
                     }
                     if let date = stock.purchaseDate {
                         Text("· \(Formatters.mediumDate(date))")
-                            .font(.system(size: 12))
+                            .scaledFont(12)
                             .foregroundColor(.white.opacity(0.55))
                     }
                     if stock.isUsed {
                         Text("GEBRAUCHT")
-                            .font(.system(size: 8, weight: .heavy)).tracking(1.0)
+                            .scaledFont(8, weight: .heavy).tracking(1.0)
                             .foregroundColor(.orange)
                             .padding(.horizontal, 6).padding(.vertical, 2)
                             .background(Capsule().fill(Color.orange.opacity(0.16)))
@@ -295,23 +295,23 @@ struct PartDetailView: View {
                 if let path = viewModel.locationPath(viewModel.storageLocation(clientId: stock.storageLocationClientId)) {
                     HStack(spacing: 4) {
                         Image(systemName: "archivebox.fill")
-                            .font(.system(size: 9))
+                            .scaledFont(9)
                         Text(path)
                             .lineLimit(1)
                     }
-                    .font(.system(size: 11, weight: .semibold))
+                    .scaledFont(11, weight: .semibold)
                     .foregroundColor(.white.opacity(0.45))
                 }
                 if let notes = stock.notes, !notes.isEmpty {
                     Text(notes)
-                        .font(.system(size: 11))
+                        .scaledFont(11)
                         .foregroundColor(.white.opacity(0.4))
                         .lineLimit(1)
                 }
             }
             Spacer(minLength: 0)
             Image(systemName: "chevron.right")
-                .font(.system(size: 11, weight: .semibold))
+                .scaledFont(11, weight: .semibold)
                 .foregroundColor(.white.opacity(0.3))
         }
         .padding(12)
@@ -334,7 +334,7 @@ struct PartDetailView: View {
 
             if consumptions.isEmpty {
                 Text("Noch kein Verbrauch erfasst. Teile lassen sich auch direkt beim Erfassen einer Wartung verbuchen.")
-                    .font(.system(size: 13))
+                    .scaledFont(13)
                     .foregroundColor(.white.opacity(0.5))
             } else {
                 VStack(spacing: 8) {
@@ -357,32 +357,32 @@ struct PartDetailView: View {
         let repair = viewModel.maintenanceRecord(for: consumption)
         return HStack(spacing: 12) {
             Text("−\(consumption.quantity)")
-                .font(.system(size: 16, weight: .heavy))
+                .scaledFont(16, weight: .heavy)
                 .monospacedDigit()
                 .foregroundColor(Theme.Colors.accent)
                 .frame(width: 44, alignment: .leading)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(Formatters.mediumDate(consumption.date))
-                    .font(.system(size: 13, weight: .bold))
+                    .scaledFont(13, weight: .bold)
                     .foregroundColor(.white)
                 if let repair {
                     HStack(spacing: 4) {
                         Image(systemName: "wrench.and.screwdriver.fill")
-                            .font(.system(size: 9))
+                            .scaledFont(9)
                         Text(repair.recordDescription ?? repair.summary ?? repair.recordType)
                             .lineLimit(1)
                     }
-                    .font(.system(size: 11, weight: .semibold))
+                    .scaledFont(11, weight: .semibold)
                     .foregroundColor(.white.opacity(0.5))
                 } else if consumption.maintenanceClientId != nil || consumption.maintenanceServerId != nil {
                     Text("Verknüpfte Wartung")
-                        .font(.system(size: 11, weight: .semibold))
+                        .scaledFont(11, weight: .semibold)
                         .foregroundColor(.white.opacity(0.5))
                 }
                 if let notes = consumption.notes, !notes.isEmpty {
                     Text(notes)
-                        .font(.system(size: 11))
+                        .scaledFont(11)
                         .foregroundColor(.white.opacity(0.4))
                         .lineLimit(1)
                 }
@@ -399,11 +399,11 @@ struct PartDetailView: View {
     private func sectionHeader(_ label: String, count: Int) -> some View {
         HStack {
             Text(label.uppercased())
-                .font(.system(size: 11, weight: .heavy)).tracking(2)
+                .scaledFont(11, weight: .heavy).tracking(2)
                 .foregroundColor(.white.opacity(0.55))
             Spacer()
             Text("\(count) \(count == 1 ? "Eintrag" : "Einträge")")
-                .font(.system(size: 11, weight: .semibold))
+                .scaledFont(11, weight: .semibold)
                 .foregroundColor(.white.opacity(0.5))
         }
     }
@@ -411,9 +411,9 @@ struct PartDetailView: View {
     private func ctaLabel(_ title: String, icon: String) -> some View {
         HStack(spacing: 8) {
             Image(systemName: icon)
-                .font(.system(size: 13, weight: .bold))
+                .scaledFont(13, weight: .bold)
             Text(title)
-                .font(.system(size: 13, weight: .bold))
+                .scaledFont(13, weight: .bold)
             Spacer(minLength: 0)
         }
         .foregroundColor(.white)
@@ -475,7 +475,7 @@ struct AddPartStockView: View {
                 field("MENGE") {
                     Stepper(value: $quantity, in: 1...999) {
                         Text("\(quantity) Stück")
-                            .font(.system(size: 15, weight: .bold))
+                            .scaledFont(15, weight: .bold)
                             .foregroundColor(.white)
                     }
                     .colorScheme(.dark)
@@ -512,10 +512,10 @@ struct AddPartStockView: View {
                     Toggle(isOn: $isUsed) {
                         VStack(alignment: .leading, spacing: 1) {
                             Text("Gebrauchtteil")
-                                .font(.system(size: 15, weight: .semibold))
+                                .scaledFont(15, weight: .semibold)
                                 .foregroundColor(.white)
                             Text("z. B. aus einem Motorrad ausgeschlachtet")
-                                .font(.system(size: 11))
+                                .scaledFont(11)
                                 .foregroundColor(.white.opacity(0.45))
                         }
                     }
@@ -525,7 +525,7 @@ struct AddPartStockView: View {
                 saveButton
                 if let existingStock {
                     Button(role: .destructive) {
-                        viewModel.deleteStock(existingStock)
+                        guard viewModel.deleteStock(existingStock) else { return }
                         dismiss()
                     } label: {
                         Text("Löschen").frame(maxWidth: .infinity)
@@ -547,16 +547,16 @@ struct AddPartStockView: View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
                 Text(existingStock == nil ? "Bestand hinzufügen" : "Bestand bearbeiten")
-                    .font(.system(size: 22, weight: .heavy))
+                    .scaledFont(22, weight: .heavy)
                     .foregroundColor(.white)
                 Text(part.name)
-                    .font(.system(size: 12, weight: .semibold))
+                    .scaledFont(12, weight: .semibold)
                     .foregroundColor(.white.opacity(0.55))
             }
             Spacer()
             Button { dismiss() } label: {
                 Image(systemName: "xmark")
-                    .font(.system(size: 14, weight: .bold))
+                    .scaledFont(14, weight: .bold)
                     .foregroundColor(.white)
                     .frame(width: 32, height: 32)
                     .background(Circle().fill(Color.white.opacity(0.12)))
@@ -580,7 +580,7 @@ struct AddPartStockView: View {
                     .lineLimit(1)
                 Spacer()
                 Image(systemName: "chevron.up.chevron.down")
-                    .font(.system(size: 11, weight: .semibold))
+                    .scaledFont(11, weight: .semibold)
                     .foregroundColor(.white.opacity(0.5))
             }
         }
@@ -589,7 +589,7 @@ struct AddPartStockView: View {
     private func field<Content: View>(_ label: String, @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(label)
-                .font(.system(size: 10, weight: .heavy)).tracking(1.4)
+                .scaledFont(10, weight: .heavy).tracking(1.4)
                 .foregroundColor(Theme.Glass.mutedText)
             content()
                 .padding(.horizontal, 14).padding(.vertical, 12)
@@ -611,19 +611,20 @@ struct AddPartStockView: View {
         var location = selectedLocation
         let newName = newLocationName.trimmingCharacters(in: .whitespaces)
         if !newName.isEmpty {
-            location = viewModel.createStorageLocation(name: newName, parent: selectedLocation)
+            guard let created = viewModel.createStorageLocation(name: newName, parent: selectedLocation) else { return }
+            location = created
         }
         let priceValue = Double(price.replacingOccurrences(of: ",", with: "."))
         if let s = existingStock {
-            viewModel.updateStock(
+            guard viewModel.updateStock(
                 s, quantity: quantity, price: priceValue, currency: currency,
                 purchaseDate: purchaseDate, storageLocation: location, notes: notes,
-                isUsed: isUsed)
+                isUsed: isUsed) else { return }
         } else {
-            viewModel.addStock(
+            guard viewModel.addStock(
                 part: part, quantity: quantity, price: priceValue, currency: currency,
                 purchaseDate: purchaseDate, storageLocation: location, notes: notes,
-                isUsed: isUsed)
+                isUsed: isUsed) != nil else { return }
         }
         withAnimation { savedAnim = true }
         Task {
@@ -656,16 +657,16 @@ struct AddPartConsumptionView: View {
                 HStack {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Verbrauch erfassen")
-                            .font(.system(size: 22, weight: .heavy))
+                            .scaledFont(22, weight: .heavy)
                             .foregroundColor(.white)
                         Text("\(part.name) · \(onHand) auf Lager")
-                            .font(.system(size: 12, weight: .semibold))
+                            .scaledFont(12, weight: .semibold)
                             .foregroundColor(.white.opacity(0.55))
                     }
                     Spacer()
                     Button { dismiss() } label: {
                         Image(systemName: "xmark")
-                            .font(.system(size: 14, weight: .bold))
+                            .scaledFont(14, weight: .bold)
                             .foregroundColor(.white)
                             .frame(width: 32, height: 32)
                             .background(Circle().fill(Color.white.opacity(0.12)))
@@ -676,7 +677,7 @@ struct AddPartConsumptionView: View {
                 field("MENGE") {
                     Stepper(value: $quantity, in: 1...max(1, onHand)) {
                         Text("\(quantity) Stück")
-                            .font(.system(size: 15, weight: .bold))
+                            .scaledFont(15, weight: .bold)
                             .foregroundColor(.white)
                     }
                     .colorScheme(.dark)
@@ -693,7 +694,7 @@ struct AddPartConsumptionView: View {
 
                 if let errorText {
                     Text(errorText)
-                        .font(.system(size: 12, weight: .semibold))
+                        .scaledFont(12, weight: .semibold)
                         .foregroundColor(Theme.Colors.accent)
                 }
 
@@ -710,7 +711,7 @@ struct AddPartConsumptionView: View {
     private func field<Content: View>(_ label: String, @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(label)
-                .font(.system(size: 10, weight: .heavy)).tracking(1.4)
+                .scaledFont(10, weight: .heavy).tracking(1.4)
                 .foregroundColor(Theme.Glass.mutedText)
             content()
                 .padding(.horizontal, 14).padding(.vertical, 12)

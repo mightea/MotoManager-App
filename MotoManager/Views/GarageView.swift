@@ -69,10 +69,10 @@ struct GarageView: View {
             HStack(alignment: .firstTextBaseline) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Motorrad wählen")
-                        .font(.system(size: 17, weight: .bold))
+                        .scaledFont(17, weight: .bold)
                         .foregroundColor(.white)
                     Text(countSubtitle)
-                        .font(.system(size: 11, weight: .medium))
+                        .scaledFont(11, weight: .medium)
                         .foregroundColor(Theme.Glass.mutedText)
                         .monospacedDigit()
                 }
@@ -81,7 +81,7 @@ struct GarageView: View {
                     dismiss()
                 } label: {
                     Image(systemName: "xmark")
-                        .font(.system(size: 12, weight: .bold))
+                        .scaledFont(12, weight: .bold)
                         .foregroundColor(.white.opacity(0.7))
                         .frame(width: 30, height: 30)
                         .background(Circle().fill(Color.white.opacity(0.12)))
@@ -122,7 +122,7 @@ struct GarageView: View {
     private var searchField: some View {
         HStack(spacing: 8) {
             Image(systemName: "magnifyingglass")
-                .font(.system(size: 14, weight: .semibold))
+                .scaledFont(14, weight: .semibold)
                 .foregroundColor(.white.opacity(0.45))
 
             TextField("", text: $query)
@@ -130,7 +130,7 @@ struct GarageView: View {
                     Text("Marke, Modell oder Kennzeichen …")
                         .foregroundColor(.white.opacity(0.4))
                 }
-                .font(.system(size: 15))
+                .scaledFont(15)
                 .foregroundColor(.white)
                 .textInputAutocapitalization(.none)
                 .autocorrectionDisabled()
@@ -140,7 +140,7 @@ struct GarageView: View {
                     query = ""
                 } label: {
                     Image(systemName: "xmark")
-                        .font(.system(size: 9, weight: .heavy))
+                        .scaledFont(9, weight: .heavy)
                         .foregroundColor(Theme.Colors.navy900)
                         .frame(width: 18, height: 18)
                         .background(Circle().fill(Color.white.opacity(0.7)))
@@ -178,7 +178,7 @@ struct GarageView: View {
     private var recentsSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("ZULETZT VERWENDET")
-                .font(.system(size: 10, weight: .heavy))
+                .scaledFont(10, weight: .heavy)
                 .tracking(1.2)
                 .foregroundColor(Theme.Glass.mutedText)
                 .padding(.leading, 4)
@@ -205,11 +205,11 @@ struct GarageView: View {
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 4) {
                     Text("ALLE MOTORRÄDER")
-                        .font(.system(size: 10, weight: .heavy))
+                        .scaledFont(10, weight: .heavy)
                         .tracking(1.2)
                         .foregroundColor(Theme.Glass.mutedText)
                     Text("· \(fleetVM.motorcycles.count)")
-                        .font(.system(size: 10, weight: .heavy))
+                        .scaledFont(10, weight: .heavy)
                         .tracking(1.2)
                         .foregroundColor(Theme.Glass.mutedText)
                         .monospacedDigit()
@@ -243,7 +243,7 @@ struct GarageView: View {
 
     private var emptyResults: some View {
         Text("Keine Motorräder gefunden für „\(query)“.")
-            .font(.system(size: 13))
+            .scaledFont(13)
             .foregroundColor(Theme.Glass.mutedText)
             .frame(maxWidth: .infinity)
             .padding(.vertical, 28)
@@ -267,11 +267,11 @@ struct GarageView: View {
                         .fill(Theme.Colors.primary.opacity(0.18))
                         .frame(width: 36, height: 36)
                     Image(systemName: "plus")
-                        .font(.system(size: 16, weight: .semibold))
+                        .scaledFont(16, weight: .semibold)
                         .foregroundColor(Theme.Colors.primary)
                 }
                 Text("Motorrad hinzufügen")
-                    .font(.system(size: 14, weight: .semibold))
+                    .scaledFont(14, weight: .semibold)
                     .foregroundColor(.white.opacity(0.7))
                 Spacer(minLength: 0)
             }
@@ -314,7 +314,7 @@ private struct GarageRow: View {
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 6) {
                     Text("\(motorcycle.make) \(motorcycle.model)")
-                        .font(.system(size: 15, weight: .bold))
+                        .scaledFont(15, weight: .bold)
                         .foregroundColor(.white)
                         .lineLimit(1)
                     if motorcycle.isVeteran {
@@ -332,7 +332,7 @@ private struct GarageRow: View {
                         .fill(Theme.Colors.primary)
                         .frame(width: 24, height: 24)
                     Image(systemName: "checkmark")
-                        .font(.system(size: 11, weight: .heavy))
+                        .scaledFont(11, weight: .heavy)
                         .foregroundColor(.white)
                 }
             }
@@ -354,7 +354,7 @@ private struct GarageRow: View {
                 Theme.Colors.primary.opacity(0.2)
                     .overlay(
                         Image(systemName: "bicycle")
-                            .font(.system(size: 18, weight: .semibold))
+                            .scaledFont(18, weight: .semibold)
                             .foregroundColor(Theme.Colors.primary)
                     )
             }
@@ -381,14 +381,14 @@ private struct GarageRow: View {
                 Text(plate).monospaced()
             }
         }
-        .font(.system(size: 11, weight: .medium))
+        .scaledFont(11, weight: .medium)
         .foregroundColor(Theme.Glass.mutedText)
         .lineLimit(1)
     }
 
     private var veteranBadge: some View {
         Text("VETERAN")
-            .font(.system(size: 9, weight: .heavy))
+            .scaledFont(9, weight: .heavy)
             .tracking(0.4)
             .foregroundColor(Theme.Colors.accent)
             .padding(.horizontal, 6)
@@ -431,12 +431,12 @@ private struct RecentChip: View {
             thumbnail
             VStack(alignment: .leading, spacing: 1) {
                 Text("\(motorcycle.make) \(motorcycle.model)")
-                    .font(.system(size: 12, weight: .bold))
+                    .scaledFont(12, weight: .bold)
                     .foregroundColor(.white)
                     .lineLimit(1)
                 if let plate = motorcycle.numberPlate, !plate.isEmpty {
                     Text(plate)
-                        .font(.system(size: 10, weight: .medium))
+                        .scaledFont(10, weight: .medium)
                         .foregroundColor(Theme.Glass.mutedText)
                         .monospaced()
                 }
@@ -463,7 +463,7 @@ private struct RecentChip: View {
                 Theme.Colors.primary.opacity(0.2)
                     .overlay(
                         Image(systemName: "bicycle")
-                            .font(.system(size: 14, weight: .semibold))
+                            .scaledFont(14, weight: .semibold)
                             .foregroundColor(Theme.Colors.primary)
                     )
             }

@@ -97,7 +97,7 @@ struct MotorcycleSummaryHeader: View {
                     SyncStatusPill()
                     Button(action: chrome.openSettings) {
                         Image(systemName: "gearshape.fill")
-                            .font(.system(size: 16, weight: .semibold))
+                            .scaledFont(16, weight: .semibold)
                             .foregroundStyle(.white)
                             .frame(width: 44, height: 44)
                             .glassEffect(.regular, in: Circle())
@@ -115,7 +115,7 @@ struct MotorcycleSummaryHeader: View {
             // Eyebrow + VETERAN badge
             HStack(spacing: 6) {
                 Text(type.title.uppercased())
-                    .font(.system(size: 10, weight: .heavy))
+                    .scaledFont(10, weight: .heavy)
                     .tracking(2)
                     .foregroundColor(.white.opacity(0.75))
                     .shadow(color: .black.opacity(0.5), radius: 2, x: 0, y: 1)
@@ -127,7 +127,7 @@ struct MotorcycleSummaryHeader: View {
             HStack(alignment: .bottom, spacing: 10) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("\(motorcycle.make) \(motorcycle.model)")
-                        .font(.system(size: 24, weight: .heavy))
+                        .scaledFont(24, weight: .heavy)
                         .foregroundColor(.white)
                         .lineLimit(2)
                         .multilineTextAlignment(.leading)
@@ -156,7 +156,7 @@ struct MotorcycleSummaryHeader: View {
             Text("\(motorcycle.latestOdo ?? motorcycle.initialOdo) km")
                 .monospaced()
         }
-        .font(.system(size: 11, weight: .semibold))
+        .scaledFont(11, weight: .semibold)
         .foregroundColor(.white.opacity(0.78))
         .shadow(color: .black.opacity(0.5), radius: 2, x: 0, y: 1)
         .lineLimit(1)
@@ -166,9 +166,9 @@ struct MotorcycleSummaryHeader: View {
         Button(action: chrome.openGarage) {
             HStack(spacing: 6) {
                 Image(systemName: "arrow.up.arrow.down")
-                    .font(.system(size: 11, weight: .heavy))
+                    .scaledFont(11, weight: .heavy)
                 Text("Wechseln")
-                    .font(.system(size: 12, weight: .heavy))
+                    .scaledFont(12, weight: .heavy)
             }
             .foregroundColor(.white)
             .padding(.leading, 10)
@@ -182,7 +182,7 @@ struct MotorcycleSummaryHeader: View {
 
     private var veteranBadge: some View {
         Text("VETERAN")
-            .font(.system(size: 9, weight: .black))
+            .scaledFont(9, weight: .black)
             .foregroundColor(.white)
             .padding(.horizontal, 6)
             .padding(.vertical, 2)

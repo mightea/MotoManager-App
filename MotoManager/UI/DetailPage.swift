@@ -84,18 +84,18 @@ struct DetailPage<HeroBackground: View, HeroContent: View, BodyContent: View>: V
                 VStack(alignment: .leading, spacing: 6) {
                     if let eyebrow {
                         Text(eyebrow)
-                            .font(.system(size: 10, weight: .heavy))
+                            .scaledFont(10, weight: .heavy)
                             .tracking(1.6)
                             .foregroundColor(Theme.Glass.mutedText)
                     }
                     Text(title)
-                        .font(.system(size: 26, weight: .heavy))
+                        .scaledFont(26, weight: .heavy)
                         .foregroundColor(.white)
                         .multilineTextAlignment(.leading)
                         .fixedSize(horizontal: false, vertical: true)
                     if let subtitle {
                         Text(subtitle)
-                            .font(.system(size: 13, weight: .medium))
+                            .scaledFont(13, weight: .medium)
                             .foregroundColor(Theme.Glass.mutedText)
                     }
                     heroContent
@@ -128,11 +128,11 @@ struct DetailRow: View {
     var body: some View {
         HStack(alignment: .firstTextBaseline) {
             Text(label)
-                .font(.system(size: 13, weight: .medium))
+                .scaledFont(13, weight: .medium)
                 .foregroundColor(Theme.Glass.mutedText)
             Spacer(minLength: 12)
             Text(value)
-                .font(.system(size: 14, weight: .bold))
+                .scaledFont(14, weight: .bold)
                 .monospacedDigit()
                 .foregroundColor(accent ?? .white)
                 .multilineTextAlignment(.trailing)
@@ -160,7 +160,7 @@ struct DetailSection<Content: View>: View {
         VStack(alignment: .leading, spacing: 8) {
             if let title {
                 Text(title)
-                    .font(.system(size: 10, weight: .heavy))
+                    .scaledFont(10, weight: .heavy)
                     .tracking(1.4)
                     .foregroundColor(Theme.Glass.mutedText)
                     .padding(.leading, 6)
@@ -185,20 +185,20 @@ struct HeroStatTile: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(eyebrow.uppercased())
-                .font(.system(size: 9, weight: .heavy))
+                .scaledFont(9, weight: .heavy)
                 .tracking(1.2)
                 .foregroundColor(Theme.Glass.mutedText)
                 .lineLimit(1)
                 .minimumScaleFactor(0.75)
             Text(value)
-                .font(.system(size: 17, weight: .bold))
+                .scaledFont(17, weight: .bold)
                 .monospacedDigit()
                 .foregroundColor(accent ?? .white)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
             if let unit {
                 Text(unit)
-                    .font(.system(size: 10, weight: .medium))
+                    .scaledFont(10, weight: .medium)
                     .foregroundColor(Theme.Glass.mutedText)
                     .lineLimit(1)
             }

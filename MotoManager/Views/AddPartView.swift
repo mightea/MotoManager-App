@@ -75,7 +75,7 @@ struct AddPartView: View {
                                 .multilineTextAlignment(.leading)
                             Spacer()
                             Image(systemName: "chevron.up.chevron.down")
-                                .font(.system(size: 11, weight: .semibold))
+                                .scaledFont(11, weight: .semibold)
                                 .foregroundColor(.white.opacity(0.5))
                         }
                     }
@@ -91,10 +91,10 @@ struct AddPartView: View {
                 Toggle(isOn: $isPublic) {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Öffentlich teilen")
-                            .font(.system(size: 14, weight: .bold))
+                            .scaledFont(14, weight: .bold)
                             .foregroundColor(.white)
                         Text("Andere Nutzer sehen Teiledaten und Verfügbarkeit — nie Preise oder Lagerorte.")
-                            .font(.system(size: 11))
+                            .scaledFont(11)
                             .foregroundColor(.white.opacity(0.5))
                     }
                 }
@@ -107,7 +107,7 @@ struct AddPartView: View {
 
                 if let validationError {
                     Text(validationError)
-                        .font(.system(size: 12, weight: .semibold))
+                        .scaledFont(12, weight: .semibold)
                         .foregroundColor(Theme.Colors.accent)
                 }
 
@@ -124,7 +124,8 @@ struct AddPartView: View {
         .alert("Teil löschen?", isPresented: $confirmingDelete) {
             Button("Abbrechen", role: .cancel) { }
             Button("Löschen", role: .destructive) {
-                if let p = existingPart { viewModel.deletePart(p) }
+                guard let part = existingPart,
+                      viewModel.deletePart(part) else { return }
                 dismiss()
             }
         } message: {
@@ -137,13 +138,13 @@ struct AddPartView: View {
     private var initialStockSection: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.l) {
             Text("ERSTER BESTAND")
-                .font(.system(size: 11, weight: .heavy)).tracking(2)
+                .scaledFont(11, weight: .heavy).tracking(2)
                 .foregroundColor(.white.opacity(0.55))
 
             field("MENGE") {
                 Stepper(value: $stockQuantity, in: 1...999) {
                     Text("\(stockQuantity) Stück")
-                        .font(.system(size: 15, weight: .bold))
+                        .scaledFont(15, weight: .bold)
                         .foregroundColor(.white)
                 }
                 .colorScheme(.dark)
@@ -177,7 +178,7 @@ struct AddPartView: View {
                             .lineLimit(1)
                         Spacer()
                         Image(systemName: "chevron.up.chevron.down")
-                            .font(.system(size: 11, weight: .semibold))
+                            .scaledFont(11, weight: .semibold)
                             .foregroundColor(.white.opacity(0.5))
                     }
                 }
@@ -200,12 +201,12 @@ struct AddPartView: View {
     private var header: some View {
         HStack {
             Text(existingPart == nil ? "Teil hinzufügen" : "Teil bearbeiten")
-                .font(.system(size: 22, weight: .heavy))
+                .scaledFont(22, weight: .heavy)
                 .foregroundColor(.white)
             Spacer()
             Button { dismiss() } label: {
                 Image(systemName: "xmark")
-                    .font(.system(size: 14, weight: .bold))
+                    .scaledFont(14, weight: .bold)
                     .foregroundColor(.white)
                     .frame(width: 32, height: 32)
                     .background(Circle().fill(Color.white.opacity(0.12)))
@@ -217,7 +218,7 @@ struct AddPartView: View {
     private func field<Content: View>(_ label: String, @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(label)
-                .font(.system(size: 10, weight: .heavy)).tracking(1.4)
+                .scaledFont(10, weight: .heavy).tracking(1.4)
                 .foregroundColor(Theme.Glass.mutedText)
             content()
                 .padding(.horizontal, 14).padding(.vertical, 12)
@@ -260,27 +261,20 @@ struct AddPartView: View {
 
         let ids = Array(selectedSeriesIds).sorted()
         if let p = existingPart {
-            viewModel.updatePart(
+            guard viewModel.updatePart(
                 p, partNumber: trimmedNumber, name: trimmedName,
                 manufacturer: manufacturer.trimmingCharacters(in: .whitespaces),
-                description: notes, isPublic: isPublic, seriesIds: ids)
+                description: notes, isPublic: isPublic, seriesIds: ids) else { return }
         } else {
-            let part = viewModel.createPart(
+            let priceValue = Double(stockPrice.replacingOccurrences(of: ",", with: "."))
+            guard viewModel.createPartWithInitialStock(
                 partNumber: trimmedNumber, name: trimmedName,
                 manufacturer: manufacturer.trimmingCharacters(in: .whitespaces),
-                description: notes, isPublic: isPublic, seriesIds: ids)
-
-            // A new part always starts with its first stock entry.
-            var location = stockLocation
-            let trimmedLocationName = newLocationName.trimmingCharacters(in: .whitespaces)
-            if !trimmedLocationName.isEmpty {
-                location = viewModel.createStorageLocation(name: trimmedLocationName, parent: stockLocation)
-            }
-            let priceValue = Double(stockPrice.replacingOccurrences(of: ",", with: "."))
-            viewModel.addStock(
-                part: part, quantity: stockQuantity, price: priceValue,
+                description: notes, isPublic: isPublic, seriesIds: ids,
+                quantity: stockQuantity, price: priceValue,
                 currency: stockCurrency.trimmingCharacters(in: .whitespaces),
-                purchaseDate: stockPurchaseDate, storageLocation: location, notes: nil)
+                purchaseDate: stockPurchaseDate, storageLocation: stockLocation,
+                newLocationName: newLocationName) != nil else { return }
         }
         withAnimation { savedAnim = true }
         Task {
@@ -326,18 +320,18 @@ struct SeriesPickerView: View {
         VStack(spacing: 0) {
             HStack {
                 Text("Baureihen")
-                    .font(.system(size: 22, weight: .heavy))
+                    .scaledFont(22, weight: .heavy)
                     .foregroundColor(.white)
                 Spacer()
                 Button("Fertig") { dismiss() }
-                    .font(.system(size: 15, weight: .bold))
+                    .scaledFont(15, weight: .bold)
                     .foregroundColor(Theme.Colors.primary)
             }
             .padding(Theme.Spacing.l)
 
             HStack(spacing: 8) {
                 Image(systemName: "magnifyingglass")
-                    .font(.system(size: 13, weight: .semibold))
+                    .scaledFont(13, weight: .semibold)
                     .foregroundColor(.white.opacity(0.5))
                 TextField("", text: $searchText,
                           prompt: Text("Suchen …").foregroundColor(.white.opacity(0.35)))
@@ -373,19 +367,19 @@ struct SeriesPickerView: View {
                     Text(isSearching
                          ? ModelSeriesCatalog.path(of: series, in: viewModel.series)
                          : series.displayName)
-                        .font(.system(size: 14, weight: depth == 0 ? .bold : .semibold))
+                        .scaledFont(14, weight: depth == 0 ? .bold : .semibold)
                         .foregroundColor(.white)
                         .lineLimit(2)
                         .multilineTextAlignment(.leading)
                     Text(ModelSeriesCatalog.levelLabel(
                             forDepth: ModelSeriesCatalog.depth(of: series, in: viewModel.series))
                          + (series.userId != nil ? " · Eigene" : ""))
-                        .font(.system(size: 10, weight: .semibold))
+                        .scaledFont(10, weight: .semibold)
                         .foregroundColor(.white.opacity(0.4))
                 }
                 Spacer()
                 Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                    .font(.system(size: 18))
+                    .scaledFont(18)
                     .foregroundColor(isSelected ? Theme.Colors.primary : .white.opacity(0.25))
             }
             .padding(.vertical, 10)
@@ -404,13 +398,13 @@ struct SeriesPickerView: View {
     private var createSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("EIGENE BAUREIHE")
-                .font(.system(size: 10, weight: .heavy)).tracking(1.4)
+                .scaledFont(10, weight: .heavy).tracking(1.4)
                 .foregroundColor(Theme.Glass.mutedText)
                 .padding(.top, Theme.Spacing.m)
 
             if !connectivity.isOnline {
                 Text("Nur online möglich — Baureihen werden zentral verwaltet.")
-                    .font(.system(size: 12))
+                    .scaledFont(12)
                     .foregroundColor(.white.opacity(0.5))
             } else {
                 HStack(spacing: 8) {
@@ -428,7 +422,7 @@ struct SeriesPickerView: View {
                             ProgressView().tint(.white)
                         } else {
                             Image(systemName: "plus.circle.fill")
-                                .font(.system(size: 22))
+                                .scaledFont(22)
                                 .foregroundColor(Theme.Colors.primary)
                         }
                     }
@@ -440,7 +434,7 @@ struct SeriesPickerView: View {
 
                 if let createError {
                     Text(createError)
-                        .font(.system(size: 12, weight: .semibold))
+                        .scaledFont(12, weight: .semibold)
                         .foregroundColor(Theme.Colors.accent)
                 }
             }

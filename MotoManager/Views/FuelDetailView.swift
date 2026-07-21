@@ -53,8 +53,8 @@ struct FuelDetailView: View {
         .alert("Tankung löschen?", isPresented: $confirmingDelete) {
             Button("Abbrechen", role: .cancel) { }
             Button("Löschen", role: .destructive) {
+                guard viewModel.deleteFuelRecord(record) else { return }
                 didAutoDismiss = true
-                viewModel.deleteFuelRecord(record)
                 dismiss()
             }
         } message: {
@@ -194,7 +194,7 @@ struct FuelDetailView: View {
         if let notes = record.recordDescription, !notes.isEmpty {
             DetailSection("NOTIZEN") {
                 Text(notes)
-                    .font(.system(size: 14))
+                    .scaledFont(14)
                     .foregroundColor(.white.opacity(0.92))
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, 14)
@@ -207,7 +207,7 @@ struct FuelDetailView: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Text("TANKSTELLE\(record.locationName.map { " · \($0.uppercased())" } ?? "")")
-                    .font(.system(size: 10, weight: .heavy))
+                    .scaledFont(10, weight: .heavy)
                     .tracking(1.4)
                     .foregroundColor(Theme.Glass.mutedText)
                 Spacer()
@@ -215,7 +215,7 @@ struct FuelDetailView: View {
                     openInMaps(lat: lat, lon: lon, name: record.locationName)
                 } label: {
                     Text("In Karten öffnen")
-                        .font(.system(size: 11, weight: .semibold))
+                        .scaledFont(11, weight: .semibold)
                         .foregroundColor(Theme.Colors.primary)
                 }
             }
@@ -239,8 +239,8 @@ struct FuelDetailView: View {
     }
 
     private func openInMaps(lat: Double, lon: Double, name: String?) {
-        let placemark = MKPlacemark(coordinate: CLLocationCoordinate2D(latitude: lat, longitude: lon))
-        let item = MKMapItem(placemark: placemark)
+        let location = CLLocation(latitude: lat, longitude: lon)
+        let item = MKMapItem(location: location, address: nil)
         item.name = name ?? "Tankstelle"
         item.openInMaps()
     }

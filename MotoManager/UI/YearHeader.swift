@@ -13,7 +13,7 @@ struct YearHeader: View {
         HStack(spacing: 10) {
             Rectangle().fill(Theme.Glass.hairline).frame(height: 0.5)
             Text(year)
-                .font(.system(size: 11, weight: .heavy))
+                .scaledFont(11, weight: .heavy)
                 .monospacedDigit()
                 .tracking(1.5)
                 .foregroundColor(.white.opacity(0.45))

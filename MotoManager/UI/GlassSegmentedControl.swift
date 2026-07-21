@@ -44,11 +44,11 @@ struct GlassSegmentedControl<Value: Hashable>: View {
         } label: {
             HStack(spacing: 6) {
                 Text(segment.label)
-                    .font(.system(size: 13, weight: .semibold))
+                    .scaledFont(13, weight: .semibold)
                     .lineLimit(1)
                 if let count = segment.count {
                     Text("\(count)")
-                        .font(.system(size: 11, weight: .heavy))
+                        .scaledFont(11, weight: .heavy)
                         .monospacedDigit()
                         .foregroundColor(isActive ? .white : .white.opacity(0.85))
                         .padding(.horizontal, 7)

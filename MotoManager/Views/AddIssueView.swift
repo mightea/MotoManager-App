@@ -82,12 +82,12 @@ struct AddIssueView: View {
     private var header: some View {
         HStack {
             Text(existingIssue == nil ? "Mangel erfassen" : "Mangel bearbeiten")
-                .font(.system(size: 22, weight: .heavy))
+                .scaledFont(22, weight: .heavy)
                 .foregroundColor(.white)
             Spacer()
             Button { dismiss() } label: {
                 Image(systemName: "xmark")
-                    .font(.system(size: 14, weight: .bold))
+                    .scaledFont(14, weight: .bold)
                     .foregroundColor(.white)
                     .frame(width: 32, height: 32)
                     .background(Circle().fill(Color.white.opacity(0.12)))
@@ -99,7 +99,7 @@ struct AddIssueView: View {
     private func field<Content: View>(_ label: String, @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(label)
-                .font(.system(size: 10, weight: .heavy)).tracking(1.4)
+                .scaledFont(10, weight: .heavy).tracking(1.4)
                 .foregroundColor(Theme.Glass.mutedText)
             content()
                 .padding(.horizontal, 14).padding(.vertical, 12)
@@ -111,7 +111,7 @@ struct AddIssueView: View {
     private func labeledSegment(_ label: String, selection: Binding<String>, options: [String], label labeler: @escaping (String) -> String) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(label)
-                .font(.system(size: 10, weight: .heavy)).tracking(1.4)
+                .scaledFont(10, weight: .heavy).tracking(1.4)
                 .foregroundColor(Theme.Glass.mutedText)
             Picker(label, selection: selection) {
                 ForEach(options, id: \.self) { Text(labeler($0)).tag($0) }
@@ -142,11 +142,13 @@ struct AddIssueView: View {
         let trimmed = title.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty else { return }
         let odoValue = Int(odo) ?? (viewModel.motorcycle.latestOdo ?? viewModel.motorcycle.initialOdo)
+        let saved: Bool
         if let issue = existingIssue {
-            viewModel.updateIssue(issue, odo: odoValue, title: trimmed, description: notes, priority: priority, status: status, date: date)
+            saved = viewModel.updateIssue(issue, odo: odoValue, title: trimmed, description: notes, priority: priority, status: status, date: date)
         } else {
-            viewModel.createIssue(odo: odoValue, title: trimmed, description: notes, priority: priority, status: status, date: date)
+            saved = viewModel.createIssue(odo: odoValue, title: trimmed, description: notes, priority: priority, status: status, date: date)
         }
+        guard saved else { return }
         withAnimation { savedAnim = true }
         Task {
             try? await Task.sleep(nanoseconds: 400_000_000)

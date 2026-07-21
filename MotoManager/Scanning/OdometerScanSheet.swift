@@ -36,7 +36,7 @@ struct OdometerScanSheet: View {
         .ignoresSafeArea()
         .overlay(alignment: .bottom) {
             Text("Auf den Kilometerstand zielen und antippen")
-                .font(.system(size: 13, weight: .semibold))
+                .scaledFont(13, weight: .semibold)
                 .foregroundColor(.white)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 10)
@@ -48,13 +48,13 @@ struct OdometerScanSheet: View {
     private var unavailable: some View {
         VStack(spacing: 12) {
             Image(systemName: "camera.metering.unknown")
-                .font(.system(size: 40))
+                .scaledFont(40)
                 .foregroundColor(Theme.Glass.mutedText)
             Text("Kamera nicht verfügbar")
-                .font(.system(size: 16, weight: .semibold))
+                .scaledFont(16, weight: .semibold)
                 .foregroundColor(.white)
             Text("Der Scanner benötigt die Kamera eines echten Geräts.")
-                .font(.system(size: 13))
+                .scaledFont(13)
                 .foregroundColor(Theme.Glass.mutedText)
                 .multilineTextAlignment(.center)
         }
