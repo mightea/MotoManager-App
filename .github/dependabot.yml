@@ -1,0 +1,12 @@
+# Only github-actions here: the single SPM dependency (BRLMPrinterKit) lives in
+# the Xcode project rather than a Package.swift, which Dependabot's swift
+# ecosystem cannot read — that one stays a manual bump.
+#
+# Actions in this repo are SHA-pinned with a `# vX.Y.Z` trailing comment;
+# Dependabot preserves that style when it opens update PRs.
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
