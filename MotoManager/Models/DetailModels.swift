@@ -7,6 +7,10 @@ nonisolated struct MaintenanceRecord: Codable, Identifiable {
     let motorcycleId: Int
     let cost: Double?
     let normalizedCost: Double?
+    /// Normalized (CHF) value of the parts booked against this entry, derived
+    /// by the server from its consumptions (backend migration 046). Read-only —
+    /// never sent back. nil = no parts booked; 0 = booked but unpriced.
+    let partsCost: Double?
     let currency: String?
     let description: String?
     let recordType: String // "oil", "fuel", "tire", etc.
@@ -39,7 +43,7 @@ nonisolated struct MaintenanceRecord: Codable, Identifiable {
     let deletedAt: String?
 
     enum CodingKeys: String, CodingKey {
-        case id, date, odo, motorcycleId, cost, normalizedCost, currency, description, summary
+        case id, date, odo, motorcycleId, cost, normalizedCost, partsCost, currency, description, summary
         case recordType = "type"
         case brand, model, tirePosition, tireSize, dotCode, batteryType, fluidType, viscosity, oilType, inspectionLocation, locationId, fuelType, fuelAmount, pricePerUnit, latitude, longitude, locationName, fuelConsumption, tripDistance, fuelAdditiveAdded, leadSubstituteAdded, parentId
         case clientId, updatedAt, deletedAt

@@ -14,10 +14,16 @@ struct AddMaintenanceView: View {
     let existingRecord: SDMaintenanceRecord?
     @Environment(\.dismiss) private var dismiss
 
-    /// Parts consumed by this repair (partClientId → quantity). Create-only:
-    /// consumptions of an existing record are managed in the Teile tab.
+    /// Parts consumed by this repair (partClientId → quantity). Seeded from the
+    /// record's existing consumptions when editing, so parts can be added,
+    /// re-quantified and removed here rather than only in the Teile tab.
     @State private var usedParts: [UUID: Int] = [:]
     @State private var availableParts: [SDPart] = []
+    /// What the record already holds per part, captured on appear. Needed both
+    /// to seed `usedParts` and to raise the stepper ceiling: a part this record
+    /// consumed is no longer in on-hand, so without adding it back an entry
+    /// that took the last piece could never be re-saved.
+    @State private var bookedParts: [UUID: Int] = [:]
 
     /// Picker values (webapp canonical set minus fuel/location, plus the
     /// UI-only "brake" which submits brakepad/brakerotor).
@@ -175,9 +181,7 @@ struct AddMaintenanceView: View {
                         .lineLimit(2...5).foregroundColor(.white)
                 }
 
-                if existingRecord == nil {
-                    usedPartsSection
-                }
+                usedPartsSection
 
                 saveButton
                 if existingRecord != nil { deleteButton }
@@ -193,8 +197,28 @@ struct AddMaintenanceView: View {
                 .glassSheet()
         }
         .onAppear {
-            availableParts = PartsInventory.availableParts(
-                in: PersistenceController.shared.mainContext)
+            let context = PersistenceController.shared.mainContext
+            var parts = PartsInventory.availableParts(in: context)
+
+            // Seed from what the record already holds. Those parts may have
+            // zero on-hand (this entry used them up), so they are missing from
+            // `availableParts` and have to be merged back in — otherwise the
+            // entry's own parts would be invisible in its own form.
+            if let record = existingRecord {
+                let existing = PartsInventory.consumptions(forMaintenance: record, in: context)
+                var booked: [UUID: Int] = [:]
+                for consumption in existing {
+                    booked[consumption.partClientId, default: 0] += consumption.quantity
+                }
+                bookedParts = booked
+                usedParts = booked
+
+                let known = Set(parts.map(\.clientId))
+                let missing = ((try? context.fetch(FetchDescriptor<SDPart>())) ?? [])
+                    .filter { booked[$0.clientId] != nil && !known.contains($0.clientId) }
+                parts = (parts + missing).sorted { $0.name < $1.name }
+            }
+            availableParts = parts
         }
         .alert("Eintrag löschen?", isPresented: $confirmingDelete) {
             Button("Abbrechen", role: .cancel) { }
@@ -355,9 +379,17 @@ struct AddMaintenanceView: View {
         availableParts.filter { usedParts[$0.clientId] == nil }
     }
 
-    private func usedPartRow(_ part: SDPart) -> some View {
+    /// On-hand plus whatever this record already booked of the part — the
+    /// latter is not in on-hand any more, but is still available *to this
+    /// entry*.
+    private func maxQuantity(for part: SDPart) -> Int {
         let context = PersistenceController.shared.mainContext
-        let maxQuantity = PartsInventory.onHand(for: part.clientId, in: context)
+        return PartsInventory.onHand(for: part.clientId, in: context)
+            + (bookedParts[part.clientId] ?? 0)
+    }
+
+    private func usedPartRow(_ part: SDPart) -> some View {
+        let maxQuantity = maxQuantity(for: part)
         let quantity = usedParts[part.clientId] ?? 1
         return HStack(spacing: 10) {
             VStack(alignment: .leading, spacing: 1) {
@@ -365,7 +397,7 @@ struct AddMaintenanceView: View {
                     .scaledFont(13, weight: .bold)
                     .foregroundColor(.white)
                     .lineLimit(1)
-                Text("\(part.partNumber) · \(maxQuantity) auf Lager")
+                Text("\(part.partNumber) · max. \(maxQuantity)")
                     .scaledFont(10, weight: .semibold)
                     .foregroundColor(.white.opacity(0.5))
             }
@@ -478,6 +510,7 @@ struct AddMaintenanceView: View {
 
         if let r = existingRecord {
             guard viewModel.updateMaintenance(r, draft: draft) else { return }
+            syncUsedParts(for: r)
         } else {
             guard let record = viewModel.createMaintenance(draft) else { return }
             recordUsedParts(for: record)
@@ -507,5 +540,55 @@ struct AddMaintenanceView: View {
             )
         }
         _ = PersistenceMonitor.shared.save(context, operation: "Verwendete Teile speichern")
+    }
+
+    /// Reconcile an existing record's consumptions with what the form now
+    /// shows: add the newly picked, re-quantify the changed, remove the
+    /// dropped.
+    ///
+    /// A consumption whose quantity is unchanged is left completely alone —
+    /// touching it would mark it pendingUpdate and push a no-op that only
+    /// causes the server to recompute partsCost and bump the record's
+    /// updatedAt, waking every other client for nothing.
+    ///
+    /// Quantity changes are done as delete + create rather than an in-place
+    /// edit: the local on-hand guard in `recordConsumption` is what keeps an
+    /// offline write from being rejected at push time, and freeing the old
+    /// quantity first is what makes an increase fit.
+    private func syncUsedParts(for record: SDMaintenanceRecord) {
+        let context = PersistenceController.shared.mainContext
+        let existing = PartsInventory.consumptions(forMaintenance: record, in: context)
+        var partsById: [UUID: SDPart] = [:]
+        for part in availableParts { partsById[part.clientId] = part }
+
+        var changed = false
+        for consumption in existing {
+            let desired = usedParts[consumption.partClientId]
+            if desired == consumption.quantity { continue }
+            PartsInventory.removeConsumption(consumption, in: context)
+            changed = true
+        }
+
+        for (partClientId, quantity) in usedParts {
+            // Untouched entries were skipped above and must not be re-created.
+            let unchanged = existing.contains {
+                $0.partClientId == partClientId && $0.quantity == quantity
+            }
+            if unchanged { continue }
+            guard let part = partsById[partClientId] else { continue }
+            PartsInventory.recordConsumption(
+                part: part,
+                quantity: quantity,
+                date: record.date,
+                maintenanceClientId: record.clientId,
+                maintenanceServerId: record.serverId,
+                in: context
+            )
+            changed = true
+        }
+
+        if changed {
+            _ = PersistenceMonitor.shared.save(context, operation: "Verwendete Teile aktualisieren")
+        }
     }
 }

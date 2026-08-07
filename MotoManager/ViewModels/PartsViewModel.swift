@@ -359,12 +359,7 @@ class PartsViewModel: ObservableObject {
 
     @discardableResult
     func deleteConsumption(_ consumption: SDPartConsumption) -> Bool {
-        if consumption.serverId == nil {
-            modelContext.delete(consumption)
-        } else {
-            consumption.syncState = .pendingDelete
-            consumption.updatedAtLocal = Date()
-        }
+        PartsInventory.removeConsumption(consumption, in: modelContext)
         return persistAndSync()
     }
 

@@ -57,6 +57,14 @@ struct PartConsumption: Codable, Identifiable {
     let clientId: String?
     let updatedAt: String?
     let deletedAt: String?
+    // Context of the repair this was booked against, joined in by the server so
+    // a consumption can be linked back to it without walking every bike's
+    // maintenance list. All nil for a manual consumption not tied to a record.
+    let motorcycleId: Int?
+    let motorcycleMake: String?
+    let motorcycleModel: String?
+    let maintenanceDate: String?
+    let maintenanceType: String?
 }
 
 nonisolated struct StorageLocation: Codable, Identifiable {

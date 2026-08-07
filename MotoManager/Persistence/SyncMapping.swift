@@ -34,6 +34,7 @@ extension SDMaintenanceRecord {
         recordType = dto.recordType
         cost = dto.cost
         normalizedCost = dto.normalizedCost
+        partsCost = dto.partsCost
         currency = dto.currency
         recordDescription = dto.description
         summary = dto.summary

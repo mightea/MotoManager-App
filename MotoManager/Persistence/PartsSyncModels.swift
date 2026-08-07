@@ -114,6 +114,14 @@ final class SDPartConsumption {
 
     var maintenanceClientId: UUID?
     var maintenanceServerId: Int?
+    /// Repair context joined in by the server (backend migration 046 era).
+    /// Cached here so the Verbrauch list can name the bike offline — the
+    /// motorcycles themselves live in the JSON cache, not SwiftData, and may
+    /// not have been fetched. Pull-only; never pushed. nil for a manual
+    /// consumption or a row synced before the server started sending it.
+    var motorcycleServerId: Int?
+    var motorcycleMake: String?
+    var motorcycleModel: String?
 
     var quantity: Int
     var date: String

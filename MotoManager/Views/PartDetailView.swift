@@ -339,7 +339,7 @@ struct PartDetailView: View {
             } else {
                 VStack(spacing: 8) {
                     ForEach(consumptions, id: \.clientId) { consumption in
-                        consumptionRow(consumption)
+                        consumptionRowLinked(consumption)
                             .contextMenu {
                                 Button(role: .destructive) {
                                     viewModel.deleteConsumption(consumption)
@@ -350,6 +350,42 @@ struct PartDetailView: View {
                     }
                 }
             }
+        }
+    }
+
+    /// The bike a consumption was booked on, preferring the context the server
+    /// joined onto the row (available offline, and survives the motorcycle not
+    /// being in the JSON cache) and falling back to the cache by id.
+    private func motorcycleLabel(_ consumption: SDPartConsumption) -> String? {
+        let joined = [consumption.motorcycleMake, consumption.motorcycleModel]
+            .compactMap { $0 }
+            .joined(separator: " ")
+        if !joined.isEmpty { return joined }
+        guard let id = consumption.motorcycleServerId,
+              let moto = cachedMotorcycle(id: id) else { return nil }
+        return "\(moto.make) \(moto.model)"
+    }
+
+    private func cachedMotorcycle(id: Int) -> Motorcycle? {
+        let cached: [Motorcycle] = CacheStore.shared.load([Motorcycle].self, key: CacheKey.motorcycles) ?? []
+        return cached.first { $0.id == id }
+    }
+
+    /// Row wrapped in a link to the repair when the bike can be resolved —
+    /// MaintenanceDetailView needs a real Motorcycle to build its view model,
+    /// so an unresolvable one degrades to the plain, non-tappable row.
+    @ViewBuilder
+    private func consumptionRowLinked(_ consumption: SDPartConsumption) -> some View {
+        if let repair = viewModel.maintenanceRecord(for: consumption),
+           let moto = cachedMotorcycle(id: repair.motorcycleId) {
+            NavigationLink {
+                LinkedRepairView(motorcycle: moto, record: repair, partsVM: viewModel)
+            } label: {
+                consumptionRow(consumption)
+            }
+            .buttonStyle(.plain)
+        } else {
+            consumptionRow(consumption)
         }
     }
 
@@ -372,6 +408,10 @@ struct PartDetailView: View {
                             .scaledFont(9)
                         Text(repair.recordDescription ?? repair.summary ?? repair.recordType)
                             .lineLimit(1)
+                        if cachedMotorcycle(id: repair.motorcycleId) != nil {
+                            Image(systemName: "chevron.right")
+                                .scaledFont(8)
+                        }
                     }
                     .scaledFont(11, weight: .semibold)
                     .foregroundColor(.white.opacity(0.5))
@@ -379,6 +419,17 @@ struct PartDetailView: View {
                     Text("Verknüpfte Wartung")
                         .scaledFont(11, weight: .semibold)
                         .foregroundColor(.white.opacity(0.5))
+                }
+                // Which bike the part went into — the whole point of the link,
+                // and the one thing the repair's own description never says.
+                if let motorcycle = motorcycleLabel(consumption) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "bicycle")
+                            .scaledFont(9)
+                        Text(motorcycle).lineLimit(1)
+                    }
+                    .scaledFont(11, weight: .semibold)
+                    .foregroundColor(Theme.Colors.primary.opacity(0.8))
                 }
                 if let notes = consumption.notes, !notes.isEmpty {
                     Text(notes)
@@ -730,5 +781,33 @@ struct AddPartConsumptionView: View {
             try? await Task.sleep(nanoseconds: 400_000_000)
             dismiss()
         }
+    }
+}
+
+/// Hosts `MaintenanceDetailView` when navigating in from a part's consumption
+/// history.
+///
+/// That view is built around a `MotorcycleDetailViewModel` (it reads the bike,
+/// its locations and the sibling records that make up a bundled entry), which
+/// normally comes from the garage flow. Reached from the Teile tab there is no
+/// such view model in scope, so one is created here for the bike the repair
+/// belongs to and primed from the local store — otherwise the page would render
+/// with no location names and no bundled children until the next sync.
+private struct LinkedRepairView: View {
+    let motorcycle: Motorcycle
+    let record: SDMaintenanceRecord
+    @ObservedObject var partsVM: PartsViewModel
+    @StateObject private var detailVM: MotorcycleDetailViewModel
+
+    init(motorcycle: Motorcycle, record: SDMaintenanceRecord, partsVM: PartsViewModel) {
+        self.motorcycle = motorcycle
+        self.record = record
+        self.partsVM = partsVM
+        _detailVM = StateObject(wrappedValue: MotorcycleDetailViewModel(motorcycle: motorcycle))
+    }
+
+    var body: some View {
+        MaintenanceDetailView(record: record, viewModel: detailVM, partsVM: partsVM)
+            .onAppear { detailVM.reloadLocal() }
     }
 }

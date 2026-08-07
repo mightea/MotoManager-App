@@ -74,4 +74,19 @@ enum PartsInventory {
         context.insert(consumption)
         return consumption
     }
+
+    /// Retract a consumption so its quantity flows back into on-hand.
+    ///
+    /// A row the server has never seen is deleted outright; one with a server
+    /// id is tombstoned instead, because the server has to be told to delete it
+    /// too and the pull side keys off the tombstone. Does not save — the caller
+    /// batches that.
+    static func removeConsumption(_ consumption: SDPartConsumption, in context: ModelContext) {
+        if consumption.serverId == nil {
+            context.delete(consumption)
+        } else {
+            consumption.syncState = .pendingDelete
+            consumption.updatedAtLocal = Date()
+        }
+    }
 }

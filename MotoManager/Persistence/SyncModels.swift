@@ -20,6 +20,10 @@ final class SDMaintenanceRecord {
     var recordType: String
     var cost: Double?
     var normalizedCost: Double?
+    /// Server-derived value of the parts booked against this record (backend
+    /// migration 046). Pull-only: never pushed, so the server stays the single
+    /// author and a stale local copy can't overwrite a recomputed figure.
+    var partsCost: Double?
     var currency: String?
     var recordDescription: String?
     var summary: String?

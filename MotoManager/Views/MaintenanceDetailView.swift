@@ -251,17 +251,40 @@ struct MaintenanceDetailView: View {
     /// record was paid in a different one (webapp behavior).
     @ViewBuilder
     private func costSection(_ category: MaintenanceCategory) -> some View {
-        if let cost = record.cost {
+        // The section also has to appear for a record with no typed amount but
+        // parts booked against it — those still cost something.
+        let partsCost = record.partsCost ?? 0
+        if record.cost != nil || partsCost > 0 {
+            // partsCost is server-derived in the base currency, so the combined
+            // total is only meaningful on that basis.
+            let baseCurrency = viewModel.motorcycle.currencyCode ?? currency
             DetailSection("KOSTEN") {
-                DetailRow(label: "Betrag",
-                          value: Formatters.currency(cost, code: currency),
-                          accent: category.tint)
-                if let normalized = record.normalizedCost,
-                   let baseCurrency = viewModel.motorcycle.currencyCode,
-                   currency != baseCurrency {
-                    divider
-                    DetailRow(label: "Umgerechnet",
-                              value: "≈ \(Formatters.currency(normalized, code: baseCurrency))")
+                if let cost = record.cost {
+                    DetailRow(label: "Betrag",
+                              value: Formatters.currency(cost, code: currency),
+                              accent: category.tint)
+                    if let normalized = record.normalizedCost,
+                       currency != baseCurrency {
+                        divider
+                        DetailRow(label: "Umgerechnet",
+                                  value: "≈ \(Formatters.currency(normalized, code: baseCurrency))")
+                    }
+                }
+                if partsCost > 0 {
+                    if record.cost != nil { divider }
+                    DetailRow(label: "Teile",
+                              value: Formatters.currency(partsCost, code: baseCurrency),
+                              accent: record.cost == nil ? category.tint : nil)
+                    if let cost = record.cost {
+                        divider
+                        DetailRow(
+                            label: "Gesamt",
+                            value: Formatters.currency(
+                                (record.normalizedCost ?? cost) + partsCost,
+                                code: baseCurrency
+                            )
+                        )
+                    }
                 }
             }
         }

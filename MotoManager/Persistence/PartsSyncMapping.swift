@@ -123,6 +123,9 @@ extension SDPartConsumption {
         serverId = dto.id
         partServerId = dto.partId
         maintenanceServerId = dto.maintenanceRecordId
+        motorcycleServerId = dto.motorcycleId
+        motorcycleMake = dto.motorcycleMake
+        motorcycleModel = dto.motorcycleModel
         quantity = dto.quantity
         date = dto.date
         notes = dto.notes
