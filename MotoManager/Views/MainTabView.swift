@@ -134,6 +134,8 @@ struct MainTabView: View {
                 .frame(width: 38, height: 38)
                 .glassEffect(.regular, in: Circle())
         }
+        // Without this VoiceOver reads out the raw SF Symbol name.
+        .accessibilityLabel("Einstellungen")
     }
 }
 

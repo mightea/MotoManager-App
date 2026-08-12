@@ -4,6 +4,13 @@ import SwiftUI
 /// docked in the bottom-trailing thumb zone, just above the tab bar. Used on
 /// every home tab that creates a record (Fuel, Service, Parts).
 struct FloatingAddButton: View {
+    /// Transparent hit slop grown around the 60pt glass circle. Two adjacent
+    /// buttons' tap targets meet exactly in the middle of the 12pt visual gap,
+    /// so a near-miss can never fall through to the tappable row underneath.
+    /// `bottomActionBar` subtracts it again from the container spacing/padding,
+    /// so the rendered geometry is unchanged.
+    static let hitSlop: CGFloat = 6
+
     var systemImage: String = "plus"
     var tint: Color = Theme.Colors.primary
     var accessibilityLabel: String
@@ -17,6 +24,13 @@ struct FloatingAddButton: View {
                 .frame(width: 60, height: 60)
                 .glassEffect(.regular.tint(tint).interactive(), in: Circle())
                 .shadow(color: tint.opacity(0.5), radius: 14, x: 0, y: 8)
+                .padding(Self.hitSlop)
+                // `.frame` and `.glassEffect` draw but claim no touches, and
+                // `.plain` adds no background: without this the button is only
+                // tappable on the rendered glyph (a 20pt box) and the rest of
+                // the circle falls through to the row beneath. Must stay last
+                // so it resolves against the padded bounds.
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityLabel(accessibilityLabel)
@@ -41,6 +55,7 @@ extension View {
         secondaryAction: (() -> Void)? = nil
     ) -> some View {
         let hasSecondary = secondaryIcon != nil && secondaryLabel != nil && secondaryAction != nil
+        let slop = FloatingAddButton.hitSlop
         return self
             .overlay(alignment: .bottomLeading) {
                 RefreshBanner(viewModel: detailVM)
@@ -49,7 +64,10 @@ extension View {
                     .padding(.bottom, 12)
             }
             .overlay(alignment: .bottomTrailing) {
-                HStack(spacing: 12) {
+                // Spacing and padding are reduced by the buttons' hit slop, so
+                // the visual gap stays 12pt and the circles keep their exact
+                // position while the tap targets tile the space between them.
+                HStack(spacing: 12 - 2 * slop) {
                     if let secondaryIcon, let secondaryLabel, let secondaryAction {
                         FloatingAddButton(
                             systemImage: secondaryIcon,
@@ -66,8 +84,8 @@ extension View {
                         )
                     }
                 }
-                .padding(.trailing, Theme.Spacing.pageH)
-                .padding(.bottom, 12)
+                .padding(.trailing, Theme.Spacing.pageH - slop)
+                .padding(.bottom, 12 - slop)
             }
     }
 }
