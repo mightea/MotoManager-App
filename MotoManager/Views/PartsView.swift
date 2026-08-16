@@ -12,7 +12,11 @@ struct PartsView: View {
     enum PartsTab: Hashable { case mine, locations, publicParts }
     @State private var tab: PartsTab = .mine
     @State private var searchText = ""
-    @State private var filterBySelectedBike = false
+    /// On by default: the tab lives under a specific bike, so parts fitting
+    /// that bike are the expected view — the toggle widens to the whole
+    /// inventory instead of narrowing it. Inert when the bike has no linked
+    /// model series (`filteredParts` ignores it then, and the toggle is hidden).
+    @State private var filterBySelectedBike = true
     @State private var showingAddPart = false
     @State private var selectedPart: SDPart?
     @State private var showingScanner = false
@@ -283,6 +287,31 @@ struct PartsView: View {
         return result
     }
 
+    /// True when the empty list is caused by the default bike filter alone —
+    /// the message must then point at the toggle, not at a search query.
+    private var emptyBecauseOfBikeFilter: Bool {
+        filterBySelectedBike && motorcycle?.seriesId != nil
+            && searchText.trimmingCharacters(in: .whitespaces).isEmpty
+            && !viewModel.parts.isEmpty
+    }
+
+    private var emptyPartsTitle: String {
+        if viewModel.parts.isEmpty { return "Keine Teile erfasst" }
+        return emptyBecauseOfBikeFilter ? "Keine passenden Teile" : "Keine Treffer"
+    }
+
+    private var emptyPartsMessage: String {
+        if viewModel.parts.isEmpty {
+            return "Lege dein erstes Ersatzteil an — Bestand und Verbrauch werden automatisch geführt."
+        }
+        if emptyBecauseOfBikeFilter, let moto = motorcycle {
+            let count = viewModel.parts.count
+            return "Für \(moto.make) \(moto.model) ist kein Teil hinterlegt. "
+                + "Deaktiviere den Filter, um alle \(count) Teile zu sehen."
+        }
+        return "Kein Teil passt zu Suche oder Filter."
+    }
+
     @ViewBuilder
     private var mineContent: some View {
         VStack(spacing: Theme.Spacing.s) {
@@ -298,10 +327,8 @@ struct PartsView: View {
 
             if filteredParts.isEmpty {
                 EmptyStateView(
-                    title: viewModel.parts.isEmpty ? "Keine Teile erfasst" : "Keine Treffer",
-                    message: viewModel.parts.isEmpty
-                        ? "Lege dein erstes Ersatzteil an — Bestand und Verbrauch werden automatisch geführt."
-                        : "Kein Teil passt zu Suche oder Filter.",
+                    title: emptyPartsTitle,
+                    message: emptyPartsMessage,
                     icon: "shippingbox.fill"
                 )
                 .padding(.top, 40)
