@@ -148,16 +148,12 @@ struct MaintenanceDetailView: View {
             statCard(eyebrow: "BEI", value: Formatters.kilometers(record.odo))
         }
 
+        // No Kategorie/Motorrad rows: both already headline the hero (the
+        // category pill and the bike subtitle) — repeating them here is noise.
         DetailSection("ÜBERSICHT") {
             DetailRow(label: "Datum", value: Formatters.mediumDate(record.date), mono: false)
             divider
             DetailRow(label: "Kilometerstand", value: Formatters.kilometers(record.odo))
-            divider
-            DetailRow(label: "Kategorie", value: record.fluidTypeLabel ?? category.label, mono: false)
-            divider
-            DetailRow(label: "Motorrad",
-                      value: "\(viewModel.motorcycle.make) \(viewModel.motorcycle.model)",
-                      mono: false)
         }
 
         detailsSection(category)
