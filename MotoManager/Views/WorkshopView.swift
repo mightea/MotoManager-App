@@ -221,11 +221,36 @@ struct WorkshopView: View {
                 selection: $docScope
             )
 
-            LazyVGrid(
-                columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)],
-                spacing: 10
-            ) {
-                ForEach(displayedDocuments) { doc in
+            if displayedDocuments.isEmpty {
+                // Explain what the segment *means* — "Allgemein" being empty
+                // is expected as long as every document is bound to a bike,
+                // but a blank grid doesn't say so.
+                Text(docScope == .common
+                    ? "Keine allgemeinen Dokumente — Dokumente ohne Motorrad-Zuordnung erscheinen hier."
+                    : "Keine Dokumente für \(motoLabel) erfasst.")
+                    .scaledFont(12, weight: .medium)
+                    .foregroundColor(.white.opacity(0.6))
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 24)
+                    .padding(.horizontal, 16)
+                    .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 18))
+            } else {
+                documentsGrid
+            }
+
+            UploadDocumentRow {
+                // Upload picker hook — wired when document upload lands.
+            }
+        }
+    }
+
+    private var documentsGrid: some View {
+        LazyVGrid(
+            columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)],
+            spacing: 10
+        ) {
+            ForEach(displayedDocuments) { doc in
                     Button {
                         presentedDocument = doc
                     } label: {
@@ -250,11 +275,6 @@ struct WorkshopView: View {
                             Label("Wird geladen …", systemImage: "arrow.down.circle.dotted")
                         }
                     }
-                }
-            }
-
-            UploadDocumentRow {
-                // Upload picker hook — wired when document upload lands.
             }
         }
     }
