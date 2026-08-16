@@ -115,14 +115,6 @@ struct WorkshopView: View {
                             GlassShimmerRow().padding(.horizontal, Theme.Spacing.pageH)
                         }
                     }
-                } else if bothEmpty {
-                    EmptyStateView(
-                        title: "Werkstatt leer",
-                        message: "Drehmomente und Dokumente erscheinen hier.",
-                        icon: "wrench.adjustable.fill"
-                    )
-                    .padding(.horizontal, Theme.Spacing.pageH)
-                    .padding(.top, 40)
                 } else {
                     tirePressureSection
                         .padding(.horizontal, Theme.Spacing.pageH)
