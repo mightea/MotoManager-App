@@ -82,18 +82,40 @@ struct FuelDetailView: View {
         "\(viewModel.motorcycle.make) \(viewModel.motorcycle.model)"
     }
 
-    /// Dimmed, non-interactive map of the fuel stop behind the hero — only
-    /// when the record carries coordinates. The scrim keeps the hero text
+    /// Coordinates from the record itself (locally-created) or the resolved
+    /// user location — synced records only carry `locationId`, so without
+    /// this fallback their station never shows on a map.
+    private var stationCoordinates: (lat: Double, lon: Double, name: String?)? {
+        if let lat = record.latitude, let lon = record.longitude {
+            return (lat, lon, record.locationName)
+        }
+        if let location = viewModel.location(id: record.locationId),
+           let lat = location.latitude, let lon = location.longitude {
+            return (lat, lon, location.name)
+        }
+        return nil
+    }
+
+    /// Resolved station name for display, independent of where the
+    /// coordinates came from.
+    private var stationName: String? {
+        record.locationName ?? viewModel.location(id: record.locationId)?.name
+    }
+
+    /// Dimmed, non-interactive map of the fuel stop behind the hero — for any
+    /// record with resolvable coordinates. The scrim keeps the hero text
     /// legible; the interactive map with "In Karten öffnen" stays in the
     /// TANKSTELLE section below.
     @ViewBuilder
     private var heroMap: some View {
-        if let lat = record.latitude, let lon = record.longitude {
+        if let coords = stationCoordinates {
+            let lat = coords.lat
+            let lon = coords.lon
             Map(initialPosition: .region(MKCoordinateRegion(
                 center: CLLocationCoordinate2D(latitude: lat, longitude: lon),
                 latitudinalMeters: 900, longitudinalMeters: 900
             ))) {
-                Marker(record.locationName ?? "Tankstelle",
+                Marker(coords.name ?? "Tankstelle",
                        coordinate: CLLocationCoordinate2D(latitude: lat, longitude: lon))
                     .tint(Theme.Colors.primary)
             }
@@ -177,9 +199,9 @@ struct FuelDetailView: View {
             }
         }
 
-        if let lat = record.latitude, let lon = record.longitude {
-            stationSection(lat: lat, lon: lon)
-        } else if let location = record.locationName, !location.isEmpty {
+        if let coords = stationCoordinates {
+            stationSection(lat: coords.lat, lon: coords.lon)
+        } else if let location = stationName, !location.isEmpty {
             DetailSection("TANKSTELLE") {
                 DetailRow(label: "Standort", value: location, mono: false)
             }
@@ -200,13 +222,13 @@ struct FuelDetailView: View {
     private func stationSection(lat: Double, lon: Double) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Text("TANKSTELLE\(record.locationName.map { " · \($0.uppercased())" } ?? "")")
+                Text("TANKSTELLE\(stationName.map { " · \($0.uppercased())" } ?? "")")
                     .scaledFont(10, weight: .heavy)
                     .tracking(1.4)
                     .foregroundColor(Theme.Glass.mutedText)
                 Spacer()
                 Button {
-                    openInMaps(lat: lat, lon: lon, name: record.locationName)
+                    openInMaps(lat: lat, lon: lon, name: stationName)
                 } label: {
                     Text("In Karten öffnen")
                         .scaledFont(11, weight: .semibold)
@@ -219,7 +241,7 @@ struct FuelDetailView: View {
                 center: CLLocationCoordinate2D(latitude: lat, longitude: lon),
                 latitudinalMeters: 600, longitudinalMeters: 600
             ))) {
-                Marker(record.locationName ?? "Tankstelle", coordinate: CLLocationCoordinate2D(latitude: lat, longitude: lon))
+                Marker(stationName ?? "Tankstelle", coordinate: CLLocationCoordinate2D(latitude: lat, longitude: lon))
                     .tint(Theme.Colors.primary)
             }
             .frame(height: 180)
