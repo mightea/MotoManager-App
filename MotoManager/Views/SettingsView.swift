@@ -21,18 +21,20 @@ struct SettingsView: View {
                 logoutButton
                     .padding(.horizontal, 14)
                     .padding(.top, 4)
-
-                Text(versionString)
-                    .scaledFont(10, weight: .medium)
-                    .foregroundColor(.white.opacity(0.35))
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 4)
             }
             .padding(.top, 4)
             .padding(.bottom, 24)
         }
         .safeAreaInset(edge: .top, spacing: 0) {
             header
+        }
+        // Pinned to the bottom of the sheet, independent of scroll content.
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            Text(versionString)
+                .scaledFont(10, weight: .medium)
+                .foregroundColor(.white.opacity(0.35))
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 10)
         }
         .background(sheetBackground)
     }
