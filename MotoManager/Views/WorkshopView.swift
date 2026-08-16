@@ -135,9 +135,8 @@ struct WorkshopView: View {
         .refreshable {
             await viewModel.reconnect()
         }
-        .sheet(item: $presentedDocument) { doc in
+        .navigationDestination(item: $presentedDocument) { doc in
             DocumentViewerView(document: doc)
-                .glassSheet()
         }
         .sheet(isPresented: $showingAddTorque) {
             AddTorqueView(viewModel: viewModel)
