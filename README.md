@@ -38,6 +38,26 @@ Tests use Swift Testing. If your shell exports `LD` (e.g. a Nix dev shell),
 prefix the commands with `env -u LD -u LD_FOR_TARGET` — Xcode otherwise picks
 it up as the linker driver and the link phase fails.
 
+### Local backend for testing
+
+Debug builds honour a base-URL override (UserDefaults key
+`com.motomanager.baseURL`), so the app can be pointed at a locally running
+`MotoManagerApi` with a throwaway database — useful for reproducing states
+the production account can't, such as a freshly created motorcycle:
+
+```sh
+# in ../MotoManagerApi — registration is open while the users table is empty
+DATABASE_URL="sqlite:/tmp/test.sqlite?mode=rwc" PORT=3010 ENABLE_REGISTRATION=true cargo run
+# point the simulator app at it (delete the key to go back to production)
+xcrun simctl spawn booted defaults write ltd.herrmann.MotoManager \
+  com.motomanager.baseURL "http://localhost:3010"
+```
+
+For scripted UI checks, [idb](https://fbidb.io) (`brew install
+facebook/fb/idb-companion` plus the `fb-idb` pip client) drives taps and
+swipes on the simulator reliably; screenshots come from
+`xcrun simctl io booted screenshot`.
+
 See `AGENTS.md` for the detailed contributor/agent guide (architecture,
 sync invariants, conventions).
 

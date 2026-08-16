@@ -40,7 +40,38 @@ env -u LD -u LD_FOR_TARGET xcodebuild build -scheme MotoManager \
   -destination 'platform=iOS Simulator,name=iPhone 17 Pro'
 ```
 
-Same `env -u LD` wrapper works for `xcodebuild test` and `xcrun swift`. The built `.app` installs/launches via `xcrun simctl` on the booted `iPhone 17 Pro` (iOS 26.5) — bundle id `ltd.herrmann.MotoManager`. Note `idb` is **not** installed, so drive the simulator with `simctl` (install/launch/screenshot) and AppleScript / CoreGraphics HID events for taps.
+Same `env -u LD` wrapper works for `xcodebuild test` and `xcrun swift`. The built `.app` installs/launches via `xcrun simctl` on the booted `iPhone 17 Pro` (iOS 26.5) — bundle id `ltd.herrmann.MotoManager`.
+
+## Driving the simulator (UI verification)
+
+`idb` **is installed** (client via pipx at `~/.local/bin/idb`; `idb_companion` via `brew install facebook/fb/idb-companion` — the tap-qualified name matters, plain `idb-companion` resolves to an unrelated cask). Use it for taps and swipes; it is deterministic where AppleScript/CGEvent hacks are not:
+
+```sh
+UDID=$(idb list-targets | awk -F'|' '/Booted.*simulator/ {gsub(/ /,"",$2); print $2}')
+idb ui tap   --udid $UDID 158 821                      # coordinates in device POINTS (402×874 on iPhone 17 Pro)
+idb ui swipe --udid $UDID --duration 0.4 200 700 200 250
+xcrun simctl io booted screenshot shot.png
+```
+
+Gotchas: without the companion installed, gesture tools hang for ~120s. Accessibility-tree queries report scroll-*content* coordinates that shift as you scroll — re-query right before tapping.
+
+### Fabricating data scenarios (local API)
+
+To verify states the production account can't produce (e.g. a motorcycle with zero workshop data), run `../MotoManagerApi` against a throwaway DB and repoint the Debug app — the base URL override (`NetworkManager`, UserDefaults key `com.motomanager.baseURL`) only exists in Debug builds:
+
+```sh
+# 1. API on a scratch DB (registration is always open while the users table is empty)
+DATABASE_URL="sqlite:/tmp/test.sqlite?mode=rwc" PORT=3010 ENABLE_REGISTRATION=true \
+  BACKUP_ENABLED=false DATA_DIR=/tmp/mm-data CACHE_DIR=/tmp/mm-cache cargo run
+# 2. Register (returns a Bearer token directly); create a bike (multipart, make+model required)
+curl -X POST localhost:3010/api/auth/register -H 'Content-Type: application/json' \
+  -d '{"name":"T","email":"t@example.com","username":"t","password":"pw","confirmPassword":"pw"}'
+curl -X POST localhost:3010/api/motorcycles -H "Authorization: Bearer $TOKEN" -F make=Yamaha -F model=XT
+# 3. Point the app at it; restore with `defaults delete` afterwards
+xcrun simctl spawn booted defaults write ltd.herrmann.MotoManager com.motomanager.baseURL "http://localhost:3010"
+```
+
+Caveats: the app may briefly show stale cached motorcycles from the previous backend (`CacheStore` persists per container), and hitting any backend with an expired/foreign token triggers the 401 → logout path — the user has to log in again on prod afterwards.
 
 New `.swift` files under `MotoManager/` are auto-included (Xcode 26 `PBXFileSystemSynchronizedRootGroup`) — no `project.pbxproj` edit needed.
 
