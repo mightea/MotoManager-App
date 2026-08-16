@@ -19,6 +19,10 @@ struct StatStrip: View {
                         .frame(maxWidth: .infinity)
                 }
             }
+            // Equal-height tiles: the row takes the tallest tile's ideal
+            // height, and the maxHeight-infinity tiles stretch to fill it —
+            // tiles without a unit line would otherwise render shorter.
+            .fixedSize(horizontal: false, vertical: true)
         }
     }
 
@@ -44,7 +48,7 @@ struct StatStrip: View {
                     .lineLimit(1)
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .padding(.horizontal, 11)
         .padding(.vertical, 10)
         .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 14))
