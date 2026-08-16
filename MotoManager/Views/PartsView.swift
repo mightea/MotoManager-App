@@ -19,6 +19,8 @@ struct PartsView: View {
     @State private var pendingScan: ScannedLabel?
     @State private var selectedLocation: SDStorageLocation?
     @State private var showingScanNotFound = false
+    @State private var showingAddLocation = false
+    @State private var newLocationName = ""
     @FocusState private var searchFocused: Bool
     @ObservedObject private var connectivity = ConnectivityMonitor.shared
 
@@ -72,13 +74,13 @@ struct PartsView: View {
         // (without either, the custom tab bar stays buried behind the keyboard).
         .scrollDismissesKeyboard(.immediately)
         .background(Color.clear)
-        // Add and label scanning are only meaningful for the user's own
-        // inventory; scanning also resolves bin labels, so it stays available
-        // on the Lagerorte segment.
+        // Adding targets whatever the segment shows (part or storage
+        // location); the public segment is read-only. Scanning also resolves
+        // bin labels, so it stays available on the Lagerorte segment.
         .bottomActionBar(
             detailVM: detailVM,
-            addLabel: tab == .mine ? "Teil hinzufügen" : nil,
-            addAction: tab == .mine ? { showingAddPart = true } : nil,
+            addLabel: addLabel,
+            addAction: addAction,
             secondaryIcon: tab != .publicParts ? "qrcode.viewfinder" : nil,
             secondaryLabel: tab != .publicParts ? "Etikett scannen" : nil,
             secondaryAction: tab != .publicParts ? { showingScanner = true } : nil
@@ -122,6 +124,36 @@ struct PartsView: View {
         } message: {
             Text("Zu diesem QR-Code gibt es lokal keinen Eintrag. Möglicherweise wurde er noch nicht synchronisiert — zum Aktualisieren nach unten ziehen.")
         }
+        .alert("Neuer Lagerort", isPresented: $showingAddLocation) {
+            TextField("Name, z. B. Regal A", text: $newLocationName)
+            Button("Abbrechen", role: .cancel) { newLocationName = "" }
+            Button("Anlegen", action: createLocation)
+        } message: {
+            Text("Untergeordnete Lagerorte lassen sich im Lagerort selbst anlegen.")
+        }
+    }
+
+    private var addLabel: String? {
+        switch tab {
+        case .mine: "Teil hinzufügen"
+        case .locations: "Lagerort hinzufügen"
+        case .publicParts: nil
+        }
+    }
+
+    private var addAction: (() -> Void)? {
+        switch tab {
+        case .mine: { showingAddPart = true }
+        case .locations: { showingAddLocation = true }
+        case .publicParts: nil
+        }
+    }
+
+    private func createLocation() {
+        let name = newLocationName.trimmingCharacters(in: .whitespaces)
+        newLocationName = ""
+        guard !name.isEmpty else { return }
+        viewModel.createStorageLocation(name: name, parent: nil)
     }
 
     /// Opens the scanned part/location, or the not-found alert for ids that
@@ -311,7 +343,7 @@ struct PartsView: View {
             EmptyStateView(
                 title: viewModel.storageLocations.isEmpty ? "Keine Lagerorte" : "Keine Treffer",
                 message: viewModel.storageLocations.isEmpty
-                    ? "Lagerorte entstehen beim Erfassen von Beständen — oder scanne ein Etikett."
+                    ? "Lege mit dem Plus-Button einen Lagerort an — sie entstehen auch beim Erfassen von Beständen."
                     : "Kein Lagerort passt zur Suche.",
                 icon: "archivebox.fill"
             )
