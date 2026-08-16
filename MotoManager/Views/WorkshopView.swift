@@ -326,10 +326,10 @@ struct WorkshopView: View {
 
     private func chip(_ label: String) -> some View {
         let active = label == selectedTorqueGroup
+        // No withAnimation on the state change — a global transaction animates
+        // the header pills too. The chip's own change is scoped below.
         return Button {
-            withAnimation(.easeOut(duration: 0.2)) {
-                selectedTorqueGroup = label
-            }
+            selectedTorqueGroup = label
         } label: {
             Text(label)
                 .scaledFont(12, weight: .semibold)
@@ -343,6 +343,7 @@ struct WorkshopView: View {
                     in: Capsule()
                 )
         }
+        .animation(.easeOut(duration: 0.2), value: selectedTorqueGroup)
     }
 
     private var torqueTable: some View {

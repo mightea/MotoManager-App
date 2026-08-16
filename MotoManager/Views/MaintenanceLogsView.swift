@@ -236,7 +236,9 @@ struct MaintenanceLogsView: View {
             ForEach(HistoryFilter.allCases, id: \.rawValue) { filter in
                 let active = filter == historyFilter
                 Button {
-                    withAnimation(.easeOut(duration: 0.2)) { historyFilter = filter }
+                    // No withAnimation: a global transaction would animate the
+                    // header pills and everything else driven by the filter.
+                    historyFilter = filter
                 } label: {
                     Text(filter.rawValue)
                         .scaledFont(12, weight: .semibold)
@@ -254,6 +256,8 @@ struct MaintenanceLogsView: View {
             }
             Spacer(minLength: 0)
         }
+        // Scoped like GlassSegmentedControl: only the chips animate.
+        .animation(.easeOut(duration: 0.2), value: historyFilter)
     }
 
     @ViewBuilder
