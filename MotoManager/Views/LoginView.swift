@@ -8,23 +8,40 @@ import SwiftUI
 /// - Motorsport stripe at top.
 /// - MM wheel brand mark + wordmark + eyebrow.
 /// - "Willkommen zurück." headline + sub-line.
-/// - Glass form card with username + password (show/hide), primary "Anmelden"
-///   button, "Oder" divider, and secondary "Mit Passkey anmelden" button.
+/// - Glass form card with server URL, username + password (show/hide),
+///   primary "Anmelden" button, "Oder" divider, and secondary
+///   "Mit Passkey anmelden" button.
 struct LoginView: View {
     @EnvironmentObject var authVM: AuthViewModel
 
+    @State private var serverURL: String = NetworkManager.shared.baseURL
     @State private var identifier: String = ""
     @State private var password: String = ""
     @State private var showPassword: Bool = false
     @FocusState private var focusedField: Field?
 
-    private enum Field { case identifier, password }
+    private enum Field { case server, identifier, password }
 
     /// BMW R 80 G/S photo on Wikimedia Commons (CC BY-SA 3.0, Gastair).
     private let heroImageURL = URL(string: "https://upload.wikimedia.org/wikipedia/commons/thumb/2/28/BMW_R80GS_GENUINE_7.JPG/1280px-BMW_R80GS_GENUINE_7.JPG")!
 
+    /// The entered server URL, trimmed and without trailing slashes — or nil
+    /// when it isn't a usable http(s) URL. Requests append `/api/...` paths,
+    /// so the stored base must not end in a slash.
+    private var normalizedServerURL: String? {
+        var trimmed = serverURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        while trimmed.hasSuffix("/") { trimmed = String(trimmed.dropLast()) }
+        guard let url = URL(string: trimmed),
+              let scheme = url.scheme?.lowercased(),
+              scheme == "http" || scheme == "https",
+              url.host() != nil
+        else { return nil }
+        return trimmed
+    }
+
     private var canSubmit: Bool {
-        !identifier.trimmingCharacters(in: .whitespaces).isEmpty
+        normalizedServerURL != nil
+            && !identifier.trimmingCharacters(in: .whitespaces).isEmpty
             && !password.isEmpty
             && !authVM.isLoading
     }
@@ -159,6 +176,15 @@ struct LoginView: View {
     private var form: some View {
         VStack(spacing: 10) {
             inputField(
+                label: "SERVER",
+                icon: "server.rack",
+                text: $serverURL,
+                placeholder: "https://moto.example.com",
+                contentType: .URL,
+                field: .server,
+                keyboard: .URL
+            )
+            inputField(
                 label: "BENUTZERNAME",
                 icon: "person.fill",
                 text: $identifier,
@@ -225,6 +251,7 @@ struct LoginView: View {
         placeholder: String,
         contentType: UITextContentType,
         field: Field,
+        keyboard: UIKeyboardType = .default,
         isSecure: Bool = false,
         trailing: AnyView? = nil
     ) -> some View {
@@ -249,16 +276,20 @@ struct LoginView: View {
                 }
                 .focused($focusedField, equals: field)
                 .textContentType(contentType)
+                .keyboardType(keyboard)
                 .textInputAutocapitalization(.never)
-                .autocorrectionDisabled(field == .identifier || field == .password)
+                .autocorrectionDisabled(true)
                 .scaledFont(16, weight: .semibold)
                 .foregroundColor(.white)
-                .submitLabel(field == .identifier ? .next : .go)
+                .submitLabel(field == .password ? .go : .next)
                 .onSubmit {
-                    if field == .identifier {
+                    switch field {
+                    case .server:
+                        focusedField = .identifier
+                    case .identifier:
                         focusedField = .password
-                    } else if canSubmit {
-                        submit()
+                    case .password:
+                        if canSubmit { submit() }
                     }
                 }
 
@@ -320,6 +351,7 @@ struct LoginView: View {
 
     private var passkeyButton: some View {
         Button {
+            applyServerURL()
             Task {
                 await authVM.loginWithPasskey(username: identifier.isEmpty ? nil : identifier)
             }
@@ -334,10 +366,18 @@ struct LoginView: View {
             .frame(height: 50)
         }
         .glassActionButton(.secondary, in: .roundedRectangle(radius: 14))
-        .disabled(authVM.isLoading)
+        .disabled(authVM.isLoading || normalizedServerURL == nil)
+    }
+
+    /// Persists the entered server URL so the login request (and every call
+    /// after it) targets the chosen backend.
+    private func applyServerURL() {
+        guard let base = normalizedServerURL, base != NetworkManager.shared.baseURL else { return }
+        NetworkManager.shared.baseURL = base
     }
 
     private func submit() {
+        applyServerURL()
         Task {
             await authVM.login(identifier: identifier, password: password)
         }

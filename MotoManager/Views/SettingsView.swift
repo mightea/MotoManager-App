@@ -1,22 +1,11 @@
 import SwiftUI
 
-/// Sectioned-card settings sheet. Only functional entries: the dev-only
-/// backend switcher (compiled into Debug builds exclusively, so TestFlight
-/// and App Store builds can never leave the production API), the logout
-/// button, and a version footer fed from the bundle's marketing version and
-/// build number.
+/// Sectioned-card settings sheet. Only functional entries: the logout
+/// button and a version footer fed from the bundle's marketing version and
+/// build number. The server URL is chosen on the login screen, not here.
 struct SettingsView: View {
     @EnvironmentObject var authVM: AuthViewModel
     @Environment(\.dismiss) var dismiss
-
-    #if DEBUG
-    @State private var selectedBaseURL = NetworkManager.shared.baseURL
-
-    private let environments: [(String, String)] = [
-        ("Production", "https://moto-api.herrmann.ltd"),
-        ("Development", "http://localhost:3001")
-    ]
-    #endif
 
     /// "v0.2.0 (302)" — CI stamps MARKETING_VERSION and the build number
     /// into the archive; local builds show the project defaults.
@@ -29,10 +18,6 @@ struct SettingsView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
-                #if DEBUG
-                section(title: "ENTWICKLUNG") { envPicker }
-                #endif
-
                 logoutButton
                     .padding(.horizontal, 14)
                     .padding(.top, 4)
@@ -74,90 +59,6 @@ struct SettingsView: View {
         .padding(.bottom, 10)
         .glassEffect(.regular, in: Rectangle())
     }
-
-    // MARK: - Development section (Debug builds only)
-
-    #if DEBUG
-    private func section(title: String, @ViewBuilder content: () -> some View) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(title)
-                .scaledFont(10, weight: .heavy)
-                .tracking(1.2)
-                .foregroundColor(Theme.Glass.mutedText)
-                .padding(.horizontal, 26)
-                .padding(.bottom, 2)
-
-            VStack(spacing: 0) {
-                content()
-            }
-            .background(
-                RoundedRectangle(cornerRadius: Theme.Glass.fieldRadius)
-                    .fill(Color.white.opacity(0.06))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: Theme.Glass.fieldRadius)
-                    .stroke(Theme.Glass.hairline, lineWidth: 0.5)
-            )
-            .padding(.horizontal, 14)
-        }
-    }
-
-    private var envPicker: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 12) {
-                settingIcon("server.rack")
-
-                Text("Backend")
-                    .scaledFont(14, weight: .medium)
-                    .foregroundColor(.white)
-                Spacer(minLength: 0)
-                Picker("Backend", selection: $selectedBaseURL) {
-                    ForEach(environments, id: \.1) { name, url in
-                        Text(name).tag(url)
-                    }
-                }
-                .pickerStyle(.menu)
-                .tint(Theme.Glass.mutedText)
-                .onChange(of: selectedBaseURL) { _, newValue in
-                    NetworkManager.shared.baseURL = newValue
-                    authVM.resetSession()
-                }
-            }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 11)
-
-            Divider()
-                .background(Color.white.opacity(0.06))
-                .padding(.leading, 56)
-
-            HStack(spacing: 12) {
-                settingIcon("network")
-                Text("Endpoint")
-                    .scaledFont(14, weight: .medium)
-                    .foregroundColor(.white)
-                Spacer(minLength: 0)
-                Text(selectedBaseURL)
-                    .scaledFont(11, design: .monospaced)
-                    .foregroundColor(Theme.Glass.mutedText)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                    .frame(maxWidth: 180, alignment: .trailing)
-            }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 11)
-        }
-    }
-
-    private func settingIcon(_ systemImage: String) -> some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 8).fill(Color.white.opacity(0.10))
-            Image(systemName: systemImage)
-                .scaledFont(13, weight: .semibold)
-                .foregroundColor(.white.opacity(0.75))
-        }
-        .frame(width: 30, height: 30)
-    }
-    #endif
 
     // MARK: - Logout
 

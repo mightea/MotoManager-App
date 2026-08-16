@@ -23,5 +23,10 @@
 	     so TestFlight builds skip the manual encryption question. -->
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
+	<!-- Pre-filled server URL on the login screen. Empty in repo builds
+	     (users enter their own server); CI injects the production URL via
+	     the MM_DEFAULT_BASE_URL build setting from a GitHub secret. -->
+	<key>MMDefaultBaseURL</key>
+	<string>$(MM_DEFAULT_BASE_URL)</string>
 </dict>
 </plist>

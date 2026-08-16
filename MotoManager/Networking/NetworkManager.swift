@@ -5,18 +5,21 @@ class NetworkManager {
     static let unauthorizedNotification = Notification.Name("com.motomanager.unauthorized")
 
     private let baseURLKey = "com.motomanager.baseURL"
-    private let defaultBaseURL = "https://moto-api.herrmann.ltd"
 
-    // Release builds always talk to production: the settings switcher only
-    // exists in Debug builds, and pinning here also rescues devices that
-    // persisted a dev URL through an older build that still shipped it.
+    /// Baked in at build time via the `MMDefaultBaseURL` Info.plist key
+    /// (`MM_DEFAULT_BASE_URL` build setting — empty in repo builds, injected
+    /// from a CI secret for TestFlight). Empty means the login screen's
+    /// server field starts blank and the user supplies their own server.
+    private var defaultBaseURL: String {
+        (Bundle.main.object(forInfoDictionaryKey: "MMDefaultBaseURL") as? String)?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    }
+
+    // User-editable from the login screen (self-hosted deployments); persists
+    // across launches and falls back to the build's default when never set.
     var baseURL: String {
         get {
-            #if DEBUG
             UserDefaults.standard.string(forKey: baseURLKey) ?? defaultBaseURL
-            #else
-            defaultBaseURL
-            #endif
         }
         set {
             UserDefaults.standard.set(newValue, forKey: baseURLKey)

@@ -26,6 +26,10 @@
 #     DIST_CERT_PASSWORD   password of that p12
 #     DIST_PROFILE_B64     App Store provisioning profile for the app's
 #                          bundle id, base64 .mobileprovision
+#     DEFAULT_SERVER_URL   server URL baked into the build as the pre-filled
+#                          login default (MMDefaultBaseURL). The repo default
+#                          is empty, so builds without this secret start with
+#                          a blank server field.
 #   variables:
 #     APPLE_TEAM_ID        the paid team's ID (not the personal team)
 #
@@ -150,6 +154,7 @@ jobs:
           ASC_API_KEY_ID: ${{ secrets.ASC_API_KEY_ID }}
           ASC_API_ISSUER_ID: ${{ secrets.ASC_API_ISSUER_ID }}
           APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
+          DEFAULT_SERVER_URL: ${{ secrets.DEFAULT_SERVER_URL }}
         run: |
           set -euo pipefail
           xcodebuild archive \
@@ -165,6 +170,7 @@ jobs:
             CODE_SIGN_STYLE=Automatic \
             DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
             CURRENT_PROJECT_VERSION="${{ steps.version.outputs.build_number }}" \
+            MM_DEFAULT_BASE_URL="$DEFAULT_SERVER_URL" \
             ${{ steps.version.outputs.marketing_args }} \
             | tail -60
 
