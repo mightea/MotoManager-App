@@ -4,7 +4,7 @@ Guidance for AI coding agents working in this repository. Read this before explo
 
 ## Project Summary
 
-**MotoManager** is a SwiftUI iOS app for managing a personal motorcycle fleet — fuel logs and consumption analytics, service/maintenance records, torque specs, and a document vault. It is backed by a private API at `https://moto-api.herrmann.ltd` (JWT auth, with passkey/WebAuthn support).
+**MotoManager** is a SwiftUI iOS app for managing a personal motorcycle fleet — fuel logs and consumption analytics, service/maintenance records, torque specs, and a document vault. It is backed by a self-hosted private API (JWT auth, with passkey/WebAuthn support); the server URL is entered on the login screen.
 
 ## Build & Run
 
@@ -84,7 +84,7 @@ MotoManager/
 
 Singleton at `MotoManager/Networking/NetworkManager.swift`.
 
-- **Base URL**: stored in `UserDefaults` under `com.motomanager.baseURL`, defaulting to `https://moto-api.herrmann.ltd`. Always go through `NetworkManager.shared.baseURL` — do not hardcode the URL.
+- **Base URL**: stored in `UserDefaults` under `com.motomanager.baseURL`, entered by the user on the login screen. The build-time default comes from the `MMDefaultBaseURL` Info.plist key (`MM_DEFAULT_BASE_URL` build setting — empty in repo builds, injected from the `DEFAULT_SERVER_URL` CI secret for TestFlight). Always go through `NetworkManager.shared.baseURL` — do not hardcode a URL.
 - **Auth**: JWT bearer token, stored in Keychain via `MotoManager/Networking/KeychainHelper.swift` (service `com.motomanager.auth`, account `jwt-token`). Use `NetworkManager.saveToken(_:)`, `getToken()`, `deleteToken()` — do not touch the Keychain directly from elsewhere.
 - **401 handling**: `NetworkManager.performRequest` posts `NetworkManager.unauthorizedNotification` (`com.motomanager.unauthorized`) on a 401 response. `AuthViewModel` observes this and clears the session.
 - **Passkey login**: WebAuthn types live in `Models/AuthModels.swift`; `NetworkManager` exposes `fetchPasskeyLoginOptions` / `verifyPasskeyLogin`.
@@ -152,7 +152,7 @@ fix(networking): handle 401 retry
 - Don't introduce `NavigationView` — use `NavigationStack`.
 - Don't introduce XCTest in `MotoManagerTests/` — use Swift Testing.
 - Don't add CocoaPods / SPM dependencies without discussion. The repo is intentionally dependency-free.
-- Don't hardcode `https://moto-api.herrmann.ltd` — read it from `NetworkManager.shared.baseURL`.
+- Don't hardcode any server URL — read it from `NetworkManager.shared.baseURL`.
 - Don't read or write the JWT directly — go through `NetworkManager`.
 - Don't migrate ViewModels to `@Observable` piecemeal — either all or none.
 

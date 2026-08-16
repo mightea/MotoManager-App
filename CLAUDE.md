@@ -1,6 +1,6 @@
 # MotoManager (iOS)
 
-**MotoManager** is a SwiftUI iOS app for managing a personal motorcycle fleet — fuel logs and consumption analytics, service/maintenance records, torque specs, and a document vault. It is backed by the Rust/Axum API in `../MotoManagerApi` (deployed at `https://moto-api.herrmann.ltd`).
+**MotoManager** is a SwiftUI iOS app for managing a personal motorcycle fleet — fuel logs and consumption analytics, service/maintenance records, torque specs, and a document vault. It is backed by the Rust/Axum API in `../MotoManagerApi` (self-hosted; the server URL is entered on the login screen, and TestFlight builds get a pre-filled default injected from a CI secret).
 
 > **`AGENTS.md` in this directory is the canonical, detailed guide.** Read it first. This file only summarizes the essentials and the gotchas that bite most often. Where the two ever disagree, AGENTS.md wins — but note the corrections below, which apply to both.
 
@@ -57,7 +57,7 @@ Gotchas: without the companion installed, gesture tools hang for ~120s. Accessib
 
 ### Fabricating data scenarios (local API)
 
-To verify states the production account can't produce (e.g. a motorcycle with zero workshop data), run `../MotoManagerApi` against a throwaway DB and repoint the Debug app — the base URL override (`NetworkManager`, UserDefaults key `com.motomanager.baseURL`) only exists in Debug builds:
+To verify states the production account can't produce (e.g. a motorcycle with zero workshop data), run `../MotoManagerApi` against a throwaway DB and point the app at it via the **Server field on the login screen** (persisted in UserDefaults key `com.motomanager.baseURL`; defaults to production):
 
 ```sh
 # 1. API on a scratch DB (registration is always open while the users table is empty)
@@ -67,11 +67,11 @@ DATABASE_URL="sqlite:/tmp/test.sqlite?mode=rwc" PORT=3010 ENABLE_REGISTRATION=tr
 curl -X POST localhost:3010/api/auth/register -H 'Content-Type: application/json' \
   -d '{"name":"T","email":"t@example.com","username":"t","password":"pw","confirmPassword":"pw"}'
 curl -X POST localhost:3010/api/motorcycles -H "Authorization: Bearer $TOKEN" -F make=Yamaha -F model=XT
-# 3. Point the app at it; restore with `defaults delete` afterwards
-xcrun simctl spawn booted defaults write ltd.herrmann.MotoManager com.motomanager.baseURL "http://localhost:3010"
+# 3. In the app: log out if needed, enter http://localhost:3010 in the login screen's
+#    SERVER field, and sign in as the test user.
 ```
 
-Caveats: the app may briefly show stale cached motorcycles from the previous backend (`CacheStore` persists per container), and hitting any backend with an expired/foreign token triggers the 401 → logout path — the user has to log in again on prod afterwards.
+Caveats: the app may briefly show stale cached motorcycles from the previous backend (`CacheStore` persists per container), and hitting any backend with an expired/foreign token triggers the 401 → logout path. **`xcrun simctl spawn booted defaults write ltd.herrmann.MotoManager …` does NOT reach the app's real preferences** — the app reads the plist inside its data container (`simctl get_app_container … data` → `Library/Preferences/ltd.herrmann.MotoManager.plist`, editable with PlistBuddy while the app is terminated); use the login screen's Server field instead.
 
 New `.swift` files under `MotoManager/` are auto-included (Xcode 26 `PBXFileSystemSynchronizedRootGroup`) — no `project.pbxproj` edit needed.
 

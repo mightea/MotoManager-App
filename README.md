@@ -40,18 +40,20 @@ it up as the linker driver and the link phase fails.
 
 ### Local backend for testing
 
-Debug builds honour a base-URL override (UserDefaults key
-`com.motomanager.baseURL`), so the app can be pointed at a locally running
-`MotoManagerApi` with a throwaway database — useful for reproducing states
-the production account can't, such as a freshly created motorcycle:
+The login screen has a server field (persisted; repo builds start blank,
+while CI-built TestFlight binaries pre-fill a default injected from the
+`DEFAULT_SERVER_URL` secret). The app can therefore be pointed at a locally
+running `MotoManagerApi` with a throwaway database — useful for self-hosted
+deployments and for reproducing states a production account can't, such as
+a freshly created motorcycle:
 
 ```sh
 # in ../MotoManagerApi — registration is open while the users table is empty
 DATABASE_URL="sqlite:/tmp/test.sqlite?mode=rwc" PORT=3010 ENABLE_REGISTRATION=true cargo run
-# point the simulator app at it (delete the key to go back to production)
-xcrun simctl spawn booted defaults write ltd.herrmann.MotoManager \
-  com.motomanager.baseURL "http://localhost:3010"
 ```
+
+Then enter `http://localhost:3010` in the login screen's server field and
+sign in.
 
 For scripted UI checks, [idb](https://fbidb.io) (`brew install
 facebook/fb/idb-companion` plus the `fb-idb` pip client) drives taps and
