@@ -62,7 +62,7 @@ final class DocumentThumbnailer {
                    scale: CGFloat) async -> UIImage? {
         guard Self.kind(for: document) != .other else { return nil }
 
-        let url = Self.resolvedURL(for: document)
+        let url = document.remoteFileURL
         let key = url as NSString
         if let cached = cache.object(forKey: key) { return cached }
 
@@ -84,14 +84,4 @@ final class DocumentThumbnailer {
         return DocumentCache.shared.save(data, for: url)
     }
 
-    /// Mirror of `DocumentViewerView.resolvedURL` so the thumbnail and the viewer
-    /// resolve to the same cache key.
-    private static func resolvedURL(for document: Document) -> String {
-        let path = document.filePath
-        if path.hasPrefix("http") { return path }
-        let base = NetworkManager.shared.baseURL
-        let trimmedBase = base.hasSuffix("/") ? String(base.dropLast()) : base
-        let prefixedPath = path.hasPrefix("/") ? path : "/\(path)"
-        return trimmedBase + prefixedPath
-    }
 }

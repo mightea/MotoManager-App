@@ -92,6 +92,7 @@ class AuthViewModel: NSObject, ObservableObject {
         CacheStore.shared.clearAll()
         ImageCache.shared.clearAll()
         DocumentCache.shared.clearAll()
+        DocumentOfflineStore.shared.clearAll()
         // Drop synced SwiftData rows and all sync cursors: a different account
         // must not inherit this user's local data or cursors (stale cursors
         // would silently skip the other account's records on first sync).

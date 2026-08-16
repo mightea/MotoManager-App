@@ -204,7 +204,7 @@ struct DocumentViewerView: View {
     private func load() async {
         loadFailed = false
         loadWasOffline = false
-        let urlString = resolvedURL(for: document)
+        let urlString = document.remoteFileURL
 
         if let cached = DocumentCache.shared.cachedFileURL(for: urlString) {
             present(cached)
@@ -253,14 +253,6 @@ struct DocumentViewerView: View {
         }
     }
 
-    private func resolvedURL(for document: Document) -> String {
-        let path = document.filePath
-        if path.hasPrefix("http") { return path }
-        let base = NetworkManager.shared.baseURL
-        let trimmedBase = base.hasSuffix("/") ? String(base.dropLast()) : base
-        let prefixedPath = path.hasPrefix("/") ? path : "/\(path)"
-        return trimmedBase + prefixedPath
-    }
 }
 
 // MARK: - PDFKit bridge

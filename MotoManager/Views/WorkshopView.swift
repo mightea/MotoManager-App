@@ -3,6 +3,7 @@ import SwiftUI
 struct WorkshopView: View {
     @ObservedObject var viewModel: MotorcycleDetailViewModel
     @State private var presentedDocument: Document?
+    @ObservedObject private var offlineStore = DocumentOfflineStore.shared
     @State private var selectedTorqueGroup: String = "Alle"
     @State private var showingAddTorque = false
     @State private var editingTorque: SDTorqueSpec?
@@ -228,9 +229,27 @@ struct WorkshopView: View {
                     Button {
                         presentedDocument = doc
                     } label: {
-                        DocumentTile(document: doc)
+                        DocumentTile(document: doc, offlineStatus: offlineStore.status(of: doc))
                     }
                     .buttonStyle(.plain)
+                    .contextMenu {
+                        switch offlineStore.status(of: doc) {
+                        case .available:
+                            Button(role: .destructive) {
+                                offlineStore.removeOffline(doc)
+                            } label: {
+                                Label("Offline-Kopie entfernen", systemImage: "xmark.icloud")
+                            }
+                        case .notAvailable:
+                            Button {
+                                offlineStore.makeAvailableOffline(doc)
+                            } label: {
+                                Label("Offline verfügbar machen", systemImage: "arrow.down.circle")
+                            }
+                        case .downloading:
+                            Label("Wird geladen …", systemImage: "arrow.down.circle.dotted")
+                        }
+                    }
                 }
                 UploadDocumentTile {
                     // Upload picker hook — wired when document upload lands.
@@ -596,6 +615,7 @@ private let documentCardAspect: CGFloat = 0.74
 
 private struct DocumentTile: View {
     let document: Document
+    let offlineStatus: DocumentOfflineStore.Status
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -633,15 +653,37 @@ private struct DocumentTile: View {
                     .foregroundColor(.white)
                     .lineLimit(2, reservesSpace: true)
                     .multilineTextAlignment(.leading)
-                Text(document.createdAt.prefix(10))
-                    .scaledFont(10, weight: .medium)
-                    .foregroundColor(.white.opacity(0.55))
+                HStack(spacing: 6) {
+                    Text(document.createdAt.prefix(10))
+                        .scaledFont(10, weight: .medium)
+                        .foregroundColor(.white.opacity(0.55))
+                    Spacer(minLength: 0)
+                    offlineBadge
+                }
             }
         }
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .topLeading)
         .aspectRatio(documentCardAspect, contentMode: .fit)
         .glassEffect(.regular, in: RoundedRectangle(cornerRadius: Theme.Glass.fieldRadius))
+    }
+
+    @ViewBuilder
+    private var offlineBadge: some View {
+        switch offlineStatus {
+        case .available:
+            Image(systemName: "arrow.down.circle.fill")
+                .scaledFont(11, weight: .semibold)
+                .foregroundColor(.green.opacity(0.85))
+                .accessibilityLabel("Offline verfügbar")
+        case .downloading:
+            ProgressView()
+                .controlSize(.mini)
+                .tint(.white.opacity(0.7))
+                .accessibilityLabel("Wird für offline geladen")
+        case .notAvailable:
+            EmptyView()
+        }
     }
 
     private var fileBadge: String {

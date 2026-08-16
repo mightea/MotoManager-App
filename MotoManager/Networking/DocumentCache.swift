@@ -42,6 +42,11 @@ final class DocumentCache {
         }
     }
 
+    /// Deletes the cached file for `url`, if present.
+    func remove(for url: String) {
+        try? FileManager.default.removeItem(at: directory.appendingPathComponent(filename(for: url)))
+    }
+
     func clearAll() {
         try? FileManager.default.removeItem(at: directory)
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
