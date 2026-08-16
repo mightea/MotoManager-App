@@ -13,22 +13,23 @@ struct FuelListView: View {
         viewModel.fuelRecords
     }
 
+    /// Trailing-10-fills average, matching the trend sparkline's window so the
+    /// headline number and the chart agree (a lifetime mean diverges as soon
+    /// as one old outlier is in the data).
     private var averageConsumption: Double {
-        FuelStats.averageConsumption(fuelRecords)
+        FuelStats.trailingAverageConsumption(fuelRecords, count: 10)
     }
 
     private var lastEntry: SDMaintenanceRecord? { fuelRecords.first }
 
-    private var yearLiters: Double {
-        FuelStats.litersInYear(fuelRecords, year: Calendar.current.component(.year, from: Date()))
+    /// Rolling 12 months instead of the calendar year — a calendar-year sum
+    /// reads "0 L" for most of the year on a seasonal vehicle.
+    private var trailingYearLiters: Double {
+        FuelStats.litersInTrailingYear(fuelRecords)
     }
 
     private var currency: String {
         lastEntry?.currency ?? viewModel.motorcycle.currencyCode ?? "EUR"
-    }
-
-    private var currentYearShort: String {
-        String(Calendar.current.component(.year, from: Date()))
     }
 
     /// Records bucketed by year for the section headers; input is already
@@ -127,7 +128,7 @@ struct FuelListView: View {
             StatTile(
                 eyebrow: "Ø Verbrauch",
                 value: averageConsumption > 0 ? String(format: "%.1f", averageConsumption) : "—",
-                unit: "L / 100 km",
+                unit: "L/100 km · letzte 10",
                 accent: Theme.Colors.primary
             ),
             StatTile(
@@ -136,9 +137,9 @@ struct FuelListView: View {
                 unit: lastEntry?.cost.map { Formatters.currency($0, code: currency, fractionDigits: 0) }
             ),
             StatTile(
-                eyebrow: "Liter \(currentYearShort)",
-                value: String(format: "%.0f", yearLiters),
-                unit: "L"
+                eyebrow: "Liter",
+                value: String(format: "%.0f", trailingYearLiters),
+                unit: "letzte 12 Monate"
             )
         ])
     }
@@ -151,7 +152,7 @@ struct FuelListView: View {
                 Text("Letzte Tankungen".uppercased())
                     .scaledFont(11, weight: .heavy)
                     .tracking(2)
-                    .foregroundColor(.white.opacity(0.55))
+                    .foregroundColor(.white.opacity(0.7))
                 Spacer()
                 Text("\(fuelRecords.count) \(fuelRecords.count == 1 ? "Eintrag" : "Einträge")")
                     .scaledFont(11, weight: .semibold)

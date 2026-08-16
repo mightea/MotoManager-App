@@ -88,7 +88,7 @@ struct RemoteImageView: View {
     private var fallbackImage: some View {
         ZStack {
             Color.secondary.opacity(0.1)
-            Image(systemName: "bicycle")
+            Image(systemName: "motorcycle")
                 .font(.largeTitle)
                 .foregroundColor(.secondary.opacity(0.3))
         }

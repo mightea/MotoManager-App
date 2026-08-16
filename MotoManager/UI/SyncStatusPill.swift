@@ -1,7 +1,9 @@
 import SwiftUI
 
-/// Compact, always-visible indicator of sync state — the "transparent to the
-/// user" surface. Bound to `SyncEngine.status`.
+/// Compact indicator of sync state, bound to `SyncEngine.status`. Shows only
+/// when something is happening or wrong (syncing, pending, offline, error) —
+/// a permanent green "everything is fine" pill is status noise in the
+/// header's most expensive real estate. Silence means synced.
 struct SyncStatusPill: View {
     @EnvironmentObject private var engine: SyncEngine
 
@@ -11,6 +13,15 @@ struct SyncStatusPill: View {
     }
 
     var body: some View {
+        if case .idle = engine.status {
+            EmptyView()
+        } else {
+            pill
+        }
+    }
+
+    @ViewBuilder
+    private var pill: some View {
         let style = style(for: engine.status)
         HStack(spacing: 5) {
             if case .syncing = engine.status {

@@ -60,7 +60,7 @@ struct ServiceIntervalsCard: View {
             Text("SERVICE-INTERVALLE")
                 .scaledFont(11, weight: .heavy)
                 .tracking(2)
-                .foregroundColor(.white.opacity(0.55))
+                .foregroundColor(.white.opacity(0.7))
             Spacer(minLength: 8)
             tally
             Image(systemName: "chevron.down")
@@ -121,7 +121,14 @@ struct ServiceIntervalsCard: View {
                 Text(meta(for: insight))
                     .scaledFont(10, weight: .semibold)
                     .monospacedDigit()
-                    .foregroundColor(.white.opacity(0.5))
+                    .foregroundColor(.white.opacity(0.55))
+                // The rule and the verdict, so a red row is actionable
+                // ("interval is 8 years, you're 3 past it") instead of a bare
+                // colored icon the user has to decode.
+                Text(statusDetail(for: insight))
+                    .scaledFont(10, weight: .semibold)
+                    .monospacedDigit()
+                    .foregroundColor(color(for: insight.status).opacity(0.9))
             }
             Spacer(minLength: 0)
         }
@@ -136,6 +143,21 @@ struct ServiceIntervalsCard: View {
             parts.append("seit \(formatted) km")
         }
         return parts.joined(separator: " · ")
+    }
+
+    /// "Alle 8 Jahre · überfällig seit 3 Jahren" / "… · fällig in 2 Monaten" /
+    /// "… · nächste Mai 2033".
+    private func statusDetail(for insight: MaintenanceInsight) -> String {
+        let rule = insight.intervalYears == 1 ? "Jedes Jahr" : "Alle \(insight.intervalYears) Jahre"
+        let now = Date()
+        switch insight.status {
+        case .overdue:
+            return "\(rule) · überfällig seit \(MaintenanceIntervalsEngine.relativeSpan(from: now, to: insight.nextDate))"
+        case .due:
+            return "\(rule) · fällig in \(MaintenanceIntervalsEngine.relativeSpan(from: now, to: insight.nextDate))"
+        case .ok:
+            return "\(rule) · nächste \(Self.monthYear(insight.nextDate))"
+        }
     }
 
     private func icon(for status: MaintenanceInsight.Status) -> String {

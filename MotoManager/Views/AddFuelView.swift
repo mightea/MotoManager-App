@@ -10,9 +10,10 @@ import SwiftUI
 /// Currency is picked via a small pill in the header; the system .decimalPad
 /// drives all four fields.
 ///
-/// Location, notes, fuelType, and date are intentionally not shown in this
-/// sheet (per design); when editing an existing record they are preserved
-/// from the original record and round-tripped untouched.
+/// Location, notes, and fuelType are intentionally not shown in this sheet
+/// (per design); when editing an existing record they are preserved from the
+/// original record and round-tripped untouched. The date is editable via a
+/// compact row so missed fill-ups can be backdated.
 struct AddFuelView: View {
     @ObservedObject var viewModel: MotorcycleDetailViewModel
     let existingRecord: SDMaintenanceRecord?
@@ -111,6 +112,7 @@ struct AddFuelView: View {
             VStack(spacing: 0) {
                 header
                 fieldStack
+                dateRow
                 if existingRecord == nil {
                     stationRow
                 }
@@ -574,7 +576,7 @@ struct AddFuelView: View {
 
     private var odoHint: String? {
         if let prev = previousFuelEntry {
-            return "letzter Stand: \(prev.odo) km"
+            return "letzter Stand: \(Formatters.kilometers(prev.odo))"
         }
         return nil
     }
@@ -590,10 +592,12 @@ struct AddFuelView: View {
         return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 
+    /// Same robust trailing average the fuel list headlines, so the hint and
+    /// the stat strip never show two different "Ø" values.
     private var averageConsumption: Double? {
-        let values = viewModel.maintenanceRecords.compactMap { $0.fuelConsumption }
-        guard !values.isEmpty else { return nil }
-        return values.reduce(0, +) / Double(values.count)
+        let avg = FuelStats.trailingAverageConsumption(
+            FuelStats.fuelRecords(viewModel.maintenanceRecords), count: 10)
+        return avg > 0 ? avg : nil
     }
 
     private var derivedConsumption: Double? {
@@ -628,6 +632,37 @@ struct AddFuelView: View {
         pricePrepared = true
         let intPart = price.prefix { $0.isNumber }
         price = intPart + "."
+    }
+
+    // MARK: - Date
+
+    /// Compact date row so a missed fill-up can be backdated right when it's
+    /// entered (defaults to today; future dates make no sense for a fill-up).
+    private var dateRow: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "calendar")
+                .scaledFont(14, weight: .semibold)
+                .foregroundColor(Theme.Colors.primary)
+                .frame(width: 22)
+            Text("DATUM")
+                .scaledFont(9, weight: .heavy)
+                .tracking(1)
+                .foregroundColor(Theme.Glass.mutedText)
+            Spacer(minLength: 0)
+            DatePicker("", selection: $date, in: ...Date(), displayedComponents: .date)
+                .labelsHidden()
+                .environment(\.locale, Formatters.displayLocale)
+                .colorScheme(.dark)
+                .tint(Theme.Colors.primary)
+        }
+        .frame(minHeight: 30)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 6)
+        .background(RoundedRectangle(cornerRadius: Theme.Glass.fieldRadius).fill(Color.white.opacity(0.05)))
+        .overlay(RoundedRectangle(cornerRadius: Theme.Glass.fieldRadius).stroke(Theme.Glass.border, lineWidth: 0.5))
+        .padding(.horizontal, 14)
+        .padding(.top, 8)
+        .accessibilityLabel("Datum der Tankung")
     }
 
     // MARK: - Fuel station (GPS detection)

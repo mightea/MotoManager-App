@@ -357,7 +357,8 @@ struct PartsView: View {
                         StorageLocationCard(
                             location: location,
                             parentPath: viewModel.locationParentPath(location),
-                            partCount: viewModel.stockedParts(at: location).count
+                            directCount: viewModel.stockedParts(at: location).count,
+                            totalCount: viewModel.totalStockedPartCount(at: location)
                         )
                     }
                     .buttonStyle(.plain)
@@ -412,7 +413,11 @@ struct PartsView: View {
 private struct StorageLocationCard: View {
     let location: SDStorageLocation
     let parentPath: String?
-    let partCount: Int
+    /// Parts stocked directly at this location.
+    let directCount: Int
+    /// Parts stocked here or in any nested container — what the big number
+    /// shows, so a parent full of stocked boxes never reads "0 Teile".
+    let totalCount: Int
 
     var body: some View {
         HStack(spacing: 12) {
@@ -440,11 +445,11 @@ private struct StorageLocationCard: View {
             Spacer(minLength: 0)
 
             VStack(alignment: .trailing, spacing: 2) {
-                Text("\(partCount)")
+                Text("\(totalCount)")
                     .scaledFont(17, weight: .heavy)
                     .monospacedDigit()
-                    .foregroundColor(partCount > 0 ? Theme.Colors.primary : .white.opacity(0.35))
-                Text(partCount == 1 ? "Teil" : "Teile")
+                    .foregroundColor(totalCount > 0 ? Theme.Colors.primary : .white.opacity(0.35))
+                Text(totalCount != directCount ? "gesamt" : (totalCount == 1 ? "Teil" : "Teile"))
                     .scaledFont(9, weight: .heavy)
                     .tracking(1)
                     .foregroundColor(.white.opacity(0.4))
@@ -479,11 +484,14 @@ private struct PartCard: View {
             }
 
             VStack(alignment: .leading, spacing: 3) {
-                HStack(spacing: 6) {
+                HStack(alignment: .top, spacing: 6) {
+                    // Two lines: similar parts often differ only in the tail
+                    // of the name, which a one-line clamp cuts off.
                     Text(part.name)
                         .scaledFont(15, weight: .bold)
                         .foregroundColor(.white)
-                        .lineLimit(1)
+                        .lineLimit(2)
+                        .multilineTextAlignment(.leading)
                     if part.isPublic {
                         Image(systemName: "globe")
                             .scaledFont(10, weight: .bold)
@@ -548,7 +556,8 @@ private struct PublicPartCard: View {
                 Text(part.name)
                     .scaledFont(15, weight: .bold)
                     .foregroundColor(.white)
-                    .lineLimit(1)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
                 Text(part.partNumber)
                     .scaledFont(11, weight: .semibold)
                     .monospaced()

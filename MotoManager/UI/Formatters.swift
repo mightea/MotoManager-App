@@ -66,6 +66,25 @@ enum Formatters {
         return dayMonthNameFormatter.string(from: date)
     }
 
+    // MARK: - Numbers
+
+    /// Swiss-style grouping (`134'373`), matching how SwiftUI's localized
+    /// `Text` interpolation renders Ints elsewhere in the UI. Use this
+    /// wherever a number is built into a plain `String` (which bypasses
+    /// SwiftUI's localization) so odometer readings format consistently.
+    private static let groupedIntFormatter: NumberFormatter = {
+        let f = NumberFormatter()
+        f.locale = Locale(identifier: "de_CH")
+        f.numberStyle = .decimal
+        return f
+    }()
+
+    /// e.g. `kilometers(134373) -> "134'373 km"`.
+    static func kilometers(_ value: Int) -> String {
+        let number = groupedIntFormatter.string(from: NSNumber(value: value)) ?? "\(value)"
+        return "\(number) km"
+    }
+
     // MARK: - Currency
 
     /// e.g. `currency(12.5, code: "CHF") -> "CHF 12.50"`.

@@ -109,6 +109,23 @@ class PartsViewModel: ObservableObject {
             .sorted { $0.part.name < $1.part.name }
     }
 
+    /// Distinct parts stocked at a location *including* all its descendant
+    /// locations. A parent container showing "0 Teile" while its boxes hold
+    /// parts reads as empty, so list rows display this rolled-up count.
+    func totalStockedPartCount(at location: SDStorageLocation) -> Int {
+        var partIds = Set<UUID>()
+        var queue = [location]
+        var visited = Set<UUID>()
+        while let current = queue.popLast() {
+            guard visited.insert(current.clientId).inserted else { continue }
+            for entry in stockedParts(at: current) {
+                partIds.insert(entry.part.clientId)
+            }
+            queue.append(contentsOf: storageLocations.filter { $0.parentClientId == current.clientId })
+        }
+        return partIds.count
+    }
+
     /// Ancestors only ("Garage › Regal A" for "Kiste 3"); nil for roots.
     /// Used where the location's own name is already shown as the title
     /// (list rows, printed labels) so the name isn't duplicated.

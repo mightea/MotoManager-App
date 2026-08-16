@@ -25,6 +25,9 @@ struct MaintenanceInsight: Identifiable {
     /// Base date the interval counts from (record date or tire DOT date).
     let lastDate: Date
     let nextDate: Date
+    /// The rule behind the status ("alle N Jahre") — shown on the row so an
+    /// overdue/ok verdict is explainable, not just a colored icon.
+    let intervalYears: Int
     let lastOdo: Int?
     let kmsSinceLast: Int?
 
@@ -91,6 +94,7 @@ enum MaintenanceIntervalsEngine {
                 status: Self.status(nextDate: nextDate, now: now),
                 lastDate: baseDate,
                 nextDate: nextDate,
+                intervalYears: intervalYears,
                 lastOdo: record?.odo,
                 kmsSinceLast: kmsSinceLast
             ))
@@ -154,6 +158,22 @@ enum MaintenanceIntervalsEngine {
         }
         let days = max(components.day ?? 0, 0)
         return days == 1 ? "vor 1 Tag" : "vor \(days) Tagen"
+    }
+
+    /// Forward-looking counterpart of `relativeAge`: "in 3 Monaten" /
+    /// "seit 2 Jahren" depending on whether `date` is ahead of or behind `now`.
+    /// Used to spell out how far an interval is overdue or how soon it's due.
+    static func relativeSpan(from now: Date, to date: Date) -> String {
+        let (earlier, later) = date >= now ? (now, date) : (date, now)
+        let components = Calendar.current.dateComponents([.year, .month, .day], from: earlier, to: later)
+        if let years = components.year, years >= 1 {
+            return years == 1 ? "1 Jahr" : "\(years) Jahren"
+        }
+        if let months = components.month, months >= 1 {
+            return months == 1 ? "1 Monat" : "\(months) Monaten"
+        }
+        let days = max(components.day ?? 0, 1)
+        return days == 1 ? "1 Tag" : "\(days) Tagen"
     }
 
     /// Parses the leading `yyyy-MM-dd` of the model's ISO date strings.

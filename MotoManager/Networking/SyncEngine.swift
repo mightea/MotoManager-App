@@ -21,6 +21,12 @@ final class SyncEngine: ObservableObject {
 
     @Published private(set) var status: SyncStatus = .idle
 
+    /// When the last fully successful sync finished. Persisted so the
+    /// Settings sheet can show it across launches.
+    @Published private(set) var lastSyncDate: Date? =
+        UserDefaults.standard.object(forKey: SyncEngine.lastSyncDateKey) as? Date
+    private static let lastSyncDateKey = "com.motomanager.lastSyncDate"
+
     /// Shared with the view models so local writes and pulled changes are consistent.
     private let context: ModelContext = PersistenceController.shared.mainContext
     private let net = NetworkManager.shared
@@ -72,6 +78,8 @@ final class SyncEngine: ObservableObject {
             // records can link to freshly pulled maintenance records.
             try await pullPartsInventory()
             isSyncing = false
+            lastSyncDate = Date()
+            UserDefaults.standard.set(lastSyncDate, forKey: Self.lastSyncDateKey)
             refreshStatus()
         } catch is CancellationError {
             // A superseded/cancelled sync is not a failure — recompute the badge

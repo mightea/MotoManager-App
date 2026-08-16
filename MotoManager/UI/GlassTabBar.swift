@@ -25,7 +25,9 @@ enum AppTab: String, CaseIterable, Identifiable {
         switch self {
         case .fuel: return "fuelpump.fill"
         case .workshop: return "wrench.adjustable.fill"
-        case .service: return "exclamationmark.triangle.fill"
+        // A checklist, not a warning triangle — the tab is routine upkeep,
+        // and a permanent alert icon cries wolf.
+        case .service: return "checklist"
         case .parts: return "shippingbox.fill"
         }
     }

@@ -353,7 +353,7 @@ private struct GarageRow: View {
             } else {
                 Theme.Colors.primary.opacity(0.2)
                     .overlay(
-                        Image(systemName: "bicycle")
+                        Image(systemName: "motorcycle")
                             .scaledFont(18, weight: .semibold)
                             .foregroundColor(Theme.Colors.primary)
                     )
@@ -462,7 +462,7 @@ private struct RecentChip: View {
             } else {
                 Theme.Colors.primary.opacity(0.2)
                     .overlay(
-                        Image(systemName: "bicycle")
+                        Image(systemName: "motorcycle")
                             .scaledFont(14, weight: .semibold)
                             .foregroundColor(Theme.Colors.primary)
                     )

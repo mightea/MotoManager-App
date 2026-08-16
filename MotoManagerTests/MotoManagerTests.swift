@@ -97,6 +97,43 @@ struct FuelStatsTests {
         #expect(abs(FuelStats.litersInYear(fuel, year: 2023) - 10.0) < 0.0001)
         #expect(FuelStats.litersInYear(fuel, year: 2020) == 0)
     }
+
+    @Test func trailingAverageOnlyCountsTheMostRecentFills() throws {
+        // Date-descending like the view models deliver: 5.2 then 4.8.
+        let fuel = FuelStats.fuelRecords(try decodeRecords())
+        #expect(abs(FuelStats.trailingAverageConsumption(fuel, count: 1) - 5.2) < 0.0001)
+        #expect(abs(FuelStats.trailingAverageConsumption(fuel, count: 10) - 5.0) < 0.0001)
+        #expect(FuelStats.trailingAverageConsumption([MaintenanceRecord]()) == 0)
+    }
+
+    @Test func trailingAverageDropsImplausibleOutliers() throws {
+        // A missed fill-up produces a consumption several times reality;
+        // it must not drag the headline average away from the visible fills.
+        let json = """
+        [
+          {"id":1,"date":"2024-06-01","odo":1,"motorcycleId":1,"type":"fuel","fuelConsumption":5.0},
+          {"id":2,"date":"2024-05-01","odo":1,"motorcycleId":1,"type":"fuel","fuelConsumption":60.0},
+          {"id":3,"date":"2024-04-01","odo":1,"motorcycleId":1,"type":"fuel","fuelConsumption":5.4}
+        ]
+        """
+        let records = try JSONDecoder().decode([MaintenanceRecord].self, from: Data(json.utf8))
+        #expect(abs(FuelStats.trailingAverageConsumption(records) - 5.2) < 0.0001)
+    }
+
+    @Test func litersInTrailingYearUsesARollingWindow() throws {
+        let fuel = FuelStats.fuelRecords(try decodeRecords())
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd"
+        formatter.timeZone = TimeZone(identifier: "UTC")
+        // From 2024-07-01 the window reaches back to 2023-07-01: all three
+        // fills (2024-03-15, 2024-06-01, 2023-12-20) fall inside it.
+        let midYear = formatter.date(from: "2024-07-01")!
+        #expect(abs(FuelStats.litersInTrailingYear(fuel, now: midYear) - 44.5) < 0.0001)
+        // From 2025-01-15 only the two 2024 fills remain in the window.
+        let nextYear = formatter.date(from: "2025-01-15")!
+        #expect(abs(FuelStats.litersInTrailingYear(fuel, now: nextYear) - 34.5) < 0.0001)
+    }
 }
 
 // MARK: - Sync mapping & cursor

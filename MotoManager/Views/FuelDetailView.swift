@@ -148,7 +148,7 @@ struct FuelDetailView: View {
         DetailSection("DETAILS") {
             DetailRow(label: "Datum", value: Formatters.mediumDate(record.date), mono: false)
             divider
-            DetailRow(label: "Kilometerstand", value: "\(record.odo) km")
+            DetailRow(label: "Kilometerstand", value: Formatters.kilometers(record.odo))
             divider
             DetailRow(label: "Tankmenge", value: String(format: "%.2f L", record.fuelAmount ?? 0))
             if let type = record.fuelType, !type.isEmpty {
@@ -165,21 +165,15 @@ struct FuelDetailView: View {
             }
         }
 
-        DetailSection("KOSTEN") {
-            DetailRow(label: "Preis pro Liter", value: Formatters.currency(record.pricePerUnit ?? 0, code: currency))
-            divider
-            DetailRow(label: "Gesamtpreis", value: Formatters.currency(record.cost ?? 0, code: currency), accent: Theme.Colors.primary)
-            if let costPerKm {
-                divider
-                DetailRow(label: "Kosten pro km", value: Formatters.costPerKilometer(costPerKm, currency: currency))
-            }
-        }
-
-        if let consumption = record.fuelConsumption, let trip = record.tripDistance, trip > 0 {
-            DetailSection("VERBRAUCH") {
-                DetailRow(label: "Verbrauch", value: String(format: "%.1f L / 100 km", consumption), accent: consumption > 6 ? .orange : .green)
-                divider
+        // Price, total and consumption already headline the hero tiles — this
+        // section only carries what the hero doesn't show.
+        if let trip = record.tripDistance, trip > 0 {
+            DetailSection("FAHRT") {
                 DetailRow(label: "Strecke seit letzter Tankung", value: "\(Int(trip)) km")
+                if let costPerKm {
+                    divider
+                    DetailRow(label: "Kosten pro km", value: Formatters.costPerKilometer(costPerKm, currency: currency))
+                }
             }
         }
 

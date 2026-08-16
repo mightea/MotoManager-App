@@ -5,7 +5,15 @@ struct MaintenanceLogsView: View {
     @ObservedObject var partsVM: PartsViewModel
 
     enum ServiceTab: Hashable { case issues, maintenance }
+    /// History filter: actual maintenance by default — location moves are
+    /// logistics, not wrenching, and they'd otherwise dominate the timeline.
+    enum HistoryFilter: String, CaseIterable {
+        case wartung = "Wartung"
+        case standort = "Standort"
+        case alle = "Alle"
+    }
     @State private var tab: ServiceTab = .maintenance
+    @State private var historyFilter: HistoryFilter = .wartung
     @State private var selectedRecord: SDMaintenanceRecord?
     @State private var showingAddIssue = false
     @State private var editingIssue: SDIssue?
@@ -13,6 +21,21 @@ struct MaintenanceLogsView: View {
 
     private var serviceRecords: [SDMaintenanceRecord] {
         viewModel.serviceRecords
+    }
+
+    /// Records that are actual maintenance (location moves excluded) — the
+    /// basis for the segment badge and the "Letzte Wartung" stat.
+    private var wartungRecords: [SDMaintenanceRecord] {
+        serviceRecords.filter { $0.category != .location }
+    }
+
+    /// The history slice the current filter chip selects.
+    private var historyRecords: [SDMaintenanceRecord] {
+        switch historyFilter {
+        case .wartung: wartungRecords
+        case .standort: serviceRecords.filter { $0.category == .location }
+        case .alle: serviceRecords
+        }
     }
 
     private var openIssuesCount: Int {
@@ -25,7 +48,7 @@ struct MaintenanceLogsView: View {
 
     /// Costs of the current year's service records (dates are ISO strings).
     private var yearCost: Double {
-        serviceRecords
+        wartungRecords
             .filter { $0.date.hasPrefix(currentYearShort) }
             .compactMap { $0.cost }
             .reduce(0, +)
@@ -35,17 +58,19 @@ struct MaintenanceLogsView: View {
         MaintenanceIntervalsEngine.insights(records: serviceRecords, currentOdo: currentOdo)
     }
 
-    private var lastEntry: SDMaintenanceRecord? { serviceRecords.first }
+    /// Most recent *real* maintenance — a location move must not read as
+    /// "Letzte Wartung" in the stat strip.
+    private var lastEntry: SDMaintenanceRecord? { wartungRecords.first }
 
     private var currency: String {
         lastEntry?.currency ?? viewModel.motorcycle.currencyCode ?? "EUR"
     }
 
     /// Composite groups (same date+odo+category merge, children folded in),
-    /// bucketed by year for the section headers.
+    /// bucketed by year for the section headers. Fed from the filtered slice.
     private var groupedByYear: [(year: String, groups: [MaintenanceGroup])] {
         MaintenanceGrouper.byYear(
-            MaintenanceGrouper.group(serviceRecords, locations: viewModel.userLocations))
+            MaintenanceGrouper.group(historyRecords, locations: viewModel.userLocations))
     }
 
     private var groupCount: Int {
@@ -78,7 +103,7 @@ struct MaintenanceLogsView: View {
                 GlassSegmentedControl(
                     segments: [
                         .init(value: .issues, label: "Mängel", count: openIssuesCount),
-                        .init(value: .maintenance, label: "Wartung", count: serviceRecords.count)
+                        .init(value: .maintenance, label: "Wartung", count: wartungRecords.count)
                     ],
                     selection: $tab
                 )
@@ -94,6 +119,9 @@ struct MaintenanceLogsView: View {
                     sectionHeader("Verlauf", count: groupCount)
                         .padding(.horizontal, Theme.Spacing.pageH + 6)
 
+                    historyFilterChips
+                        .padding(.horizontal, Theme.Spacing.pageH)
+
                     maintenanceContent
                         .padding(.horizontal, Theme.Spacing.pageH)
                 }
@@ -102,12 +130,12 @@ struct MaintenanceLogsView: View {
         }
         .ignoresSafeArea(edges: .top)
         .background(Color.clear)
-        // One context-aware add button: red for Mängel, blue for Wartung.
+        // One context-aware add button. Always the app accent — a red button
+        // reads as destructive, and adding a Mangel isn't.
         // `addAction:` must stay a labeled argument: a trailing closure
         // backward-matches to `secondaryAction` and the button vanishes.
         .bottomActionBar(
             detailVM: viewModel,
-            addTint: tab == .issues ? Theme.Colors.accent : Theme.Colors.primary,
             addLabel: tab == .issues ? "Mangel erfassen" : "Wartung erfassen",
             addAction: {
                 if tab == .issues { showingAddIssue = true } else { showingAddMaintenance = true }
@@ -143,7 +171,7 @@ struct MaintenanceLogsView: View {
             StatTile(
                 eyebrow: "Letzte Wartung",
                 value: lastEntry.map { Formatters.dayMonth($0.date) } ?? "—",
-                unit: lastEntry.map { "bei \($0.odo) km" }
+                unit: lastEntry.map { "bei \(Formatters.kilometers($0.odo))" }
             ),
             intervalTile
         ])
@@ -192,11 +220,39 @@ struct MaintenanceLogsView: View {
             Text(label.uppercased())
                 .scaledFont(11, weight: .heavy)
                 .tracking(2)
-                .foregroundColor(.white.opacity(0.55))
+                .foregroundColor(.white.opacity(0.7))
             Spacer()
             Text("\(count) \(count == 1 ? "Eintrag" : "Einträge")")
                 .scaledFont(11, weight: .semibold)
                 .foregroundColor(.white.opacity(0.5))
+        }
+    }
+
+    /// "Wartung / Standort / Alle" chips, mirroring the torque-group chips on
+    /// the Werkstatt page. Standortwechsel are logistics, so they're out of
+    /// the default view but one tap away.
+    private var historyFilterChips: some View {
+        HStack(spacing: 6) {
+            ForEach(HistoryFilter.allCases, id: \.rawValue) { filter in
+                let active = filter == historyFilter
+                Button {
+                    withAnimation(.easeOut(duration: 0.2)) { historyFilter = filter }
+                } label: {
+                    Text(filter.rawValue)
+                        .scaledFont(12, weight: .semibold)
+                        .foregroundColor(active ? .white : .white.opacity(0.7))
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .glassEffect(
+                            active
+                                ? .regular.tint(Theme.Colors.primary).interactive()
+                                : .regular.interactive(),
+                            in: Capsule()
+                        )
+                }
+                .accessibilityAddTraits(active ? [.isSelected] : [])
+            }
+            Spacer(minLength: 0)
         }
     }
 
@@ -208,11 +264,13 @@ struct MaintenanceLogsView: View {
                     GlassShimmerRow()
                 }
             }
-        } else if serviceRecords.isEmpty {
+        } else if historyRecords.isEmpty {
             EmptyStateView(
-                title: "Keine Wartung erfasst",
-                message: "Reparaturen und Wartungen tauchen hier auf.",
-                icon: "wrench.and.screwdriver.fill"
+                title: historyFilter == .standort ? "Keine Standortwechsel" : "Keine Wartung erfasst",
+                message: historyFilter == .standort
+                    ? "Standortwechsel tauchen hier auf."
+                    : "Reparaturen und Wartungen tauchen hier auf.",
+                icon: historyFilter == .standort ? "mappin.and.ellipse" : "wrench.and.screwdriver.fill"
             )
             .padding(.top, 60)
         } else {
@@ -307,10 +365,10 @@ private struct IssueRow: View {
         HStack(alignment: .top, spacing: 12) {
             ZStack {
                 RoundedRectangle(cornerRadius: 10)
-                    .fill(priorityColor.opacity(0.22))
-                Image(systemName: "exclamationmark.triangle.fill")
+                    .fill(statusColor.opacity(0.22))
+                Image(systemName: statusIcon)
                     .scaledFont(16, weight: .semibold)
-                    .foregroundColor(priorityColor)
+                    .foregroundColor(statusColor)
             }
             .frame(width: 36, height: 36)
             .overlay(alignment: .topTrailing) {
@@ -334,8 +392,8 @@ private struct IssueRow: View {
                         .tracking(0.4)
                         .padding(.horizontal, 7)
                         .padding(.vertical, 2)
-                        .background(Capsule().fill(priorityColor.opacity(0.22)))
-                        .foregroundColor(priorityColor)
+                        .background(Capsule().fill(statusColor.opacity(0.22)))
+                        .foregroundColor(statusColor)
                     Text("·").foregroundColor(.white.opacity(0.4))
                     Text(Formatters.mediumDate(issue.date))
                     Text("·").foregroundColor(.white.opacity(0.4))
@@ -353,11 +411,23 @@ private struct IssueRow: View {
         .accessibilityLabel("\(statusLabel) Mangel: \(issue.title), \(Formatters.mediumDate(issue.date)), Kilometerstand \(issue.odo)")
     }
 
-    private var priorityColor: Color {
-        switch issue.priority.lowercased() {
-        case "high": return Theme.Colors.accent
-        case "low": return .green
-        default: return .orange
+    /// Color follows the *status*, not the priority: elsewhere in the app
+    /// green means "ok/done", so an open defect must never render green.
+    /// Open defects are orange (red for high priority), in-progress is the
+    /// app accent, and only resolved defects turn green.
+    private var statusColor: Color {
+        switch issue.status.lowercased() {
+        case "done": return .green
+        case "in_progress": return Theme.Colors.primary
+        default: return issue.priority.lowercased() == "high" ? Theme.Colors.accent : .orange
+        }
+    }
+
+    private var statusIcon: String {
+        switch issue.status.lowercased() {
+        case "done": return "checkmark.circle.fill"
+        case "in_progress": return "wrench.adjustable.fill"
+        default: return "exclamationmark.triangle.fill"
         }
     }
 
@@ -454,7 +524,7 @@ private struct MaintenanceGroupRow: View {
 struct EmptyStateView: View {
     let title: String
     let message: String
-    var icon: String = "bicycle.circle.fill"
+    var icon: String = "motorcycle"
 
     var body: some View {
         VStack(spacing: Theme.Spacing.m) {

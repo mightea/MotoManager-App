@@ -37,4 +37,40 @@ enum FuelStats {
             .compactMap { $0.fuelAmount }
             .reduce(0, +)
     }
+
+    /// Average of the most recent `count` per-fill consumption values
+    /// (records must be date-descending, which is how the view models hand
+    /// them over). Matches the trend sparkline's window, so the headline
+    /// average and the chart tell the same story.
+    ///
+    /// Robust against artifacts: a missed fill-up or odometer glitch produces
+    /// a consumption several times the real one, and a single such value
+    /// would drag a plain mean far away from every number visible in the
+    /// list. Values further than 2× from the window's median are dropped
+    /// before averaging.
+    static func trailingAverageConsumption<T: FuelStatRecord>(_ records: [T], count: Int = 10) -> Double {
+        let consumptions = Array(records.compactMap { $0.fuelConsumption }.prefix(count))
+        guard !consumptions.isEmpty else { return 0 }
+        let sorted = consumptions.sorted()
+        let median = sorted[sorted.count / 2]
+        let plausible = consumptions.filter { $0 <= median * 2 && $0 >= median * 0.4 }
+        guard !plausible.isEmpty else { return median }
+        return plausible.reduce(0, +) / Double(plausible.count)
+    }
+
+    /// Total litres filled in the 12 months before `now`. Unlike the
+    /// calendar-year sum this stays meaningful early in the year, when a
+    /// seasonal vehicle hasn't been fueled yet.
+    static func litersInTrailingYear<T: FuelStatRecord>(_ records: [T], now: Date = Date()) -> Double {
+        guard let cutoffDate = Calendar.current.date(byAdding: .month, value: -12, to: now) else { return 0 }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd"
+        formatter.timeZone = TimeZone(identifier: "UTC")
+        let cutoff = formatter.string(from: cutoffDate)
+        return records
+            .filter { String($0.date.prefix(10)) >= cutoff }
+            .compactMap { $0.fuelAmount }
+            .reduce(0, +)
+    }
 }

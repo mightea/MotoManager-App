@@ -152,7 +152,7 @@ struct EmptyFleetView: View {
                     .fill(Theme.Colors.primary.opacity(0.18))
                     .frame(width: 140, height: 140)
 
-                Image(systemName: "bicycle")
+                Image(systemName: "motorcycle")
                     .scaledFont(60)
                     .foregroundColor(Theme.Colors.primary)
             }

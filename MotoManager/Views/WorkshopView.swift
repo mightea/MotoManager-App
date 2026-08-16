@@ -169,7 +169,7 @@ struct WorkshopView: View {
                 Text("Reifendruck".uppercased())
                     .scaledFont(11, weight: .heavy)
                     .tracking(2)
-                    .foregroundColor(.white.opacity(0.55))
+                    .foregroundColor(.white.opacity(0.7))
                 Spacer()
                 Button { showingTirePressure = true } label: {
                     Image(systemName: viewModel.tirePressure == nil ? "plus" : "pencil")
@@ -205,7 +205,7 @@ struct WorkshopView: View {
                 Text("Dokumente".uppercased())
                     .scaledFont(11, weight: .heavy)
                     .tracking(2)
-                    .foregroundColor(.white.opacity(0.55))
+                    .foregroundColor(.white.opacity(0.7))
                 Spacer()
                 Text("\(displayedDocuments.count) \(displayedDocuments.count == 1 ? "Eintrag" : "Einträge")")
                     .scaledFont(11, weight: .semibold)
@@ -251,9 +251,10 @@ struct WorkshopView: View {
                         }
                     }
                 }
-                UploadDocumentTile {
-                    // Upload picker hook — wired when document upload lands.
-                }
+            }
+
+            UploadDocumentRow {
+                // Upload picker hook — wired when document upload lands.
             }
         }
     }
@@ -266,7 +267,7 @@ struct WorkshopView: View {
                 Text("Drehmoment-Spezifikationen".uppercased())
                     .scaledFont(11, weight: .heavy)
                     .tracking(2)
-                    .foregroundColor(.white.opacity(0.55))
+                    .foregroundColor(.white.opacity(0.7))
                 Spacer()
                 Button { showingAddTorque = true } label: {
                     Image(systemName: "plus")
@@ -366,7 +367,7 @@ extension WorkshopView {
                 Text("Details".uppercased())
                     .scaledFont(11, weight: .heavy)
                     .tracking(2)
-                    .foregroundColor(.white.opacity(0.55))
+                    .foregroundColor(.white.opacity(0.7))
                 Spacer()
                 Button { showingAddDetail = true } label: {
                     Image(systemName: "plus")
@@ -394,23 +395,10 @@ extension WorkshopView {
         }
     }
 
+    // No TITEL/WERT header row — it's a short key-value list, not a data
+    // table, and the labels explain themselves.
     private var detailsTable: some View {
         VStack(spacing: 0) {
-            HStack {
-                Text("TITEL")
-                    .scaledFont(9, weight: .heavy)
-                    .tracking(1.5)
-                    .foregroundColor(.white.opacity(0.5))
-                Spacer()
-                Text("WERT")
-                    .scaledFont(9, weight: .heavy)
-                    .tracking(1.5)
-                    .foregroundColor(.white.opacity(0.5))
-            }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 8)
-            .background(Color.white.opacity(0.04))
-
             ForEach(Array(viewModel.details.enumerated()), id: \.element.clientId) { index, detail in
                 Button { editingDetail = detail } label: {
                     MotorcycleDetailRow(detail: detail)
@@ -428,7 +416,9 @@ extension WorkshopView {
 }
 
 /// Flat title/value row. Both sides wrap instead of truncating — long values
-/// (e.g. part numbers plus descriptions) are expected.
+/// (e.g. part numbers plus descriptions) are expected. URL values render as a
+/// tappable link (host only, not the raw URL) that opens in the browser; the
+/// rest of the row still opens the edit sheet like every other row.
 private struct MotorcycleDetailRow: View {
     let detail: SDMotorcycleDetail
 
@@ -443,13 +433,35 @@ private struct MotorcycleDetailRow: View {
                 if detail.syncState.isPending { PendingBadge() }
             }
             Spacer(minLength: 8)
-            Text(detail.value)
-                .scaledFont(13, weight: .medium)
-                .foregroundColor(.white.opacity(0.8))
-                .multilineTextAlignment(.trailing)
-                .fixedSize(horizontal: false, vertical: true)
+            if let url = linkURL {
+                // Nested inside the edit Button, but the inner Link wins the
+                // tap, so the URL opens while the rest of the row still edits.
+                Link(destination: url) {
+                    HStack(spacing: 4) {
+                        Text(url.host() ?? detail.value)
+                            .scaledFont(13, weight: .semibold)
+                        Image(systemName: "arrow.up.right")
+                            .scaledFont(10, weight: .bold)
+                    }
+                    .foregroundColor(Theme.Colors.primary)
+                }
+                .accessibilityLabel("\(detail.title) öffnen")
+            } else {
+                Text(detail.value)
+                    .scaledFont(13, weight: .medium)
+                    .foregroundColor(.white.opacity(0.8))
+                    .multilineTextAlignment(.trailing)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
         .contentShape(Rectangle())
+    }
+
+    private var linkURL: URL? {
+        let trimmed = detail.value.trimmingCharacters(in: .whitespaces)
+        guard trimmed.hasPrefix("http://") || trimmed.hasPrefix("https://"),
+              let url = URL(string: trimmed) else { return nil }
+        return url
     }
 }
 
@@ -654,7 +666,7 @@ private struct DocumentTile: View {
                     .lineLimit(2, reservesSpace: true)
                     .multilineTextAlignment(.leading)
                 HStack(spacing: 6) {
-                    Text(document.createdAt.prefix(10))
+                    Text(Formatters.mediumDate(String(document.createdAt.prefix(10))))
                         .scaledFont(10, weight: .medium)
                         .foregroundColor(.white.opacity(0.55))
                     Spacer(minLength: 0)
@@ -697,28 +709,30 @@ private struct DocumentTile: View {
     }
 }
 
-private struct UploadDocumentTile: View {
+/// Compact full-width upload affordance under the documents grid — a
+/// card-sized dashed tile was mostly empty space next to real documents.
+private struct UploadDocumentRow: View {
     var action: () -> Void
 
     var body: some View {
         Button(action: action) {
-            VStack(spacing: 8) {
+            HStack(spacing: 8) {
                 Image(systemName: "plus")
-                    .scaledFont(22, weight: .semibold)
-                Text("Hochladen")
-                    .scaledFont(12, weight: .semibold)
+                    .scaledFont(14, weight: .semibold)
+                Text("Dokument hochladen")
+                    .scaledFont(13, weight: .semibold)
             }
-            .foregroundColor(.white.opacity(0.55))
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .aspectRatio(documentCardAspect, contentMode: .fit)
-            .glassEffect(.regular, in: RoundedRectangle(cornerRadius: Theme.Glass.fieldRadius))
-            .overlay(
+            .foregroundColor(.white.opacity(0.65))
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 13)
+            .background(
                 RoundedRectangle(cornerRadius: Theme.Glass.fieldRadius)
                     .strokeBorder(
                         Color.white.opacity(0.18),
                         style: StrokeStyle(lineWidth: 1.5, dash: [5, 4])
                     )
             )
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Dokument hochladen")

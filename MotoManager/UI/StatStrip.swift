@@ -31,7 +31,7 @@ struct StatStrip: View {
             Text(tile.eyebrow.uppercased())
                 .scaledFont(9, weight: .heavy)
                 .tracking(1.2)
-                .foregroundColor(.white.opacity(0.55))
+                .foregroundColor(.white.opacity(0.7))
                 .lineLimit(1)
                 .minimumScaleFactor(0.75)
 
@@ -44,14 +44,17 @@ struct StatStrip: View {
             if let unit = tile.unit, !unit.isEmpty {
                 Text(unit)
                     .scaledFont(10, weight: .medium)
-                    .foregroundColor(.white.opacity(0.6))
+                    .foregroundColor(.white.opacity(0.7))
                     .lineLimit(1)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .padding(.horizontal, 11)
         .padding(.vertical, 10)
-        .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 14))
+        // Dark tint behind the glass: these tiles usually sit on a photo, and
+        // white text over a bright sky washes out on plain glass. The scrim
+        // keeps legibility independent of whatever the bike photo contains.
+        .glassEffect(.regular.tint(Color.black.opacity(0.35)), in: RoundedRectangle(cornerRadius: 14))
     }
 }
 

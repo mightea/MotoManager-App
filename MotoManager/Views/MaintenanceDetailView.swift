@@ -145,13 +145,13 @@ struct MaintenanceDetailView: View {
             statCard(eyebrow: "KOSTEN",
                      value: record.cost.map { Formatters.currency($0, code: currency, fractionDigits: 0) } ?? "—",
                      accent: category.tint)
-            statCard(eyebrow: "BEI", value: "\(record.odo) km")
+            statCard(eyebrow: "BEI", value: Formatters.kilometers(record.odo))
         }
 
         DetailSection("ÜBERSICHT") {
             DetailRow(label: "Datum", value: Formatters.mediumDate(record.date), mono: false)
             divider
-            DetailRow(label: "Kilometerstand", value: "\(record.odo) km")
+            DetailRow(label: "Kilometerstand", value: Formatters.kilometers(record.odo))
             divider
             DetailRow(label: "Kategorie", value: record.fluidTypeLabel ?? category.label, mono: false)
             divider
