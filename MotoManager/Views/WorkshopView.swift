@@ -591,18 +591,23 @@ private struct TorqueRow: View {
 
 // MARK: - Document tile
 
+/// Width : height of every card in the documents grid. Both tile types use
+/// it, so all cells end up the same size no matter what they contain.
+private let documentCardAspect: CGFloat = 0.74
+
 private struct DocumentTile: View {
     let document: Document
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             ZStack(alignment: .topLeading) {
-                // Documents are usually A4 (portrait), so give the preview a tall,
-                // page-like frame — enough to show most of the page instead of a
-                // cropped sliver, without dominating the tile.
-                DocumentThumbnailView(document: document)
-                    .frame(height: 160)
-                    .frame(maxWidth: .infinity)
+                // The preview fills whatever space the fixed card shape leaves
+                // above the text block. `Color.clear` owns the layout so an
+                // oddly-proportioned thumbnail (e.g. a landscape wiring
+                // diagram) can never inflate the card — the image covers and
+                // gets cropped instead.
+                Color.clear
+                    .overlay(DocumentThumbnailView(document: document))
                     .clipShape(RoundedRectangle(cornerRadius: 10))
                     .overlay(
                         RoundedRectangle(cornerRadius: 10)
@@ -621,12 +626,13 @@ private struct DocumentTile: View {
                     )
                     .padding(8)
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(document.title)
                     .scaledFont(13, weight: .bold)
                     .foregroundColor(.white)
-                    .lineLimit(2)
+                    .lineLimit(2, reservesSpace: true)
                     .multilineTextAlignment(.leading)
                 Text(document.createdAt.prefix(10))
                     .scaledFont(10, weight: .medium)
@@ -634,7 +640,8 @@ private struct DocumentTile: View {
             }
         }
         .padding(12)
-        .frame(maxWidth: .infinity, minHeight: 132, alignment: .topLeading)
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+        .aspectRatio(documentCardAspect, contentMode: .fit)
         .glassEffect(.regular, in: RoundedRectangle(cornerRadius: Theme.Glass.fieldRadius))
     }
 
@@ -661,7 +668,8 @@ private struct UploadDocumentTile: View {
                     .scaledFont(12, weight: .semibold)
             }
             .foregroundColor(.white.opacity(0.55))
-            .frame(maxWidth: .infinity, minHeight: 132)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .aspectRatio(documentCardAspect, contentMode: .fit)
             .glassEffect(.regular, in: RoundedRectangle(cornerRadius: Theme.Glass.fieldRadius))
             .overlay(
                 RoundedRectangle(cornerRadius: Theme.Glass.fieldRadius)
