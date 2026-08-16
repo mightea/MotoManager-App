@@ -33,14 +33,18 @@ struct GlassSegmentedControl<Value: Hashable>: View {
             .padding(3)
             .glassEffect(.regular, in: RoundedRectangle(cornerRadius: Theme.Glass.segmentRadius))
         }
+        // Animation is scoped to this subtree instead of wrapping the
+        // selection change in `withAnimation`: a global transaction would
+        // animate *everything* driven by the selection — the header's stat
+        // pills and the page content visibly wobbled on every tab switch.
+        // Only the indicator morph should animate.
+        .animation(.easeOut(duration: 0.18), value: selection)
     }
 
     private func segmentButton(_ segment: Segment) -> some View {
         let isActive = selection == segment.value
         return Button {
-            withAnimation(.easeOut(duration: 0.18)) {
-                selection = segment.value
-            }
+            selection = segment.value
         } label: {
             HStack(spacing: 6) {
                 Text(segment.label)
