@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.4.0](https://github.com/mightea/MotoManager-App/compare/v0.3.0...v0.4.0) (2026-08-16)
+
+
+### Features
+
+* enter the server url on the login screen and inject the default via ci secret ([426c964](https://github.com/mightea/MotoManager-App/commit/426c9647e4267786a208de2daf8d577466131894))
+* improve accessibility and persistence UX ([ba80cb1](https://github.com/mightea/MotoManager-App/commit/ba80cb1194050c951da6ffb7de76f2532e4dba74))
+* parts cost on repairs and consumption links in the parts tab ([134c157](https://github.com/mightea/MotoManager-App/commit/134c15702b8a6ce81cd4765e09d7f5b39f1b6ad5))
+* pin documents for offline use with a status badge ([93490f1](https://github.com/mightea/MotoManager-App/commit/93490f1a7c2e7503b7bb4fb91a969139a48e15bb))
+* pin the version footer to the bottom of the settings screen ([f614865](https://github.com/mightea/MotoManager-App/commit/f614865c73e354bd597d16929d7012bd0f034b7d))
+* push documents to a reader page with in-document search and sharing ([dabeb79](https://github.com/mightea/MotoManager-App/commit/dabeb794de4073337ca9768060a7796b10eb5766))
+
+
+### Bug Fixes
+
+* allow creating storage locations from the empty parts segment ([1123216](https://github.com/mightea/MotoManager-App/commit/11232163f573014f03defc0e6b2eef192ec6d80e))
+* give document grid cards a uniform size ([eb6a83a](https://github.com/mightea/MotoManager-App/commit/eb6a83a03d0a4cf51fb3b5dd45a379a1e39c134c))
+* keep workshop sections and their add buttons visible when all data is empty ([fd88923](https://github.com/mightea/MotoManager-App/commit/fd88923e610ecf117cf4bda24d0c18e611c6bbd2))
+* make floating glass buttons tappable across their full circle ([c10f782](https://github.com/mightea/MotoManager-App/commit/c10f782c036806cf01577c6b40db99d1d63b51e2))
+* stretch stat strip tiles to a uniform height ([ecc0302](https://github.com/mightea/MotoManager-App/commit/ecc030283ce5b58c8b6c12ed4e56e93b82fa4943))
+
 ## [0.3.0](https://github.com/mightea/MotoManager-App/compare/v0.2.1...v0.3.0) (2026-07-19)
 
 
