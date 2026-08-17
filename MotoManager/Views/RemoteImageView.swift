@@ -112,4 +112,10 @@ final class RemoteImageMemoryCache {
     func set(_ image: UIImage, forKey key: String) {
         cache.setObject(image, forKey: key as NSString)
     }
+
+    /// Drop all decoded images — part of the logout cache wipe, so a
+    /// different account never sees the previous user's images.
+    func clearAll() {
+        cache.removeAllObjects()
+    }
 }

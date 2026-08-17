@@ -93,6 +93,10 @@ class AuthViewModel: NSObject, ObservableObject {
         ImageCache.shared.clearAll()
         DocumentCache.shared.clearAll()
         DocumentOfflineStore.shared.clearAll()
+        // In-memory and URL-level caches too — the wipe must cover *every*
+        // cache so a different account never sees the previous user's data.
+        RemoteImageMemoryCache.shared.clearAll()
+        URLCache.shared.removeAllCachedResponses()
         // Drop synced SwiftData rows and all sync cursors: a different account
         // must not inherit this user's local data or cursors (stale cursors
         // would silently skip the other account's records on first sync).

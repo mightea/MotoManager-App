@@ -55,6 +55,17 @@ class MotorcycleViewModel: ObservableObject {
         }
     }
 
+    /// Full user-state reset for logout: published fleet state plus the
+    /// persisted selection/recents — a different account must not inherit
+    /// another user's bike ids or see the previous fleet flash on login.
+    func clearUserState() {
+        motorcycles = []
+        selectedMotorcycle = nil
+        errorMessage = nil
+        UserDefaults.standard.removeObject(forKey: lastSelectedIdKey)
+        UserDefaults.standard.removeObject(forKey: recentIdsKey)
+    }
+
     private func restoreSelection() {
         let lastId = UserDefaults.standard.integer(forKey: lastSelectedIdKey)
         if let lastMoto = motorcycles.first(where: { $0.id == lastId }) {

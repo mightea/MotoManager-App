@@ -29,6 +29,10 @@ struct ContentView: View {
         .task(id: authVM.isAuthenticated) {
             if authVM.isAuthenticated {
                 await fleetVM.loadMotorcycles()
+            } else {
+                // Logout wipes every cache; the fleet VM's in-memory state and
+                // persisted selection/recents belong to that wipe too.
+                fleetVM.clearUserState()
             }
             // Dismiss the splash once the initial state is actually ready, rather
             // than after a fixed 1.8s delay regardless of how fast loading was.

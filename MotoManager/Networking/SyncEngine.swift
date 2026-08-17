@@ -131,6 +131,8 @@ final class SyncEngine: ObservableObject {
         }
         SyncCursor.clearAll()
         knownMotorcycleIds = []
+        lastSyncDate = nil
+        UserDefaults.standard.removeObject(forKey: Self.lastSyncDateKey)
         refreshStatus()
     }
 
