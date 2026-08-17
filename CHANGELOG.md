@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.5.0](https://github.com/mightea/MotoManager-App/compare/v0.4.0...v0.5.0) (2026-08-17)
+
+
+### Features
+
+* explain empty document segments with an empty-state message ([c29e40e](https://github.com/mightea/MotoManager-App/commit/c29e40ea7f369777f3d6c321b2ce464e3277bb19))
+* filter parts to the selected motorcycle by default ([6ad8a8a](https://github.com/mightea/MotoManager-App/commit/6ad8a8a56eaa2861cd88b3df99e65fc32965023f))
+* implement UX review improvements across all tabs ([a530597](https://github.com/mightea/MotoManager-App/commit/a530597ffb3f22f8067f2ce754eaed17e8b24da9))
+
+
+### Bug Fixes
+
+* clear every cache on logout ([2a3485d](https://github.com/mightea/MotoManager-App/commit/2a3485d5cb5a4ce9c26020a65c0c1d78a8884ae1))
+* drop redundant Kategorie/Motorrad rows from the maintenance detail ([0b3b398](https://github.com/mightea/MotoManager-App/commit/0b3b39885b10366c7387015d4abd0c4b47fa3156))
+* resolve fuel-station coordinates from the linked location ([654fb6f](https://github.com/mightea/MotoManager-App/commit/654fb6f0d9a3c8a4db01b16065283e7eb8417a89))
+* scope filter-chip animations to the chips ([a4fde38](https://github.com/mightea/MotoManager-App/commit/a4fde38aa84264034affb86a956967a05cb272c1))
+* scope segment-switch animation to the segmented control ([827994e](https://github.com/mightea/MotoManager-App/commit/827994e798a79a97aa7a8c48c78bad89b7d6b673))
+
 ## [0.4.0](https://github.com/mightea/MotoManager-App/compare/v0.3.0...v0.4.0) (2026-08-16)
 
 
