@@ -6,6 +6,11 @@
 	     Merged with the generated Info.plist (GENERATE_INFOPLIST_FILE stays YES). -->
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>MotoManager nutzt das lokale Netzwerk, um deinen Brother-Etikettendrucker zu finden und Etiketten zu drucken.</string>
+	<!-- Required by App Store validation (ITMS-90683): the Brother printer
+	     SDK (BRLMPrinterKit) references CoreBluetooth for Bluetooth-capable
+	     printer models, even though the app only prints over Wi-Fi. -->
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>MotoManager kann Bluetooth verwenden, um einen Brother-Etikettendrucker in der Nähe zu finden und mit ihm zu drucken.</string>
 	<key>NSBonjourServices</key>
 	<array>
 		<string>_pdl-datastream._tcp</string>

@@ -11,7 +11,7 @@
 | Platform | iOS **26.0** deployment target (iPhone + iPad) |
 | Language | Swift **5.0** language mode; `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor`, `SWIFT_APPROACHABLE_CONCURRENCY = YES` |
 | Architecture | MVVM with `ObservableObject` + `@Published` — **not** `@Observable` |
-| Dependencies | none (plain Xcode project — no SPM/CocoaPods) |
+| Dependencies | one SPM package: `BRLMPrinterKit` (Brother printer SDK; links CoreBluetooth/ExternalAccessory, hence `NSBluetoothAlwaysUsageDescription` in `Supporting/Info.plist`) |
 | Build tooling | plain `xcodebuild` (there is no XcodeBuildMCP setup) |
 | Scheme / Bundle | `MotoManager` / `ltd.herrmann.MotoManager` |
 

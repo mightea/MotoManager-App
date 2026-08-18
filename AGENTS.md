@@ -8,7 +8,7 @@ Guidance for AI coding agents working in this repository. Read this before explo
 
 ## Build & Run
 
-This is a plain Xcode project. **No SPM, CocoaPods, Carthage, or fastlane.** Currently zero third-party dependencies.
+This is a plain Xcode project. **No CocoaPods, Carthage, or fastlane.** Exactly one SPM dependency: `BRLMPrinterKit` (the Brother label-printer SDK used by `Printing/LabelPrinterService.swift`). It links CoreBluetooth and ExternalAccessory for Bluetooth/MFi printer models the app doesn't use — which is why `Supporting/Info.plist` carries `NSBluetoothAlwaysUsageDescription` (App Store validation ITMS-90683 demands the purpose string for the mere API reference).
 
 | Setting | Value |
 |---|---|
@@ -196,7 +196,7 @@ fix(networking): handle 401 retry
 
 - Don't introduce `NavigationView` — use `NavigationStack`.
 - Don't introduce XCTest in `MotoManagerTests/` — use Swift Testing.
-- Don't add CocoaPods / SPM dependencies without discussion. The repo is intentionally dependency-free.
+- Don't add CocoaPods / SPM dependencies without discussion. The repo is intentionally minimal — `BRLMPrinterKit` (Brother printing) is the single sanctioned exception.
 - Don't hardcode any server URL — read it from `NetworkManager.shared.baseURL`.
 - Don't read or write the session token directly — go through `NetworkManager`.
 - Don't migrate ViewModels to `@Observable` piecemeal — either all or none.
