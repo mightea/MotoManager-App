@@ -10,6 +10,9 @@ import SwiftData
 
 @main
 struct MotoManagerApp: App {
+    // Installs QuickActionSceneDelegate so home-screen quick actions reach
+    // the QuickActionRouter (see Intents/QuickActions.swift).
+    @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @StateObject private var connectivity = ConnectivityMonitor.shared
     @StateObject private var syncEngine = SyncEngine.shared
     @StateObject private var persistenceMonitor = PersistenceMonitor.shared
