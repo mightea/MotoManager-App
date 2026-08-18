@@ -27,6 +27,10 @@ struct PartsView: View {
     @State private var showingScanNotFound = false
     @State private var showingAddLocation = false
     @State private var newLocationName = ""
+    /// Whether the public browse has completed at least one load this session —
+    /// before that, the segment shows placeholders instead of a flashing
+    /// empty state.
+    @State private var publicLoadedOnce = false
     @ObservedObject private var connectivity = ConnectivityMonitor.shared
 
     var body: some View {
@@ -64,13 +68,18 @@ struct PartsView: View {
             .listRowBackground(Color.clear)
             .listRowSeparator(.hidden)
 
-            switch tab {
-            case .mine:
-                mineContent
-            case .locations:
-                locationsContent
-            case .publicParts:
-                publicContent
+            // One stable section whose *rows* switch with the segment — swapping
+            // whole sections made the list rebuild its section chrome on every
+            // switch, which showed as brief content flashes.
+            Section {
+                switch tab {
+                case .mine:
+                    mineRows
+                case .locations:
+                    locationRows
+                case .publicParts:
+                    publicRows
+                }
             }
         }
         .listStyle(.insetGrouped)
@@ -90,21 +99,21 @@ struct PartsView: View {
         }
         .toolbar {
             // Adding targets whatever the segment shows (part or storage
-            // location); the public segment is read-only. Scanning also
-            // resolves bin labels, so it stays available on Lagerorte.
-            if tab != .publicParts {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Etikett scannen", systemImage: "qrcode.viewfinder") {
-                        showingScanner = true
-                    }
+            // location); the public segment is read-only. The items stay in
+            // the bar permanently and merely disable on Öffentlich — removing
+            // them made the whole toolbar re-layout (a visible flash) on
+            // every segment switch.
+            ToolbarItem(placement: .topBarTrailing) {
+                Button("Etikett scannen", systemImage: "qrcode.viewfinder") {
+                    showingScanner = true
                 }
-                if let addLabel, let addAction {
-                    ToolbarItem(placement: .topBarTrailing) {
-                        Button(addLabel, systemImage: "plus", action: addAction)
-                    }
-                }
-                ToolbarSpacer(.fixed, placement: .topBarTrailing)
+                .disabled(tab == .publicParts)
             }
+            ToolbarItem(placement: .topBarTrailing) {
+                Button(addLabel, systemImage: "plus", action: addAction)
+                    .disabled(tab == .publicParts)
+            }
+            ToolbarSpacer(.fixed, placement: .topBarTrailing)
             ToolbarItem(placement: .topBarTrailing) {
                 Button("Einstellungen", systemImage: "gearshape") {
                     chrome.openSettings()
@@ -125,6 +134,7 @@ struct PartsView: View {
         .task(id: tab) {
             if tab == .publicParts {
                 await viewModel.loadPublicParts(query: searchText.isEmpty ? nil : searchText)
+                publicLoadedOnce = true
             }
         }
         // Consume the "Etikett scannen" App Shortcut. `initial: true` covers
@@ -166,19 +176,18 @@ struct PartsView: View {
         }
     }
 
-    private var addLabel: String? {
+    private var addLabel: String {
         switch tab {
-        case .mine: "Teil hinzufügen"
+        case .mine, .publicParts: "Teil hinzufügen"
         case .locations: "Lagerort hinzufügen"
-        case .publicParts: nil
         }
     }
 
-    private var addAction: (() -> Void)? {
+    private func addAction() {
         switch tab {
-        case .mine: { showingAddPart = true }
-        case .locations: { showingAddLocation = true }
-        case .publicParts: nil
+        case .mine: showingAddPart = true
+        case .locations: showingAddLocation = true
+        case .publicParts: break   // button is disabled on the public segment
         }
     }
 
@@ -302,36 +311,32 @@ struct PartsView: View {
     }
 
     @ViewBuilder
-    private var mineContent: some View {
+    private var mineRows: some View {
         if let moto = motorcycle, moto.seriesId != nil {
-            Section {
-                Toggle(isOn: $filterBySelectedBike) {
-                    Text("Passend für \(moto.make) \(moto.model)")
-                        .scaledFont(13, weight: .semibold)
-                }
-                .tint(Theme.Colors.primary)
+            Toggle(isOn: $filterBySelectedBike) {
+                Text("Passend für \(moto.make) \(moto.model)")
+                    .scaledFont(13, weight: .semibold)
             }
+            .tint(Theme.Colors.primary)
         }
 
         if filteredParts.isEmpty {
-            emptyState(title: emptyPartsTitle, message: emptyPartsMessage, icon: "shippingbox.fill")
+            emptyStateRow(title: emptyPartsTitle, message: emptyPartsMessage, icon: "shippingbox.fill")
         } else {
-            Section {
-                ForEach(filteredParts, id: \.clientId) { part in
-                    Button {
-                        selectedPart = part
+            ForEach(filteredParts, id: \.clientId) { part in
+                Button {
+                    selectedPart = part
+                } label: {
+                    PartCard(part: part, onHand: viewModel.onHand(for: part), viewModel: viewModel)
+                }
+                .buttonStyle(.plain)
+                .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                    Button(role: .destructive) {
+                        _ = viewModel.deletePart(part)
                     } label: {
-                        PartCard(part: part, onHand: viewModel.onHand(for: part), viewModel: viewModel)
+                        Label("Löschen", systemImage: "trash")
                     }
-                    .buttonStyle(.plain)
-                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                        Button(role: .destructive) {
-                            _ = viewModel.deletePart(part)
-                        } label: {
-                            Label("Löschen", systemImage: "trash")
-                        }
-                        .tint(.red)
-                    }
+                    .tint(.red)
                 }
             }
         }
@@ -355,9 +360,9 @@ struct PartsView: View {
     }
 
     @ViewBuilder
-    private var locationsContent: some View {
+    private var locationRows: some View {
         if filteredLocations.isEmpty {
-            emptyState(
+            emptyStateRow(
                 title: viewModel.storageLocations.isEmpty ? "Keine Lagerorte" : "Keine Treffer",
                 message: viewModel.storageLocations.isEmpty
                     ? "Lege mit dem Plus-Button einen Lagerort an — sie entstehen auch beim Erfassen von Beständen."
@@ -365,20 +370,18 @@ struct PartsView: View {
                 icon: "archivebox.fill"
             )
         } else {
-            Section {
-                ForEach(filteredLocations, id: \.clientId) { location in
-                    Button {
-                        selectedLocation = location
-                    } label: {
-                        StorageLocationCard(
-                            location: location,
-                            parentPath: viewModel.locationParentPath(location),
-                            directCount: viewModel.stockedParts(at: location).count,
-                            totalCount: viewModel.totalStockedPartCount(at: location)
-                        )
-                    }
-                    .buttonStyle(.plain)
+            ForEach(filteredLocations, id: \.clientId) { location in
+                Button {
+                    selectedLocation = location
+                } label: {
+                    StorageLocationCard(
+                        location: location,
+                        parentPath: viewModel.locationParentPath(location),
+                        directCount: viewModel.stockedParts(at: location).count,
+                        totalCount: viewModel.totalStockedPartCount(at: location)
+                    )
                 }
+                .buttonStyle(.plain)
             }
         }
     }
@@ -386,44 +389,42 @@ struct PartsView: View {
     // MARK: - Public browse
 
     @ViewBuilder
-    private var publicContent: some View {
+    private var publicRows: some View {
         if !connectivity.isOnline {
-            emptyState(
+            emptyStateRow(
                 title: "Offline",
                 message: "Öffentliche Teile anderer Nutzer sind nur online verfügbar.",
                 icon: "wifi.slash"
             )
-        } else if viewModel.isLoadingPublic && viewModel.publicParts.isEmpty {
-            Section {
-                ForEach(0..<4, id: \.self) { _ in
-                    PartCard.placeholder
-                        .redacted(reason: .placeholder)
-                }
+        } else if viewModel.publicParts.isEmpty && viewModel.publicError == nil
+            && (viewModel.isLoadingPublic || !publicLoadedOnce) {
+            // Placeholders from the very first frame: the load task only starts
+            // *after* this renders, so gating on `isLoadingPublic` alone flashed
+            // the empty state before every load.
+            ForEach(0..<4, id: \.self) { _ in
+                PartCard.placeholder
+                    .redacted(reason: .placeholder)
             }
         } else if let error = viewModel.publicError {
-            emptyState(title: "Fehler", message: error, icon: "exclamationmark.triangle.fill")
+            emptyStateRow(title: "Fehler", message: error, icon: "exclamationmark.triangle.fill")
         } else if viewModel.publicParts.isEmpty {
-            emptyState(
+            emptyStateRow(
                 title: "Keine öffentlichen Teile",
                 message: "Andere Nutzer haben noch keine passenden Teile geteilt.",
                 icon: "shippingbox"
             )
         } else {
-            Section {
-                ForEach(viewModel.publicParts) { part in
-                    PublicPartCard(part: part, viewModel: viewModel)
-                }
+            ForEach(viewModel.publicParts) { part in
+                PublicPartCard(part: part, viewModel: viewModel)
             }
         }
     }
 
-    private func emptyState(title: String, message: String, icon: String) -> some View {
-        Section {
-            ContentUnavailableView {
-                Label(title, systemImage: icon)
-            } description: {
-                Text(message)
-            }
+    private func emptyStateRow(title: String, message: String, icon: String) -> some View {
+        ContentUnavailableView {
+            Label(title, systemImage: icon)
+        } description: {
+            Text(message)
         }
         .listRowBackground(Color.clear)
         .listRowSeparator(.hidden)
