@@ -42,7 +42,7 @@ struct PartDetailView: View {
             title: part.name,
             subtitle: part.partNumber,
             body: {
-                catalogCard
+                catalogSection
                 stockSection
                 consumptionSection
             }
@@ -74,7 +74,7 @@ struct PartDetailView: View {
         }
         .sheet(isPresented: $showingAddConsumption) {
             AddPartConsumptionView(viewModel: viewModel, part: part)
-                .glassSheet()
+                .glassSheet(detents: [.medium, .large])
         }
         .sheet(isPresented: $showingPrintLabel) {
             if let content = partLabelContent {
@@ -137,13 +137,13 @@ struct PartDetailView: View {
 
     // MARK: - Catalog
 
-    private var catalogCard: some View {
-        VStack(alignment: .leading, spacing: 10) {
+    private var catalogSection: some View {
+        Section {
             if let imageURL = part.image {
                 RemoteImageView(url: imageURL, maxPixelWidth: 800)
                     .frame(maxWidth: .infinity)
                     .frame(height: 160)
-                    .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.field))
+                    .listRowInsets(EdgeInsets())
             }
             HStack(spacing: 8) {
                 infoPill(part.manufacturer, icon: "building.2.fill")
@@ -171,6 +171,7 @@ struct PartDetailView: View {
                     }
                 }
             }
+            .padding(.vertical, 2)
 
             if !part.seriesIds.isEmpty {
                 seriesChips
@@ -182,9 +183,6 @@ struct PartDetailView: View {
                     .foregroundStyle(.secondary)
             }
         }
-        .padding(14)
-        .background(RoundedRectangle(cornerRadius: Theme.Radius.card).fill(Color.primary.opacity(0.06)))
-        .overlay(RoundedRectangle(cornerRadius: Theme.Radius.card).stroke(Theme.Glass.border, lineWidth: 0.5))
     }
 
     private var seriesChips: some View {
@@ -214,43 +212,50 @@ struct PartDetailView: View {
     // MARK: - Stock
 
     private var stockSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            sectionHeader("Bestand", count: stocks.count)
-
-            Button { showingAddStock = true } label: {
-                ctaLabel("Bestand hinzufügen", icon: "plus")
-            }
-            .buttonStyle(.plain)
-
+        Section {
             if stocks.isEmpty {
                 Text("Noch kein Bestand erfasst.")
                     .scaledFont(13)
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(.secondary)
             } else {
-                VStack(spacing: 8) {
-                    ForEach(stocks, id: \.clientId) { stock in
-                        Button { editingStock = stock } label: {
-                            stockRow(stock)
+                ForEach(stocks, id: \.clientId) { stock in
+                    Button { editingStock = stock } label: {
+                        stockRow(stock)
+                    }
+                    .buttonStyle(.plain)
+                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                        Button(role: .destructive) {
+                            viewModel.deleteStock(stock)
+                        } label: {
+                            Label("Löschen", systemImage: "trash")
                         }
-                        .buttonStyle(.plain)
-                        .contextMenu {
-                            if let location = viewModel.storageLocation(clientId: stock.storageLocationClientId),
-                               location.serverId != nil {
-                                Button {
-                                    printingLocation = location
-                                } label: {
-                                    Label("Lagerort-Etikett drucken", systemImage: "printer")
-                                }
-                            }
-                            Button(role: .destructive) {
-                                viewModel.deleteStock(stock)
+                        .tint(.red)
+                    }
+                    .contextMenu {
+                        if let location = viewModel.storageLocation(clientId: stock.storageLocationClientId),
+                           location.serverId != nil {
+                            Button {
+                                printingLocation = location
                             } label: {
-                                Label("Löschen", systemImage: "trash")
+                                Label("Lagerort-Etikett drucken", systemImage: "printer")
                             }
+                        }
+                        Button(role: .destructive) {
+                            viewModel.deleteStock(stock)
+                        } label: {
+                            Label("Löschen", systemImage: "trash")
                         }
                     }
                 }
             }
+
+            Button { showingAddStock = true } label: {
+                Label("Bestand hinzufügen", systemImage: "plus")
+                    .scaledFont(13, weight: .semibold)
+            }
+            .tint(Theme.Colors.primary)
+        } header: {
+            sectionHeader("Bestand", count: stocks.count)
         }
     }
 
@@ -314,42 +319,47 @@ struct PartDetailView: View {
                 .scaledFont(11, weight: .semibold)
                 .foregroundStyle(.tertiary)
         }
-        .padding(12)
-        .background(RoundedRectangle(cornerRadius: Theme.Radius.field).fill(Color.primary.opacity(0.05)))
-        .overlay(RoundedRectangle(cornerRadius: Theme.Radius.field).stroke(Theme.Glass.border, lineWidth: 0.5))
+        .padding(.vertical, 4)
+        .contentShape(Rectangle())
     }
 
     // MARK: - Consumption
 
     private var consumptionSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            sectionHeader("Verbrauch", count: consumptions.count)
-
-            Button { showingAddConsumption = true } label: {
-                ctaLabel("Verbrauch erfassen", icon: "minus")
-            }
-            .buttonStyle(.plain)
-            .disabled(onHand < 1)
-            .opacity(onHand < 1 ? 0.5 : 1)
-
+        Section {
             if consumptions.isEmpty {
                 Text("Noch kein Verbrauch erfasst. Teile lassen sich auch direkt beim Erfassen einer Wartung verbuchen.")
                     .scaledFont(13)
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(.secondary)
             } else {
-                VStack(spacing: 8) {
-                    ForEach(consumptions, id: \.clientId) { consumption in
-                        consumptionRowLinked(consumption)
-                            .contextMenu {
-                                Button(role: .destructive) {
-                                    viewModel.deleteConsumption(consumption)
-                                } label: {
-                                    Label("Löschen (Bestand zurückbuchen)", systemImage: "arrow.uturn.backward")
-                                }
+                ForEach(consumptions, id: \.clientId) { consumption in
+                    consumptionRowLinked(consumption)
+                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                            Button(role: .destructive) {
+                                viewModel.deleteConsumption(consumption)
+                            } label: {
+                                Label("Zurückbuchen", systemImage: "arrow.uturn.backward")
                             }
-                    }
+                            .tint(.red)
+                        }
+                        .contextMenu {
+                            Button(role: .destructive) {
+                                viewModel.deleteConsumption(consumption)
+                            } label: {
+                                Label("Löschen (Bestand zurückbuchen)", systemImage: "arrow.uturn.backward")
+                            }
+                        }
                 }
             }
+
+            Button { showingAddConsumption = true } label: {
+                Label("Verbrauch erfassen", systemImage: "minus")
+                    .scaledFont(13, weight: .semibold)
+            }
+            .tint(Theme.Colors.primary)
+            .disabled(onHand < 1)
+        } header: {
+            sectionHeader("Verbrauch", count: consumptions.count)
         }
     }
 
@@ -440,37 +450,18 @@ struct PartDetailView: View {
             }
             Spacer(minLength: 0)
         }
-        .padding(12)
-        .background(RoundedRectangle(cornerRadius: Theme.Radius.field).fill(Color.primary.opacity(0.05)))
-        .overlay(RoundedRectangle(cornerRadius: Theme.Radius.field).stroke(Theme.Glass.border, lineWidth: 0.5))
+        .padding(.vertical, 4)
+        .contentShape(Rectangle())
     }
 
     // MARK: - Shared bits
 
     private func sectionHeader(_ label: String, count: Int) -> some View {
         HStack {
-            Text(label.uppercased())
-                .scaledFont(11, weight: .heavy).tracking(2)
-                .foregroundStyle(.secondary)
+            Text(label)
             Spacer()
             Text("\(count) \(count == 1 ? "Eintrag" : "Einträge")")
-                .scaledFont(11, weight: .semibold)
-                .foregroundStyle(.tertiary)
         }
-    }
-
-    private func ctaLabel(_ title: String, icon: String) -> some View {
-        HStack(spacing: 8) {
-            Image(systemName: icon)
-                .scaledFont(13, weight: .bold)
-            Text(title)
-                .scaledFont(13, weight: .bold)
-            Spacer(minLength: 0)
-        }
-        .foregroundStyle(.primary)
-        .padding(.horizontal, 14).padding(.vertical, 11)
-        .background(RoundedRectangle(cornerRadius: Theme.Radius.field).fill(Color.primary.opacity(0.10)))
-        .overlay(RoundedRectangle(cornerRadius: Theme.Radius.field).stroke(Theme.Glass.border, lineWidth: 0.5))
     }
 }
 
@@ -492,7 +483,6 @@ struct AddPartStockView: View {
     @State private var newLocationName = ""
     @State private var notes: String
     @State private var isUsed: Bool
-    @State private var savedAnim = false
 
     init(viewModel: PartsViewModel, part: SDPart, existingStock: SDPartStock? = nil) {
         self.viewModel = viewModel
@@ -519,10 +509,9 @@ struct AddPartStockView: View {
     }
 
     var body: some View {
+        NavigationStack {
         ScrollView {
             VStack(alignment: .leading, spacing: Theme.Spacing.l) {
-                header
-
                 field("MENGE") {
                     Stepper(value: $quantity, in: 1...999) {
                         Text("\(quantity) Stück")
@@ -572,46 +561,34 @@ struct AddPartStockView: View {
                     .tint(Theme.Colors.primary)
                 }
 
-                saveButton
                 if let existingStock {
                     Button(role: .destructive) {
                         guard viewModel.deleteStock(existingStock) else { return }
                         dismiss()
                     } label: {
                         Text("Löschen").frame(maxWidth: .infinity)
-                            .foregroundStyle(Theme.Colors.accent).padding(.vertical, 12)
                     }
+                    .glassActionButton(.danger, in: .roundedRectangle(radius: Theme.Radius.control))
+                    .padding(.top, Theme.Spacing.s)
                 }
             }
             .padding(Theme.Spacing.l)
         }
-        .background(Color.clear)
+        .navigationTitle(existingStock == nil ? "Bestand hinzufügen" : "Bestand bearbeiten")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+                Button("Abbrechen") { dismiss() }
+            }
+            ToolbarItem(placement: .confirmationAction) {
+                Button("Speichern", action: save)
+            }
+        }
         .onAppear {
             if let s = existingStock {
                 selectedLocation = viewModel.storageLocation(clientId: s.storageLocationClientId)
             }
         }
-    }
-
-    private var header: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(existingStock == nil ? "Bestand hinzufügen" : "Bestand bearbeiten")
-                    .scaledFont(22, weight: .heavy)
-                    .foregroundStyle(.primary)
-                Text(part.name)
-                    .scaledFont(12, weight: .semibold)
-                    .foregroundStyle(.secondary)
-            }
-            Spacer()
-            Button { dismiss() } label: {
-                Image(systemName: "xmark")
-                    .scaledFont(14, weight: .bold)
-                    .foregroundStyle(.primary)
-                    .frame(width: 32, height: 32)
-                    .background(Circle().fill(Color.primary.opacity(0.12)))
-            }
-            .accessibilityLabel("Schließen")
         }
     }
 
@@ -648,14 +625,6 @@ struct AddPartStockView: View {
         }
     }
 
-    private var saveButton: some View {
-        Button(action: save) {
-            Text(savedAnim ? "Gespeichert ✓" : "Speichern").frame(maxWidth: .infinity)
-        }
-        .glassActionButton(.primary, in: .roundedRectangle(radius: Theme.Radius.control))
-        .padding(.top, Theme.Spacing.s)
-    }
-
     private func save() {
         // Inline location creation wins over the picker when both are set.
         var location = selectedLocation
@@ -676,11 +645,7 @@ struct AddPartStockView: View {
                 purchaseDate: purchaseDate, storageLocation: location, notes: notes,
                 isUsed: isUsed) != nil else { return }
         }
-        withAnimation { savedAnim = true }
-        Task {
-            try? await Task.sleep(nanoseconds: 400_000_000)
-            dismiss()
-        }
+        dismiss()
     }
 }
 
@@ -696,33 +661,17 @@ struct AddPartConsumptionView: View {
     @State private var quantity = 1
     @State private var date = Date()
     @State private var notes = ""
-    @State private var savedAnim = false
     @State private var errorText: String?
 
     private var onHand: Int { viewModel.onHand(for: part) }
 
     var body: some View {
+        NavigationStack {
         ScrollView {
             VStack(alignment: .leading, spacing: Theme.Spacing.l) {
-                HStack {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Verbrauch erfassen")
-                            .scaledFont(22, weight: .heavy)
-                            .foregroundStyle(.primary)
-                        Text("\(part.name) · \(onHand) auf Lager")
-                            .scaledFont(12, weight: .semibold)
-                            .foregroundStyle(.secondary)
-                    }
-                    Spacer()
-                    Button { dismiss() } label: {
-                        Image(systemName: "xmark")
-                            .scaledFont(14, weight: .bold)
-                            .foregroundStyle(.primary)
-                            .frame(width: 32, height: 32)
-                            .background(Circle().fill(Color.primary.opacity(0.12)))
-                    }
-                    .accessibilityLabel("Schließen")
-                }
+                Text("\(part.name) · \(onHand) auf Lager")
+                    .scaledFont(12, weight: .semibold)
+                    .foregroundStyle(.secondary)
 
                 field("MENGE") {
                     Stepper(value: $quantity, in: 1...max(1, onHand)) {
@@ -746,15 +695,20 @@ struct AddPartConsumptionView: View {
                         .scaledFont(12, weight: .semibold)
                         .foregroundStyle(Theme.Colors.accent)
                 }
-
-                Button(action: save) {
-                    Text(savedAnim ? "Gespeichert ✓" : "Speichern").frame(maxWidth: .infinity)
-                }
-                .glassActionButton(.primary, in: .roundedRectangle(radius: Theme.Radius.control))
             }
             .padding(Theme.Spacing.l)
         }
-        .background(Color.clear)
+        .navigationTitle("Verbrauch erfassen")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+                Button("Abbrechen") { dismiss() }
+            }
+            ToolbarItem(placement: .confirmationAction) {
+                Button("Speichern", action: save)
+            }
+        }
+        }
     }
 
     private func field<Content: View>(_ label: String, @ViewBuilder content: () -> Content) -> some View {
@@ -774,11 +728,7 @@ struct AddPartConsumptionView: View {
             errorText = "Nicht genug Bestand."
             return
         }
-        withAnimation { savedAnim = true }
-        Task {
-            try? await Task.sleep(nanoseconds: 400_000_000)
-            dismiss()
-        }
+        dismiss()
     }
 }
 

@@ -30,6 +30,7 @@ struct FuelDetailView: View {
             title: titleString,
             barTitle: Formatters.mediumDate(record.date),
             subtitle: subtitle,
+            photoHero: stationCoordinates != nil,
             heroBackground: { heroMap },
             heroContent: { heroStats },
             body: { sections }
@@ -167,22 +168,17 @@ struct FuelDetailView: View {
 
     @ViewBuilder
     private var sections: some View {
-        DetailSection("DETAILS") {
+        DetailSection("Details") {
             DetailRow(label: "Datum", value: Formatters.mediumDate(record.date), mono: false)
-            divider
             DetailRow(label: "Kilometerstand", value: Formatters.kilometers(record.odo))
-            divider
             DetailRow(label: "Tankmenge", value: String(format: "%.2f L", record.fuelAmount ?? 0))
             if let type = record.fuelType, !type.isEmpty {
-                divider
                 DetailRow(label: "Kraftstoff", value: type, mono: false)
             }
             if record.fuelAdditiveAdded {
-                divider
                 DetailRow(label: "Additiv", value: "Ja", mono: false)
             }
             if record.leadSubstituteAdded {
-                divider
                 DetailRow(label: "Bleiersatz", value: "Ja", mono: false)
             }
         }
@@ -190,10 +186,9 @@ struct FuelDetailView: View {
         // Price, total and consumption already headline the hero tiles — this
         // section only carries what the hero doesn't show.
         if let trip = record.tripDistance, trip > 0 {
-            DetailSection("FAHRT") {
+            DetailSection("Fahrt") {
                 DetailRow(label: "Strecke seit letzter Tankung", value: "\(Int(trip)) km")
                 if let costPerKm {
-                    divider
                     DetailRow(label: "Kosten pro km", value: Formatters.costPerKilometer(costPerKm, currency: currency))
                 }
             }
@@ -202,41 +197,21 @@ struct FuelDetailView: View {
         if let coords = stationCoordinates {
             stationSection(lat: coords.lat, lon: coords.lon)
         } else if let location = stationName, !location.isEmpty {
-            DetailSection("TANKSTELLE") {
+            DetailSection("Tankstelle") {
                 DetailRow(label: "Standort", value: location, mono: false)
             }
         }
 
         if let notes = record.recordDescription, !notes.isEmpty {
-            DetailSection("NOTIZEN") {
+            DetailSection("Notizen") {
                 Text(notes)
                     .scaledFont(14)
-                    .foregroundStyle(.primary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 12)
             }
         }
     }
 
     private func stationSection(lat: Double, lon: Double) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text("TANKSTELLE\(stationName.map { " · \($0.uppercased())" } ?? "")")
-                    .scaledFont(10, weight: .heavy)
-                    .tracking(1.4)
-                    .foregroundStyle(.secondary)
-                Spacer()
-                Button {
-                    openInMaps(lat: lat, lon: lon, name: stationName)
-                } label: {
-                    Text("In Karten öffnen")
-                        .scaledFont(11, weight: .semibold)
-                        .foregroundStyle(Theme.Colors.primary)
-                }
-            }
-            .padding(.leading, 6)
-
+        Section {
             Map(initialPosition: .region(MKCoordinateRegion(
                 center: CLLocationCoordinate2D(latitude: lat, longitude: lon),
                 latitudinalMeters: 600, longitudinalMeters: 600
@@ -245,13 +220,17 @@ struct FuelDetailView: View {
                     .tint(Theme.Colors.primary)
             }
             .frame(height: 180)
-            .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.field))
-            .overlay(
-                RoundedRectangle(cornerRadius: Theme.Radius.field)
-                    .stroke(Theme.Glass.hairline, lineWidth: 0.5)
-            )
+            .listRowInsets(EdgeInsets())
+
+            Button {
+                openInMaps(lat: lat, lon: lon, name: stationName)
+            } label: {
+                Label("In Karten öffnen", systemImage: "arrow.up.right.square")
+            }
+            .tint(Theme.Colors.primary)
+        } header: {
+            Text("Tankstelle\(stationName.map { " · \($0)" } ?? "")")
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func openInMaps(lat: Double, lon: Double, name: String?) {
@@ -262,13 +241,6 @@ struct FuelDetailView: View {
     }
 
     // MARK: - Helpers
-
-    private var divider: some View {
-        Rectangle()
-            .fill(Theme.Glass.hairline)
-            .frame(height: 0.5)
-            .padding(.leading, 14)
-    }
 
     private var costPerKm: Double? {
         guard let trip = record.tripDistance, trip > 0, let cost = record.cost else { return nil }

@@ -33,6 +33,7 @@ struct MaintenanceDetailView: View {
             title: MaintenanceSummarizer.summarize(record, locations: viewModel.userLocations),
             barTitle: Formatters.mediumDate(record.date),
             subtitle: "\(viewModel.motorcycle.make) \(viewModel.motorcycle.model)",
+            photoHero: heroCoordinates != nil,
             heroBackground: { heroMap },
             heroContent: { categoryPill(category) },
             body: { sections(category) }
@@ -141,18 +142,22 @@ struct MaintenanceDetailView: View {
 
     @ViewBuilder
     private func sections(_ category: MaintenanceCategory) -> some View {
-        HStack(spacing: 8) {
-            statCard(eyebrow: "KOSTEN",
-                     value: record.cost.map { Formatters.currency($0, code: currency, fractionDigits: 0) } ?? "—",
-                     accent: category.tint)
-            statCard(eyebrow: "BEI", value: Formatters.kilometers(record.odo))
+        Section {
+            HStack(spacing: 8) {
+                statCard(eyebrow: "KOSTEN",
+                         value: record.cost.map { Formatters.currency($0, code: currency, fractionDigits: 0) } ?? "—",
+                         accent: category.tint)
+                statCard(eyebrow: "BEI", value: Formatters.kilometers(record.odo))
+            }
         }
+        .listRowInsets(EdgeInsets())
+        .listRowBackground(Color.clear)
+        .listRowSeparator(.hidden)
 
         // No Kategorie/Motorrad rows: both already headline the hero (the
         // category pill and the bike subtitle) — repeating them here is noise.
-        DetailSection("ÜBERSICHT") {
+        DetailSection("Übersicht") {
             DetailRow(label: "Datum", value: Formatters.mediumDate(record.date), mono: false)
-            divider
             DetailRow(label: "Kilometerstand", value: Formatters.kilometers(record.odo))
         }
 
@@ -163,13 +168,9 @@ struct MaintenanceDetailView: View {
         siblingRecordsSection
 
         if let notes = record.recordDescription ?? record.summary, !notes.isEmpty {
-            DetailSection("NOTIZEN") {
+            DetailSection("Notizen") {
                 Text(notes)
                     .scaledFont(14)
-                    .foregroundStyle(.primary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 12)
             }
         }
     }
@@ -180,9 +181,8 @@ struct MaintenanceDetailView: View {
     private func detailsSection(_ category: MaintenanceCategory) -> some View {
         let rows = detailRows(category)
         if !rows.isEmpty {
-            DetailSection("DETAILS") {
+            DetailSection("Details") {
                 ForEach(Array(rows.enumerated()), id: \.offset) { index, row in
-                    if index > 0 { divider }
                     DetailRow(label: row.0, value: row.1, mono: false)
                 }
             }
@@ -254,25 +254,22 @@ struct MaintenanceDetailView: View {
             // partsCost is server-derived in the base currency, so the combined
             // total is only meaningful on that basis.
             let baseCurrency = viewModel.motorcycle.currencyCode ?? currency
-            DetailSection("KOSTEN") {
+            DetailSection("Kosten") {
                 if let cost = record.cost {
                     DetailRow(label: "Betrag",
                               value: Formatters.currency(cost, code: currency),
                               accent: category.tint)
                     if let normalized = record.normalizedCost,
                        currency != baseCurrency {
-                        divider
                         DetailRow(label: "Umgerechnet",
                                   value: "≈ \(Formatters.currency(normalized, code: baseCurrency))")
                     }
                 }
                 if partsCost > 0 {
-                    if record.cost != nil { divider }
                     DetailRow(label: "Teile",
                               value: Formatters.currency(partsCost, code: baseCurrency),
                               accent: record.cost == nil ? category.tint : nil)
                     if let cost = record.cost {
-                        divider
                         DetailRow(
                             label: "Gesamt",
                             value: Formatters.currency(
@@ -292,9 +289,8 @@ struct MaintenanceDetailView: View {
     private var usedPartsSection: some View {
         let consumptions = partsVM.consumptions(forMaintenance: record)
         if !consumptions.isEmpty {
-            DetailSection("VERWENDETE TEILE") {
+            DetailSection("Verwendete Teile") {
                 ForEach(Array(consumptions.enumerated()), id: \.element.clientId) { index, consumption in
-                    if index > 0 { divider }
                     usedPartRow(consumption)
                 }
             }
@@ -332,8 +328,6 @@ struct MaintenanceDetailView: View {
                         .foregroundStyle(.tertiary)
                 }
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 11)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -352,9 +346,8 @@ struct MaintenanceDetailView: View {
     @ViewBuilder
     private var childRecordsSection: some View {
         if !childRecords.isEmpty {
-            DetailSection("EINGESCHLOSSENE ARBEITEN") {
+            DetailSection("Eingeschlossene Arbeiten") {
                 ForEach(Array(childRecords.enumerated()), id: \.element.clientId) { index, child in
-                    if index > 0 { divider }
                     recordLinkRow(child)
                 }
             }
@@ -376,9 +369,8 @@ struct MaintenanceDetailView: View {
     @ViewBuilder
     private var siblingRecordsSection: some View {
         if !siblingRecords.isEmpty {
-            DetailSection("WEITERE EINTRÄGE") {
+            DetailSection("Weitere Einträge") {
                 ForEach(Array(siblingRecords.enumerated()), id: \.element.clientId) { index, sibling in
-                    if index > 0 { divider }
                     recordLinkRow(sibling)
                 }
             }
@@ -413,8 +405,6 @@ struct MaintenanceDetailView: View {
                     .scaledFont(11, weight: .semibold)
                     .foregroundStyle(.tertiary)
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 11)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -442,12 +432,6 @@ struct MaintenanceDetailView: View {
         .overlay(RoundedRectangle(cornerRadius: 16).stroke(Theme.Glass.hairline, lineWidth: 0.5))
     }
 
-    private var divider: some View {
-        Rectangle()
-            .fill(Theme.Glass.hairline)
-            .frame(height: 0.5)
-            .padding(.leading, 14)
-    }
 
     private var currency: String {
         record.currency ?? viewModel.motorcycle.currencyCode ?? "EUR"

@@ -1,12 +1,11 @@
 import SwiftUI
 
-/// Reusable detail-page chrome matching the prototype's
-/// `motomanager-app/project/assets/details/DetailPage.jsx`.
-///
-/// Used by the pushed drill-down detail views (fuel, maintenance, part,
-/// storage location). Provides:
-/// - A hero header (optional accent color, optional eyebrow, title, subtitle, free-form children).
-/// - A scrollable body where the caller composes `DetailSection`s.
+/// Reusable detail-page chrome for the pushed drill-down detail views (fuel,
+/// maintenance, part, storage location). Provides:
+/// - A hero header (optional accent color, optional eyebrow, title, subtitle,
+///   free-form children) rendered as a full-bleed row.
+/// - A native insetGrouped `List` body where the caller composes
+///   `DetailSection`s (plain `Section`s work too).
 ///
 /// Designed for push presentation inside a `NavigationStack`: it shows the
 /// system navigation bar (native back button + swipe-back, inline title) and
@@ -23,6 +22,7 @@ struct DetailPage<HeroBackground: View, HeroContent: View, BodyContent: View>: V
     let title: String
     let barTitle: String?
     let subtitle: String?
+    let photoHero: Bool?
     let heroBackground: HeroBackground
     let heroContent: HeroContent
     let bodyContent: BodyContent
@@ -33,6 +33,7 @@ struct DetailPage<HeroBackground: View, HeroContent: View, BodyContent: View>: V
         title: String,
         barTitle: String? = nil,
         subtitle: String? = nil,
+        photoHero: Bool? = nil,
         @ViewBuilder heroBackground: () -> HeroBackground = { EmptyView() },
         @ViewBuilder heroContent: () -> HeroContent = { EmptyView() },
         @ViewBuilder body: () -> BodyContent
@@ -42,27 +43,32 @@ struct DetailPage<HeroBackground: View, HeroContent: View, BodyContent: View>: V
         self.title = title
         self.barTitle = barTitle
         self.subtitle = subtitle
+        self.photoHero = photoHero
         self.heroBackground = heroBackground()
         self.heroContent = heroContent()
         self.bodyContent = body()
     }
 
-    /// Whether the hero sits on a photo/scrim (caller passed a background).
-    /// Photo heroes keep white ink; plain heroes use adaptive label colors.
-    private var hasHeroBackground: Bool { HeroBackground.self != EmptyView.self }
+    /// Whether the hero sits on a photo/map and needs always-white ink.
+    /// Callers whose background is *conditional* (e.g. a map only when the
+    /// record has coordinates) must pass `photoHero:` explicitly — the type
+    /// check alone would keep white ink even when the background is absent.
+    private var hasHeroBackground: Bool { photoHero ?? (HeroBackground.self != EmptyView.self) }
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 0) {
+        List {
+            Section {
                 hero
-                VStack(spacing: 14) {
-                    bodyContent
-                }
-                .padding(.horizontal, 14)
-                .padding(.top, 16)
-                .padding(.bottom, 32)
             }
+            .listRowInsets(EdgeInsets())
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
+            .listSectionMargins(.all, 0)
+
+            bodyContent
         }
+        .listStyle(.insetGrouped)
+        .scrollContentBackground(.hidden)
         .background(Theme.Colors.background.ignoresSafeArea())
         .toolbar(.visible, for: .navigationBar)
         .toolbar(.hidden, for: .tabBar)
@@ -78,7 +84,6 @@ struct DetailPage<HeroBackground: View, HeroContent: View, BodyContent: View>: V
                     colors: [accent.opacity(0.30), accent.opacity(0.10), .clear],
                     startPoint: .topLeading, endPoint: .bottomTrailing
                 )
-                .ignoresSafeArea(edges: .top)
             } else {
                 Color.clear
             }
@@ -117,46 +122,11 @@ struct DetailPage<HeroBackground: View, HeroContent: View, BodyContent: View>: V
 
 }
 
-// MARK: - Detail row
-
-/// Single label/value row used inside `DetailSection`. The label sits on the
-/// left, the value on the right with optional accent color and monospaced
-/// digits (default — toggle off via `mono: false`).
-struct DetailRow: View {
-    let label: String
-    let value: String
-    var accent: Color? = nil
-    var mono: Bool = true
-
-    var body: some View {
-        HStack(alignment: .firstTextBaseline) {
-            Text(label)
-                .scaledFont(13, weight: .medium)
-                .foregroundStyle(.secondary)
-            Spacer(minLength: 12)
-            valueText
-                .scaledFont(14, weight: .bold)
-                .foregroundStyle(accent.map(AnyShapeStyle.init) ?? AnyShapeStyle(.primary))
-                .multilineTextAlignment(.trailing)
-        }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 11)
-    }
-
-    @ViewBuilder
-    private var valueText: some View {
-        if mono {
-            Text(value).monospacedDigit()
-        } else {
-            Text(value)
-        }
-    }
-}
-
 // MARK: - Detail section
 
-/// Card-grouped section with optional eyebrow title. Children stack with
-/// 0.5pt dividers between rows.
+/// Native list section with an optional header. Kept as a named wrapper so
+/// detail pages read the same as before the List migration; separators and
+/// row chrome come from the system.
 struct DetailSection<Content: View>: View {
     let title: String?
     let content: Content
@@ -167,20 +137,42 @@ struct DetailSection<Content: View>: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        Section {
+            content
+        } header: {
             if let title {
                 Text(title)
-                    .scaledFont(10, weight: .heavy)
-                    .tracking(1.4)
-                    .foregroundStyle(.secondary)
-                    .padding(.leading, 6)
             }
-            VStack(spacing: 0) {
-                content
-            }
-            .glassEffect(.regular, in: RoundedRectangle(cornerRadius: Theme.Radius.field))
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+// MARK: - Detail row
+
+/// Single label/value row used inside `DetailSection` — a `LabeledContent`
+/// with optional accent color and monospaced digits (default — toggle off
+/// via `mono: false`).
+struct DetailRow: View {
+    let label: String
+    let value: String
+    var accent: Color? = nil
+    var mono: Bool = true
+
+    var body: some View {
+        LabeledContent(label) {
+            valueText
+                .multilineTextAlignment(.trailing)
+        }
+    }
+
+    @ViewBuilder
+    private var valueText: some View {
+        let text = mono ? Text(value).monospacedDigit() : Text(value)
+        if let accent {
+            text.foregroundStyle(accent)
+        } else {
+            text
+        }
     }
 }
 

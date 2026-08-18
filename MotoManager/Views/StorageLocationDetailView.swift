@@ -90,22 +90,24 @@ struct StorageLocationDetailView: View {
     // MARK: - Stocked parts
 
     private var partsSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            sectionHeader("Eingelagerte Teile", count: stockedParts.count)
-
+        Section {
             if stockedParts.isEmpty {
                 Text("Keine Teile an diesem Lagerort eingelagert.")
                     .scaledFont(13)
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(.secondary)
             } else {
-                VStack(spacing: 8) {
-                    ForEach(stockedParts, id: \.part.clientId) { entry in
-                        Button { selectedPart = entry.part } label: {
-                            partRow(entry.part, quantity: entry.quantity)
-                        }
-                        .buttonStyle(.plain)
+                ForEach(stockedParts, id: \.part.clientId) { entry in
+                    Button { selectedPart = entry.part } label: {
+                        partRow(entry.part, quantity: entry.quantity)
                     }
+                    .buttonStyle(.plain)
                 }
+            }
+        } header: {
+            HStack {
+                Text("Eingelagerte Teile")
+                Spacer()
+                Text("\(stockedParts.count) \(stockedParts.count == 1 ? "Teil" : "Teile")")
             }
         }
     }
@@ -143,20 +145,7 @@ struct StorageLocationDetailView: View {
                 .scaledFont(11, weight: .semibold)
                 .foregroundStyle(.tertiary)
         }
-        .padding(12)
-        .background(RoundedRectangle(cornerRadius: Theme.Radius.field).fill(Color.primary.opacity(0.05)))
-        .overlay(RoundedRectangle(cornerRadius: Theme.Radius.field).stroke(Theme.Glass.border, lineWidth: 0.5))
-    }
-
-    private func sectionHeader(_ label: String, count: Int) -> some View {
-        HStack {
-            Text(label.uppercased())
-                .scaledFont(11, weight: .heavy).tracking(2)
-                .foregroundStyle(.secondary)
-            Spacer()
-            Text("\(count) \(count == 1 ? "Teil" : "Teile")")
-                .scaledFont(11, weight: .semibold)
-                .foregroundStyle(.tertiary)
-        }
+        .padding(.vertical, 4)
+        .contentShape(Rectangle())
     }
 }
