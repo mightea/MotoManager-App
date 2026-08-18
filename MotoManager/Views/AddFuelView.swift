@@ -24,14 +24,17 @@ struct AddFuelView: View {
     /// Fuel-station GPS detection lifecycle (new entries only).
     private enum StationState: Equatable { case idle, detecting, matched, suggestCreate, denied, failed }
 
+    // Fields also seeded from `existingRecord` in init must not carry a
+    // declaration default: iOS 27's @State macro discards the init value
+    // when both are set.
     @State private var odo: String
-    @State private var liters: String = ""
-    @State private var price: String = ""
-    @State private var total: String = ""
-    @State private var coupleSource: PriceCouple = .perLiter
+    @State private var liters: String
+    @State private var price: String
+    @State private var total: String
+    @State private var coupleSource: PriceCouple
     @State private var fullTank: Bool = true
-    @State private var fuelAdditiveAdded: Bool = false
-    @State private var leadSubstituteAdded: Bool = false
+    @State private var fuelAdditiveAdded: Bool
+    @State private var leadSubstituteAdded: Bool
     @State private var savedAnim: Bool = false
     /// One-shot: on the first tap into the pre-filled odo/price fields we strip
     /// the part that usually changes (odo's last 3 digits, the price decimals)
@@ -43,10 +46,10 @@ struct AddFuelView: View {
     @State private var currencies: [Currency]
     @State private var currencyPopoverOpen: Bool = false
     /// Hidden — preserved across edits but not user-editable in this sheet.
-    @State private var fuelType: String = "98"
-    @State private var locationName: String = ""
-    @State private var notes: String = ""
-    @State private var date = Date()
+    @State private var fuelType: String
+    @State private var locationName: String
+    @State private var notes: String
+    @State private var date: Date
 
     // Fuel-station detection (new entries): GPS → match an existing backend
     // location or propose creating one. `locationId` links the record server-side;
@@ -63,6 +66,17 @@ struct AddFuelView: View {
         self.existingRecord = existingRecord
 
         _currencies = State(initialValue: CacheStore.shared.load([Currency].self, key: CacheKey.currencies) ?? [])
+
+        _liters = State(initialValue: "")
+        _price = State(initialValue: "")
+        _total = State(initialValue: "")
+        _coupleSource = State(initialValue: .perLiter)
+        _fuelAdditiveAdded = State(initialValue: false)
+        _leadSubstituteAdded = State(initialValue: false)
+        _fuelType = State(initialValue: "98")
+        _locationName = State(initialValue: "")
+        _notes = State(initialValue: "")
+        _date = State(initialValue: Date())
 
         if let record = existingRecord {
             _odo = State(initialValue: "\(record.odo)")
