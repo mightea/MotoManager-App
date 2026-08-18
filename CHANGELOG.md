@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.6.0](https://github.com/mightea/MotoManager-App/compare/v0.5.0...v0.6.0) (2026-08-18)
+
+
+### Features
+
+* add app shortcuts for logging fuel and scanning labels ([35306ca](https://github.com/mightea/MotoManager-App/commit/35306ca2ce9066d26301dc5d5de58efeb45016be))
+* add home-screen quick actions for logging fuel and scanning labels ([b1109a2](https://github.com/mightea/MotoManager-App/commit/b1109a261ce859793dd1a3aaf3e3dc91845a034f))
+* add layered liquid glass app icon and polish swipe actions ([be6513e](https://github.com/mightea/MotoManager-App/commit/be6513e1e82b6c54c9e4c13978e7eb453c880c7b))
+* adopt native ios 26 chrome, align with ios 27 design, add light mode ([b9cd968](https://github.com/mightea/MotoManager-App/commit/b9cd9689e11c21fc495fdf34e497f303cf3f59e6))
+
+
+### Bug Fixes
+
+* add bluetooth purpose string required by app store validation ([ef3d727](https://github.com/mightea/MotoManager-App/commit/ef3d727ae4744c5c8c120c1fdc7a99b9bd91fb1f))
+* make @State seeding iOS 27-safe and stop eyebrow label wrapping ([31f8c2c](https://github.com/mightea/MotoManager-App/commit/31f8c2c101e89ac93af483927cd2be1bc7b9dc0b))
+* stop content flashes when switching parts segments ([f4a084e](https://github.com/mightea/MotoManager-App/commit/f4a084ec6a280d42c1d7f73cfb6a607a5761cc9a))
+
 ## [0.5.0](https://github.com/mightea/MotoManager-App/compare/v0.4.0...v0.5.0) (2026-08-17)
 
 
