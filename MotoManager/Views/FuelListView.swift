@@ -189,6 +189,7 @@ struct FuelListView: View {
                             } label: {
                                 Label("Löschen", systemImage: "trash")
                             }
+                            .tint(.red)
                         }
                     }
                 }

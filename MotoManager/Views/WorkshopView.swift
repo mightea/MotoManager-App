@@ -351,6 +351,7 @@ struct WorkshopView: View {
                         } label: {
                             Label("Löschen", systemImage: "trash")
                         }
+                        .tint(.red)
                     }
                 }
             }
@@ -413,6 +414,7 @@ extension WorkshopView {
                         } label: {
                             Label("Löschen", systemImage: "trash")
                         }
+                        .tint(.red)
                     }
                 }
             }
