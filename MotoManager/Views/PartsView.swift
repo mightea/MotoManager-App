@@ -9,6 +9,7 @@ struct PartsView: View {
     /// The currently selected bike, used for the "Passend für …" filter chip.
     let motorcycle: Motorcycle?
     @Environment(\.chromeActions) private var chrome
+    @ObservedObject private var quickActions = QuickActionRouter.shared
 
     enum PartsTab: Hashable { case mine, locations, publicParts }
     @State private var tab: PartsTab = .mine
@@ -125,6 +126,13 @@ struct PartsView: View {
             if tab == .publicParts {
                 await viewModel.loadPublicParts(query: searchText.isEmpty ? nil : searchText)
             }
+        }
+        // Consume the "Etikett scannen" App Shortcut. `initial: true` covers
+        // a cold launch where the intent fired before this view existed.
+        .onChange(of: quickActions.pending, initial: true) { _, action in
+            guard action == .scanPart else { return }
+            quickActions.pending = nil
+            showingScanner = true
         }
         .sheet(isPresented: $showingAddPart) {
             AddPartView(viewModel: viewModel)

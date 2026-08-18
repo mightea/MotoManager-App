@@ -4,6 +4,7 @@ import Charts
 struct FuelListView: View {
     @ObservedObject var viewModel: MotorcycleDetailViewModel
     @Environment(\.chromeActions) private var chrome
+    @ObservedObject private var quickActions = QuickActionRouter.shared
     @State private var showingAddFuel = false
     @State private var selectedFuelRecord: SDMaintenanceRecord?
 
@@ -135,6 +136,13 @@ struct FuelListView: View {
                     chrome.openSettings()
                 }
             }
+        }
+        // Consume the "Tankung erfassen" App Shortcut. `initial: true` covers
+        // a cold launch where the intent fired before this view existed.
+        .onChange(of: quickActions.pending, initial: true) { _, action in
+            guard action == .addFuel else { return }
+            quickActions.pending = nil
+            showingAddFuel = true
         }
         .sheet(isPresented: $showingAddFuel) {
             AddFuelView(viewModel: viewModel)

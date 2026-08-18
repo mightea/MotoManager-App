@@ -5,6 +5,7 @@ struct MainTabView: View {
     @EnvironmentObject var fleetVM: MotorcycleViewModel
     @EnvironmentObject private var persistenceMonitor: PersistenceMonitor
     @EnvironmentObject private var syncEngine: SyncEngine
+    @ObservedObject private var quickActions = QuickActionRouter.shared
     @State private var detailVM: MotorcycleDetailViewModel?
     @StateObject private var partsVM = PartsViewModel()
     @State private var activeTab: AppTab = .fuel
@@ -58,6 +59,17 @@ struct MainTabView: View {
                 message: Text(issue.message),
                 dismissButton: .default(Text("OK"))
             )
+        }
+        // App Shortcut landed: jump to the owning tab and clear any chrome
+        // sheet in the way; the tab view consumes the action itself.
+        .onChange(of: quickActions.pending, initial: true) { _, action in
+            guard let action else { return }
+            showingGarage = false
+            showingSettings = false
+            switch action {
+            case .addFuel: activeTab = .fuel
+            case .scanPart: activeTab = .parts
+            }
         }
     }
 
