@@ -25,10 +25,10 @@ struct GlassFieldRow: View {
     enum Size {
         case big, compact
 
-        var valueFont: Font {
+        var valueSize: CGFloat {
             switch self {
-            case .big: return .system(size: 28, weight: .bold).monospacedDigit()
-            case .compact: return .system(size: 19, weight: .bold).monospacedDigit()
+            case .big: return 28
+            case .compact: return 19
             }
         }
 
@@ -46,10 +46,10 @@ struct GlassFieldRow: View {
             }
         }
 
-        var unitFont: Font {
+        var unitSize: CGFloat {
             switch self {
-            case .big: return .system(size: 11, weight: .semibold)
-            case .compact: return .system(size: 10, weight: .semibold)
+            case .big: return 11
+            case .compact: return 10
             }
         }
     }
@@ -62,14 +62,14 @@ struct GlassFieldRow: View {
                 HStack(alignment: .firstTextBaseline, spacing: 4) {
                     valueText
                     Text(unit)
-                        .font(size.unitFont)
-                        .foregroundColor(Theme.Glass.mutedText)
+                        .scaledFont(size.unitSize, weight: .semibold)
+                        .foregroundStyle(.secondary)
                 }
 
                 if let hint, !hint.isEmpty {
                     Text(hint)
                         .scaledFont(10, weight: .medium)
-                        .foregroundColor(Theme.Glass.mutedText)
+                        .foregroundStyle(.secondary)
                         .lineLimit(1)
                 }
             }
@@ -78,7 +78,7 @@ struct GlassFieldRow: View {
             .padding(.vertical, size.paddingV)
             .glassEffect(
                 isActive ? .regular.tint(Theme.Colors.primary.opacity(0.5)) : .regular,
-                in: RoundedRectangle(cornerRadius: Theme.Glass.fieldRadius)
+                in: RoundedRectangle(cornerRadius: Theme.Radius.field)
             )
             .overlay(border)
             .overlay(focusRing)
@@ -94,12 +94,12 @@ struct GlassFieldRow: View {
             if let icon {
                 Image(systemName: icon)
                     .scaledFont(10, weight: .semibold)
-                    .foregroundColor(isActive ? Theme.Colors.primary : Theme.Glass.mutedText)
+                    .foregroundStyle(isActive ? AnyShapeStyle(Theme.Colors.primary) : AnyShapeStyle(.secondary))
             }
             Text(eyebrow)
                 .scaledFont(9, weight: .heavy)
                 .tracking(1.4)
-                .foregroundColor(isActive ? Theme.Colors.primary : Theme.Glass.mutedText)
+                .foregroundStyle(isActive ? AnyShapeStyle(Theme.Colors.primary) : AnyShapeStyle(.secondary))
                 .lineLimit(1)
                 .minimumScaleFactor(0.5)
             if derived {
@@ -107,20 +107,21 @@ struct GlassFieldRow: View {
                 Text("BERECHNET")
                     .scaledFont(8, weight: .heavy)
                     .tracking(0.4)
-                    .foregroundColor(Theme.Glass.mutedText)
+                    .foregroundStyle(.secondary)
                     .lineLimit(1)
                     .fixedSize()
                     .padding(.horizontal, 6)
                     .padding(.vertical, 1)
-                    .background(Capsule().fill(Color.white.opacity(0.12)))
+                    .background(Capsule().fill(Color.primary.opacity(0.12)))
             }
         }
     }
 
     private var valueText: some View {
         Text(value.isEmpty ? placeholder : value)
-            .font(size.valueFont)
-            .foregroundColor(valueColor)
+            .scaledFont(size.valueSize, weight: .bold)
+            .monospacedDigit()
+            .foregroundStyle(valueStyle)
             .lineLimit(1)
             .minimumScaleFactor(0.5)
     }
@@ -132,14 +133,14 @@ struct GlassFieldRow: View {
         }
     }
 
-    private var valueColor: Color {
-        guard !value.isEmpty else { return Color.white.opacity(0.3) }
-        if accent { return Theme.Colors.primary }
-        return .white
+    private var valueStyle: AnyShapeStyle {
+        guard !value.isEmpty else { return AnyShapeStyle(.tertiary) }
+        if accent { return AnyShapeStyle(Theme.Colors.primary) }
+        return AnyShapeStyle(.primary)
     }
 
     private var border: some View {
-        RoundedRectangle(cornerRadius: Theme.Glass.fieldRadius)
+        RoundedRectangle(cornerRadius: Theme.Radius.field)
             .stroke(
                 isActive
                     ? Theme.Colors.primary.opacity(0.5)
@@ -151,7 +152,7 @@ struct GlassFieldRow: View {
     @ViewBuilder
     private var focusRing: some View {
         if isActive {
-            RoundedRectangle(cornerRadius: Theme.Glass.fieldRadius)
+            RoundedRectangle(cornerRadius: Theme.Radius.field)
                 .stroke(Theme.Colors.primary.opacity(0.12), lineWidth: 3)
                 .padding(-1.5)
         }

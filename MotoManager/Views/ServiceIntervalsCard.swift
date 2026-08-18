@@ -18,38 +18,24 @@ struct ServiceIntervalsCard: View {
 
     var body: some View {
         if !insights.isEmpty {
-            VStack(alignment: .leading, spacing: 0) {
-                Button {
-                    withAnimation(.snappy) { expanded.toggle() }
-                } label: {
-                    header
-                }
-                .buttonStyle(.plain)
-
-                if expanded {
-                    VStack(alignment: .leading, spacing: 14) {
-                        ForEach(MaintenanceInsight.Category.allCases, id: \.rawValue) { category in
-                            let items = insights
-                                .filter { $0.category == category }
-                                .sorted { $0.status < $1.status }
-                            if !items.isEmpty {
-                                categorySection(category, items: items)
-                            }
+            // Native disclosure row inside the surrounding List section — the
+            // system provides chevron, animation and row chrome.
+            DisclosureGroup(isExpanded: $expanded) {
+                VStack(alignment: .leading, spacing: 14) {
+                    ForEach(MaintenanceInsight.Category.allCases, id: \.rawValue) { category in
+                        let items = insights
+                            .filter { $0.category == category }
+                            .sorted { $0.status < $1.status }
+                        if !items.isEmpty {
+                            categorySection(category, items: items)
                         }
                     }
-                    .padding(.horizontal, 14)
-                    .padding(.bottom, 14)
                 }
+                .padding(.top, 8)
+            } label: {
+                header
             }
-            .glassEffect(.regular, in: RoundedRectangle(cornerRadius: Theme.Glass.cardRadius))
-            .overlay(alignment: .leading) {
-                if let worst = worstStatus, worst != .ok {
-                    RoundedRectangle(cornerRadius: 2)
-                        .fill(color(for: worst))
-                        .frame(width: 3)
-                        .padding(.vertical, 10)
-                }
-            }
+            .tint(.secondary)
         }
     }
 
@@ -60,15 +46,10 @@ struct ServiceIntervalsCard: View {
             Text("SERVICE-INTERVALLE")
                 .scaledFont(11, weight: .heavy)
                 .tracking(2)
-                .foregroundColor(.white.opacity(0.7))
+                .foregroundStyle(.secondary)
             Spacer(minLength: 8)
             tally
-            Image(systemName: "chevron.down")
-                .scaledFont(11, weight: .bold)
-                .foregroundColor(.white.opacity(0.5))
-                .rotationEffect(.degrees(expanded ? 180 : 0))
         }
-        .padding(14)
         .contentShape(Rectangle())
         .accessibilityLabel(accessibilitySummary)
     }
@@ -89,7 +70,7 @@ struct ServiceIntervalsCard: View {
                 .scaledFont(10, weight: .heavy)
                 .monospacedDigit()
         }
-        .foregroundColor(color)
+        .foregroundStyle(color)
     }
 
     // MARK: - Body sections
@@ -99,7 +80,7 @@ struct ServiceIntervalsCard: View {
             Text(category.rawValue.uppercased())
                 .scaledFont(9, weight: .heavy)
                 .tracking(1.4)
-                .foregroundColor(Theme.Glass.mutedText)
+                .foregroundStyle(.secondary)
             VStack(spacing: 8) {
                 ForEach(items) { insight in
                     row(insight)
@@ -112,23 +93,23 @@ struct ServiceIntervalsCard: View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
             Image(systemName: icon(for: insight.status))
                 .scaledFont(12, weight: .semibold)
-                .foregroundColor(color(for: insight.status))
+                .foregroundStyle(color(for: insight.status))
                 .frame(width: 16)
             VStack(alignment: .leading, spacing: 2) {
                 Text(insight.label)
                     .scaledFont(13, weight: .semibold)
-                    .foregroundColor(.white)
+                    .foregroundStyle(.primary)
                 Text(meta(for: insight))
                     .scaledFont(10, weight: .semibold)
                     .monospacedDigit()
-                    .foregroundColor(.white.opacity(0.55))
+                    .foregroundStyle(.secondary)
                 // The rule and the verdict, so a red row is actionable
                 // ("interval is 8 years, you're 3 past it") instead of a bare
                 // colored icon the user has to decode.
                 Text(statusDetail(for: insight))
                     .scaledFont(10, weight: .semibold)
                     .monospacedDigit()
-                    .foregroundColor(color(for: insight.status).opacity(0.9))
+                    .foregroundStyle(color(for: insight.status).opacity(0.9))
             }
             Spacer(minLength: 0)
         }

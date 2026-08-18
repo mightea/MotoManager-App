@@ -3,14 +3,14 @@ import SwiftUI
 /// iOS-style pill segmented control matching the Claude Design prototype.
 /// Each segment renders a label and (optionally) a trailing count badge.
 ///
+/// This is the app's single segmented-control idiom — used on the home tabs
+/// *and* inside sheets, so tab chrome and form chrome share one visual
+/// language (previously sheets used a separately-styled native `Picker`).
+///
 /// The active segment is a raised Liquid Glass pill that **morphs** between
 /// segments: the indicator and the surrounding track live in the same
 /// `GlassEffectContainer`, and the indicator carries a shared `.glassEffectID`
-/// so it flows to the newly-selected segment under the selection animation
-/// (replacing the former solid `Color(white:)` fill + fake shadow).
-///
-/// Mirrors the visual treatment from
-/// `ServiceScreen.jsx` lines 16–44 and `WorkshopScreen.jsx` lines 35–57.
+/// so it flows to the newly-selected segment under the selection animation.
 struct GlassSegmentedControl<Value: Hashable>: View {
     let segments: [Segment]
     @Binding var selection: Value
@@ -31,7 +31,7 @@ struct GlassSegmentedControl<Value: Hashable>: View {
                 }
             }
             .padding(3)
-            .glassEffect(.regular, in: RoundedRectangle(cornerRadius: Theme.Glass.segmentRadius))
+            .glassEffect(.regular, in: RoundedRectangle(cornerRadius: Theme.Radius.control))
         }
         // Animation is scoped to this subtree instead of wrapping the
         // selection change in `withAnimation`: a global transaction would
@@ -54,30 +54,30 @@ struct GlassSegmentedControl<Value: Hashable>: View {
                     Text("\(count)")
                         .scaledFont(11, weight: .heavy)
                         .monospacedDigit()
-                        .foregroundColor(isActive ? .white : .white.opacity(0.85))
+                        .foregroundStyle(isActive ? AnyShapeStyle(Color.white) : AnyShapeStyle(.primary))
                         .padding(.horizontal, 7)
                         .padding(.vertical, 1)
                         .background(
                             Capsule().fill(
                                 isActive
-                                    ? Theme.Colors.primary
-                                    : Color.white.opacity(0.10)
+                                    ? AnyShapeStyle(Theme.Colors.primary)
+                                    : AnyShapeStyle(Color.primary.opacity(0.10))
                             )
                         )
                 }
             }
-            .foregroundColor(isActive ? .white : Theme.Glass.mutedText)
+            .foregroundStyle(isActive ? AnyShapeStyle(.primary) : AnyShapeStyle(.secondary))
             .frame(maxWidth: .infinity)
             .padding(.vertical, 10)
             .background {
                 // Only the active segment renders the glass indicator; the shared
                 // glassEffectID lets it morph to whichever segment becomes active.
                 if isActive {
-                    RoundedRectangle(cornerRadius: Theme.Glass.segmentInnerRadius)
+                    RoundedRectangle(cornerRadius: Theme.Radius.controlInner)
                         .fill(Color.clear)
                         .glassEffect(
                             .regular,
-                            in: RoundedRectangle(cornerRadius: Theme.Glass.segmentInnerRadius)
+                            in: RoundedRectangle(cornerRadius: Theme.Radius.controlInner)
                         )
                         .glassEffectID("selection", in: glassNamespace)
                 }

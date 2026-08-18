@@ -26,49 +26,41 @@ struct AddDetailView: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: Theme.Spacing.l) {
-                header
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: Theme.Spacing.l) {
+                    field("TITEL") {
+                        TextField("", text: $title, prompt: Text("z. B. Zündkerze").foregroundStyle(.tertiary))
+                            .foregroundStyle(.primary)
+                    }
+                    field("WERT") {
+                        TextField("", text: $value, prompt: Text("z. B. NGK DPR8EA-9").foregroundStyle(.tertiary), axis: .vertical)
+                            .lineLimit(1...5).foregroundStyle(.primary)
+                    }
 
-                field("TITEL") {
-                    TextField("", text: $title, prompt: Text("z. B. Zündkerze").foregroundColor(.white.opacity(0.3)))
-                        .foregroundColor(.white)
+                    if existingDetail != nil { deleteButton }
                 }
-                field("WERT") {
-                    TextField("", text: $value, prompt: Text("z. B. NGK DPR8EA-9").foregroundColor(.white.opacity(0.3)), axis: .vertical)
-                        .lineLimit(1...5).foregroundColor(.white)
+                .padding(Theme.Spacing.l)
+            }
+            .navigationTitle(existingDetail == nil ? "Detail hinzufügen" : "Detail bearbeiten")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Abbrechen") { dismiss() }
                 }
-
-                saveButton
-                if existingDetail != nil { deleteButton }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Speichern") { save() }
+                        .disabled(!canSave)
+                }
             }
-            .padding(Theme.Spacing.l)
-        }
-        .background(Color.clear)
-        .alert("Detail löschen?", isPresented: $confirmingDelete) {
-            Button("Abbrechen", role: .cancel) { }
-            Button("Löschen", role: .destructive) {
-                guard let detail = existingDetail,
-                      viewModel.deleteDetail(detail) else { return }
-                dismiss()
+            .alert("Detail löschen?", isPresented: $confirmingDelete) {
+                Button("Abbrechen", role: .cancel) { }
+                Button("Löschen", role: .destructive) {
+                    guard let detail = existingDetail,
+                          viewModel.deleteDetail(detail) else { return }
+                    dismiss()
+                }
             }
-        }
-    }
-
-    private var header: some View {
-        HStack {
-            Text(existingDetail == nil ? "Detail hinzufügen" : "Detail bearbeiten")
-                .scaledFont(22, weight: .heavy)
-                .foregroundColor(.white)
-            Spacer()
-            Button { dismiss() } label: {
-                Image(systemName: "xmark")
-                    .scaledFont(14, weight: .bold)
-                    .foregroundColor(.white)
-                    .frame(width: 32, height: 32)
-                    .background(Circle().fill(Color.white.opacity(0.12)))
-            }
-            .accessibilityLabel("Schließen")
         }
     }
 
@@ -76,29 +68,20 @@ struct AddDetailView: View {
         VStack(alignment: .leading, spacing: 6) {
             Text(label)
                 .scaledFont(10, weight: .heavy).tracking(1.4)
-                .foregroundColor(Theme.Glass.mutedText)
+                .foregroundStyle(.secondary)
             content()
                 .padding(.horizontal, 14).padding(.vertical, 12)
-                .background(RoundedRectangle(cornerRadius: Theme.Glass.fieldRadius).fill(Color.white.opacity(0.06)))
-                .overlay(RoundedRectangle(cornerRadius: Theme.Glass.fieldRadius).stroke(Theme.Glass.border, lineWidth: 0.5))
+                .background(RoundedRectangle(cornerRadius: Theme.Radius.field).fill(Color.primary.opacity(0.06)))
+                .overlay(RoundedRectangle(cornerRadius: Theme.Radius.field).stroke(Theme.Glass.border, lineWidth: 0.5))
         }
-    }
-
-    private var saveButton: some View {
-        Button(action: save) {
-            Text(savedAnim ? "Gespeichert ✓" : "Speichern").frame(maxWidth: .infinity)
-        }
-        .buttonStyle(ModernButtonStyle())
-        .disabled(!canSave)
-        .opacity(canSave ? 1 : 0.5)
-        .padding(.top, Theme.Spacing.s)
     }
 
     private var deleteButton: some View {
         Button(role: .destructive) { confirmingDelete = true } label: {
-            Text("Löschen").frame(maxWidth: .infinity).foregroundColor(Theme.Colors.accent)
-                .padding(.vertical, 12)
+            Text("Löschen").frame(maxWidth: .infinity)
         }
+        .glassActionButton(.danger, in: .roundedRectangle(radius: Theme.Radius.control))
+        .padding(.top, Theme.Spacing.s)
     }
 
     private var canSave: Bool {

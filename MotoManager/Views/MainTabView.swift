@@ -4,6 +4,7 @@ struct MainTabView: View {
     @EnvironmentObject var authVM: AuthViewModel
     @EnvironmentObject var fleetVM: MotorcycleViewModel
     @EnvironmentObject private var persistenceMonitor: PersistenceMonitor
+    @EnvironmentObject private var syncEngine: SyncEngine
     @State private var detailVM: MotorcycleDetailViewModel?
     @StateObject private var partsVM = PartsViewModel()
     @State private var activeTab: AppTab = .fuel
@@ -64,18 +65,36 @@ struct MainTabView: View {
 
     @ViewBuilder
     private func screenStack(dVM: MotorcycleDetailViewModel) -> some View {
-        // Native iOS 26 TabView with the Liquid Glass tab bar. Scroll-to-minimize
-        // is intentionally off: the offline banner + add button float above the
-        // tab bar as background-free overlays (each screen's `bottomActionBar`),
-        // and a minimizing bar would leave the button floating mid-screen.
-        TabView(selection: $activeTab) {
+        // Native iOS 26 TabView with the Liquid Glass tab bar. Each screen owns
+        // the system navigation bar (settings/add as toolbar items); transient
+        // sync/refresh status lives in the system bottom accessory, which
+        // morphs into the minimized tab bar on scroll.
+        let showAccessory = StatusAccessoryBar.isActive(engine: syncEngine, viewModel: dVM)
+        let tabs = TabView(selection: $activeTab) {
             ForEach(AppTab.allCases) { tab in
                 Tab(tab.label, systemImage: tab.systemImage, value: tab) {
                     NavigationStack {
                         screen(for: tab, dVM: dVM)
-                            .toolbar(.hidden, for: .navigationBar)
                     }
                 }
+            }
+        }
+        .tabBarMinimizeBehavior(.onScrollDown)
+
+        Group {
+            if #available(iOS 26.1, *) {
+                // `isEnabled:` keeps the TabView's identity stable while the
+                // accessory comes and goes.
+                tabs.tabViewBottomAccessory(isEnabled: showAccessory) {
+                    StatusAccessoryBar(viewModel: dVM)
+                }
+            } else if showAccessory {
+                // iOS 26.0 has no `isEnabled:` — attach only while active.
+                tabs.tabViewBottomAccessory {
+                    StatusAccessoryBar(viewModel: dVM)
+                }
+            } else {
+                tabs
             }
         }
         .tint(Theme.Colors.primary)
@@ -130,7 +149,7 @@ struct MainTabView: View {
         Button(action: action) {
             Image(systemName: systemImage)
                 .scaledFont(16, weight: .semibold)
-                .foregroundStyle(.white)
+                .foregroundStyle(.primary)
                 .frame(width: 38, height: 38)
                 .glassEffect(.regular, in: Circle())
         }
@@ -154,7 +173,7 @@ struct EmptyFleetView: View {
 
                 Image(systemName: "motorcycle")
                     .scaledFont(60)
-                    .foregroundColor(Theme.Colors.primary)
+                    .foregroundStyle(Theme.Colors.primary)
             }
             .padding(.top, 40)
 
@@ -164,7 +183,7 @@ struct EmptyFleetView: View {
 
                 Text("Start tracking your fleet by adding your first motorcycle.")
                     .font(.subheadline)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, Theme.Spacing.xl)
             }
@@ -178,7 +197,7 @@ struct EmptyFleetView: View {
                         Text("Add Your First Motorcycle")
                     }
                 }
-                .buttonStyle(ModernButtonStyle())
+                .glassActionButton(.primary, in: .roundedRectangle(radius: Theme.Radius.control))
 
                 HStack(spacing: 20) {
                     Label("Fuel Logs", systemImage: "fuelpump.fill")
@@ -186,10 +205,10 @@ struct EmptyFleetView: View {
                     Label("Specs", systemImage: "bolt.fill")
                 }
                 .scaledFont(10, weight: .bold)
-                .foregroundColor(.secondary.opacity(0.7))
+                .foregroundStyle(.secondary.opacity(0.7))
             }
             .padding(Theme.Spacing.l)
-            .glassEffect(.regular, in: RoundedRectangle(cornerRadius: Theme.Radius.l))
+            .glassEffect(.regular, in: RoundedRectangle(cornerRadius: Theme.Radius.card))
             .padding(.horizontal, Theme.Spacing.l)
 
             Spacer()

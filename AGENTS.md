@@ -146,24 +146,25 @@ Singleton at `MotoManager/Networking/NetworkManager.swift`.
 - **Writes are offline-first**: VM methods (`createFuelRecord`, `createIssue`, `createTorque`, `createMaintenance`, plus update/delete) write to SwiftData with a `pending*` `syncState`, then call `SyncEngine.shared.requestSync`. Deletes are tombstones (`pendingDelete`) until the server confirms.
 - `Networking/SyncEngine.swift` does **push (create→update→delete, keyed by `clientId`) then pull (`?since=` per resource)**, reconciling by `clientId` (fallback `serverId`), last-write-wins (local pending wins). `Networking/ConnectivityMonitor.swift` (`NWPathMonitor`) triggers a flush when connectivity returns; `MotoManagerApp` also flushes on foreground.
 - **Invariant to preserve:** each pull `save()`s the context *before* advancing its sync cursor — never reorder these, or an interrupted pull will skip records permanently.
-- Poisoned records (5 failed pushes) stop retrying and surface as a tappable "retry" on the sync pill.
-- Status is **transparent**: `UI/SyncStatusPill.swift` in the header (offline / syncing / N pending / synced) + `UI/PendingBadge.swift` on unsynced rows.
+- Poisoned records (5 failed pushes) stop retrying and surface as a tappable "retry" in the status accessory.
+- Status is **transparent**: `UI/StatusAccessoryBar.swift` renders in the TabView's bottom accessory (offline / syncing / N pending / refresh-failed; hidden when synced) + `UI/PendingBadge.swift` on unsynced rows.
 - Backend support lives in the `MotoManagerApi` migrations, starting with `011_sync_metadata.sql` (`clientId`/`updatedAt`/`deletedAt` + idempotent creates + soft-delete + `?since`) and extended by the parts/details migrations. **Deploy the API before the client relies on it** (the client tolerates missing fields: falls back to `serverId` matching + full fetch).
 
 ## UI / Visual Style
 
-The app has a deliberate glassmorphic, immersive aesthetic — full-bleed images, animated liquid backgrounds, `.ultraThinMaterial`, gradient overlays, SF Symbols, rounded font design. New views should match this language.
+The app is **native-first with a motorsport accent**, and it **supports light and dark mode** — never hardcode white/black ink. The chrome layer (tab bar, nav bars, toolbars, sheets, the header's glass pills) is system Liquid Glass; the content layer (lists, rows, cards) uses standard adaptive list backgrounds, `.insetGrouped` `List`s, `foregroundStyle(.primary/.secondary/.tertiary)`, `ContentUnavailableView` empty states, `.redacted(.placeholder)` loading rows, and Swift Charts. Glass belongs to controls/navigation, not content cards. The only always-white ink is `Theme.Colors.onPhoto*`, reserved for text sitting on photos (hero header, login), which keep their scrim gradients.
 
 **Design tokens** — `MotoManager/UI/Theme.swift`:
-- Spacing: `xs=4, s=8, m=16, l=24, xl=32`
-- Radius: `s=8, m=12, l=20, xl=30`
-- Colors: primary blue, accent orange, glass overlays (`Color.white.opacity(0.05)` / `.opacity(0.2)`)
+- Spacing: `xs=4, s=8, m=16, l=24, xl=32`, `pageH=12`
+- Radius (single concentric scale — never hardcode): `sheet=32 > card=22 > field=18 > chip=14 > control=12 > controlInner=10 > badge=8`
+- Colors: `primary` (motorsport blue), `accent` (red), adaptive `background`/`backgroundElevated`, `onPhoto*` (photo ink), `Theme.Glass.*` adaptive hairlines. `navy*` is reserved for photo scrims.
 
 **Reusable primitives — reuse, don't reinvent:**
-- `UI/LiquidBackgroundView.swift` — animated mesh background (~7s loop)
-- `UI/GlassShimmerRow.swift` — loading skeleton with `.ultraThinMaterial` shimmer
-- `Views/MotorcycleSummaryHeader.swift` — 280pt immersive header with contextual stats per tab
+- `UI/LiquidBackgroundView.swift` — adaptive canvas with brand halos (navy in dark, light gray in light)
+- `UI/StatusAccessoryBar.swift` — sync/refresh status in the tab bar's bottom accessory
+- `Views/MotorcycleSummaryHeader.swift` — immersive photo header (Dynamic Type-scaled height) with the Wechseln pill; gear/add live in the system toolbar
 - `Views/RemoteImageView.swift` — auth-aware async image loading
+- `UI/GlassSegmentedControl.swift` — the single segmented-control idiom (tabs *and* sheets)
 
 ## Tests
 

@@ -13,13 +13,19 @@ enum HeaderType {
     }
 }
 
-/// Immersive header used at the top of every screen.
+/// Immersive header used at the top of every screen — pure *content* below the
+/// system navigation bar (which owns settings/add as toolbar items and applies
+/// its own scroll-edge treatment).
 ///
-/// Matches the prototype's **Variant C — Button switcher** (`glass.jsx::ButtonSwitcher`).
 /// The bike name stays fully visible at 24 pt (2-line clamp for long names like
 /// "BMW R 1250 GS Adventure"), the meta line shows year · plate · km, and a
 /// dedicated glass "Wechseln" pill button to the right opens the searchable
-/// picker. Settings gear sits top-right.
+/// picker.
+///
+/// Ink is `onPhoto` (always white): the background is a photo, which doesn't
+/// adapt to appearance. The scrim gradient exists for the same reason — it
+/// guarantees text contrast against arbitrary photo content (an HIG-sanctioned
+/// use; it is *not* a tint stacked on system glass).
 struct MotorcycleSummaryHeader: View {
     let motorcycle: Motorcycle
     let type: HeaderType
@@ -32,7 +38,9 @@ struct MotorcycleSummaryHeader: View {
 
     @Environment(\.chromeActions) private var chrome
 
-    private let contentHeight: CGFloat = 180
+    /// Scales with Dynamic Type so the two-line name + meta line never get
+    /// clipped out of a fixed box at accessibility sizes.
+    @ScaledMetric(relativeTo: .title) private var contentHeight: CGFloat = 180
     private var totalHeight: CGFloat { contentHeight + bottomExtension }
 
     var body: some View {
@@ -41,7 +49,6 @@ struct MotorcycleSummaryHeader: View {
             darkeningOverlay
 
             VStack(alignment: .leading, spacing: 0) {
-                topActions
                 Spacer(minLength: 0)
                 bikeBlock
             }
@@ -86,28 +93,6 @@ struct MotorcycleSummaryHeader: View {
         return LinearGradient(stops: stops, startPoint: .top, endPoint: .bottom)
     }
 
-    // MARK: - Top row (gear only)
-
-    private var topActions: some View {
-        HStack(spacing: 8) {
-            Spacer()
-            // Group the two adjacent glass chips so they blend as one cluster.
-            GlassEffectContainer(spacing: 8) {
-                HStack(spacing: 8) {
-                    SyncStatusPill()
-                    Button(action: chrome.openSettings) {
-                        Image(systemName: "gearshape.fill")
-                            .scaledFont(16, weight: .semibold)
-                            .foregroundStyle(.white)
-                            .frame(width: 44, height: 44)
-                            .glassEffect(.regular, in: Circle())
-                    }
-                    .accessibilityLabel("Einstellungen")
-                }
-            }
-        }
-    }
-
     // MARK: - Bike block
 
     private var bikeBlock: some View {
@@ -117,8 +102,7 @@ struct MotorcycleSummaryHeader: View {
                 Text(type.title.uppercased())
                     .scaledFont(10, weight: .heavy)
                     .tracking(2)
-                    .foregroundColor(.white.opacity(0.75))
-                    .shadow(color: .black.opacity(0.5), radius: 2, x: 0, y: 1)
+                    .foregroundStyle(Theme.Colors.onPhotoSecondary)
                 if motorcycle.isVeteran {
                     veteranBadge
                 }
@@ -128,11 +112,10 @@ struct MotorcycleSummaryHeader: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("\(motorcycle.make) \(motorcycle.model)")
                         .scaledFont(24, weight: .heavy)
-                        .foregroundColor(.white)
+                        .foregroundStyle(Theme.Colors.onPhoto)
                         .lineLimit(2)
                         .multilineTextAlignment(.leading)
                         .fixedSize(horizontal: false, vertical: true)
-                        .shadow(color: .black.opacity(0.4), radius: 3, x: 0, y: 1)
 
                     metaLine
                 }
@@ -157,8 +140,7 @@ struct MotorcycleSummaryHeader: View {
                 .monospaced()
         }
         .scaledFont(11, weight: .semibold)
-        .foregroundColor(.white.opacity(0.78))
-        .shadow(color: .black.opacity(0.5), radius: 2, x: 0, y: 1)
+        .foregroundStyle(Theme.Colors.onPhotoSecondary)
         .lineLimit(1)
     }
 
@@ -170,7 +152,7 @@ struct MotorcycleSummaryHeader: View {
                 Text("Wechseln")
                     .scaledFont(12, weight: .heavy)
             }
-            .foregroundColor(.white)
+            .foregroundStyle(Theme.Colors.onPhoto)
             .padding(.leading, 10)
             .padding(.trailing, 12)
             .padding(.vertical, 8)
@@ -183,7 +165,7 @@ struct MotorcycleSummaryHeader: View {
     private var veteranBadge: some View {
         Text("VETERAN")
             .scaledFont(9, weight: .black)
-            .foregroundColor(.white)
+            .foregroundStyle(Theme.Colors.onPhoto)
             .padding(.horizontal, 6)
             .padding(.vertical, 2)
             .background(

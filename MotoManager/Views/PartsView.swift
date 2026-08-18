@@ -4,10 +4,11 @@ import SwiftUI
 /// segment for other users' public parts (online-only).
 struct PartsView: View {
     @ObservedObject var viewModel: PartsViewModel
-    /// The bike detail VM — drives the shared offline banner overlay.
+    /// The bike detail VM — drives the shared header and status accessory.
     @ObservedObject var detailVM: MotorcycleDetailViewModel
     /// The currently selected bike, used for the "Passend für …" filter chip.
     let motorcycle: Motorcycle?
+    @Environment(\.chromeActions) private var chrome
 
     enum PartsTab: Hashable { case mine, locations, publicParts }
     @State private var tab: PartsTab = .mine
@@ -25,26 +26,30 @@ struct PartsView: View {
     @State private var showingScanNotFound = false
     @State private var showingAddLocation = false
     @State private var newLocationName = ""
-    @FocusState private var searchFocused: Bool
     @ObservedObject private var connectivity = ConnectivityMonitor.shared
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: Theme.Spacing.m) {
-                // Match the other tabs: photo header with the stat strip
-                // overlapping the extended image.
+        List {
+            // Match the other tabs: photo header with the stat strip
+            // overlapping the extended image.
+            Section {
                 ZStack(alignment: .bottom) {
                     MotorcycleSummaryHeader(
                         motorcycle: detailVM.motorcycle, type: .parts, viewModel: detailVM,
                         bottomExtension: 96
                     )
-                    .ignoresSafeArea(edges: .top)
 
                     statStrip
-                        .padding(.horizontal, 6)
+                        .padding(.horizontal, Theme.Spacing.pageH)
                         .padding(.bottom, 12)
                 }
+            }
+            .listRowInsets(EdgeInsets())
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
+            .listSectionMargins(.all, 0)
 
+            Section {
                 GlassSegmentedControl(
                     segments: [
                         .init(value: PartsTab.mine, label: "Meine Teile", count: viewModel.parts.count),
@@ -53,42 +58,58 @@ struct PartsView: View {
                     ],
                     selection: $tab
                 )
-                .padding(.horizontal, Theme.Spacing.m)
+            }
+            .listRowInsets(EdgeInsets())
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
 
-                searchField
-                    .padding(.horizontal, Theme.Spacing.pageH)
-
-                switch tab {
-                case .mine:
-                    mineContent
-                        .padding(.horizontal, Theme.Spacing.pageH)
-                case .locations:
-                    locationsContent
-                        .padding(.horizontal, Theme.Spacing.pageH)
-                case .publicParts:
-                    publicContent
-                        .padding(.horizontal, Theme.Spacing.pageH)
+            switch tab {
+            case .mine:
+                mineContent
+            case .locations:
+                locationsContent
+            case .publicParts:
+                publicContent
+            }
+        }
+        .listStyle(.insetGrouped)
+        .scrollContentBackground(.hidden)
+        .ignoresSafeArea(edges: .top)
+        .searchable(
+            text: $searchText,
+            prompt: tab == .locations ? "Lagerort suchen …" : "Name oder Teilenummer …"
+        )
+        // Collapse the search field into a toolbar button (iOS 26 pattern) —
+        // an always-open drawer would float over the full-bleed hero photo.
+        .searchToolbarBehavior(.minimize)
+        .onSubmit(of: .search) {
+            if tab == .publicParts {
+                Task { await viewModel.loadPublicParts(query: searchText.isEmpty ? nil : searchText) }
+            }
+        }
+        .toolbar {
+            // Adding targets whatever the segment shows (part or storage
+            // location); the public segment is read-only. Scanning also
+            // resolves bin labels, so it stays available on Lagerorte.
+            if tab != .publicParts {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Etikett scannen", systemImage: "qrcode.viewfinder") {
+                        showingScanner = true
+                    }
+                }
+                if let addLabel, let addAction {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button(addLabel, systemImage: "plus", action: addAction)
+                    }
+                }
+                ToolbarSpacer(.fixed, placement: .topBarTrailing)
+            }
+            ToolbarItem(placement: .topBarTrailing) {
+                Button("Einstellungen", systemImage: "gearshape") {
+                    chrome.openSettings()
                 }
             }
-            .padding(.bottom, 110)
         }
-        .ignoresSafeArea(edges: .top)
-        // The search keyboard must always be escapable — scrolling dismisses
-        // it, and the clear button in the field offers an explicit way out
-        // (without either, the custom tab bar stays buried behind the keyboard).
-        .scrollDismissesKeyboard(.immediately)
-        .background(Color.clear)
-        // Adding targets whatever the segment shows (part or storage
-        // location); the public segment is read-only. Scanning also resolves
-        // bin labels, so it stays available on the Lagerorte segment.
-        .bottomActionBar(
-            detailVM: detailVM,
-            addLabel: addLabel,
-            addAction: addAction,
-            secondaryIcon: tab != .publicParts ? "qrcode.viewfinder" : nil,
-            secondaryLabel: tab != .publicParts ? "Etikett scannen" : nil,
-            secondaryAction: tab != .publicParts ? { showingScanner = true } : nil
-        )
         .refreshable {
             await SyncEngine.shared.sync(motorcycleIds: [])
             viewModel.reloadLocal()
@@ -182,8 +203,6 @@ struct PartsView: View {
         }
     }
 
-    // MARK: - Header
-
     // MARK: - Header stat strip
 
     /// Hierarchy-aware fitment count for the selected bike; nil when the bike
@@ -226,44 +245,6 @@ struct PartsView: View {
                     : "—"
             )
         ])
-    }
-
-    private var searchField: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "magnifyingglass")
-                .scaledFont(13, weight: .semibold)
-                .foregroundColor(.white.opacity(0.5))
-            TextField(
-                "",
-                text: $searchText,
-                prompt: Text(tab == .locations ? "Lagerort suchen …" : "Name oder Teilenummer …")
-                    .foregroundColor(.white.opacity(0.35))
-            )
-            .foregroundColor(.white)
-            .autocorrectionDisabled()
-            .focused($searchFocused)
-            .submitLabel(.search)
-            // Visible while typing OR focused: clears the query and drops
-            // focus, so the keyboard can always be dismissed from the field.
-            if searchFocused || !searchText.isEmpty {
-                Button {
-                    searchText = ""
-                    searchFocused = false
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundColor(.white.opacity(0.4))
-                }
-            }
-        }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 11)
-        .background(RoundedRectangle(cornerRadius: Theme.Glass.fieldRadius).fill(Color.white.opacity(0.06)))
-        .overlay(RoundedRectangle(cornerRadius: Theme.Glass.fieldRadius).stroke(Theme.Glass.border, lineWidth: 0.5))
-        .onSubmit {
-            if tab == .publicParts {
-                Task { await viewModel.loadPublicParts(query: searchText.isEmpty ? nil : searchText) }
-            }
-        }
     }
 
     // MARK: - Mine
@@ -314,33 +295,33 @@ struct PartsView: View {
 
     @ViewBuilder
     private var mineContent: some View {
-        VStack(spacing: Theme.Spacing.s) {
-            if let moto = motorcycle, moto.seriesId != nil {
+        if let moto = motorcycle, moto.seriesId != nil {
+            Section {
                 Toggle(isOn: $filterBySelectedBike) {
                     Text("Passend für \(moto.make) \(moto.model)")
                         .scaledFont(13, weight: .semibold)
-                        .foregroundColor(.white.opacity(0.8))
                 }
                 .tint(Theme.Colors.primary)
-                .padding(.horizontal, 4)
             }
+        }
 
-            if filteredParts.isEmpty {
-                EmptyStateView(
-                    title: emptyPartsTitle,
-                    message: emptyPartsMessage,
-                    icon: "shippingbox.fill"
-                )
-                .padding(.top, 40)
-            } else {
-                LazyVStack(spacing: 10) {
-                    ForEach(filteredParts, id: \.clientId) { part in
-                        Button {
-                            selectedPart = part
+        if filteredParts.isEmpty {
+            emptyState(title: emptyPartsTitle, message: emptyPartsMessage, icon: "shippingbox.fill")
+        } else {
+            Section {
+                ForEach(filteredParts, id: \.clientId) { part in
+                    Button {
+                        selectedPart = part
+                    } label: {
+                        PartCard(part: part, onHand: viewModel.onHand(for: part), viewModel: viewModel)
+                    }
+                    .buttonStyle(.plain)
+                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                        Button(role: .destructive) {
+                            _ = viewModel.deletePart(part)
                         } label: {
-                            PartCard(part: part, onHand: viewModel.onHand(for: part), viewModel: viewModel)
+                            Label("Löschen", systemImage: "trash")
                         }
-                        .buttonStyle(.plain)
                     }
                 }
             }
@@ -367,16 +348,15 @@ struct PartsView: View {
     @ViewBuilder
     private var locationsContent: some View {
         if filteredLocations.isEmpty {
-            EmptyStateView(
+            emptyState(
                 title: viewModel.storageLocations.isEmpty ? "Keine Lagerorte" : "Keine Treffer",
                 message: viewModel.storageLocations.isEmpty
                     ? "Lege mit dem Plus-Button einen Lagerort an — sie entstehen auch beim Erfassen von Beständen."
                     : "Kein Lagerort passt zur Suche.",
                 icon: "archivebox.fill"
             )
-            .padding(.top, 40)
         } else {
-            LazyVStack(spacing: 10) {
+            Section {
                 ForEach(filteredLocations, id: \.clientId) { location in
                     Button {
                         selectedLocation = location
@@ -399,39 +379,45 @@ struct PartsView: View {
     @ViewBuilder
     private var publicContent: some View {
         if !connectivity.isOnline {
-            EmptyStateView(
+            emptyState(
                 title: "Offline",
                 message: "Öffentliche Teile anderer Nutzer sind nur online verfügbar.",
                 icon: "wifi.slash"
             )
-            .padding(.top, 60)
         } else if viewModel.isLoadingPublic && viewModel.publicParts.isEmpty {
-            VStack(spacing: 10) {
+            Section {
                 ForEach(0..<4, id: \.self) { _ in
-                    GlassShimmerRow()
+                    PartCard.placeholder
+                        .redacted(reason: .placeholder)
                 }
             }
         } else if let error = viewModel.publicError {
-            EmptyStateView(
-                title: "Fehler",
-                message: error,
-                icon: "exclamationmark.triangle.fill"
-            )
-            .padding(.top, 60)
+            emptyState(title: "Fehler", message: error, icon: "exclamationmark.triangle.fill")
         } else if viewModel.publicParts.isEmpty {
-            EmptyStateView(
+            emptyState(
                 title: "Keine öffentlichen Teile",
                 message: "Andere Nutzer haben noch keine passenden Teile geteilt.",
                 icon: "shippingbox"
             )
-            .padding(.top, 60)
         } else {
-            LazyVStack(spacing: 10) {
+            Section {
                 ForEach(viewModel.publicParts) { part in
                     PublicPartCard(part: part, viewModel: viewModel)
                 }
             }
         }
+    }
+
+    private func emptyState(title: String, message: String, icon: String) -> some View {
+        Section {
+            ContentUnavailableView {
+                Label(title, systemImage: icon)
+            } description: {
+                Text(message)
+            }
+        }
+        .listRowBackground(Color.clear)
+        .listRowSeparator(.hidden)
     }
 }
 
@@ -450,7 +436,7 @@ private struct StorageLocationCard: View {
         HStack(spacing: 12) {
             Image(systemName: "archivebox.fill")
                 .scaledFont(17, weight: .semibold)
-                .foregroundColor(Theme.Colors.primary)
+                .foregroundStyle(Theme.Colors.primary)
                 .frame(width: 40, height: 40)
                 .background(Circle().fill(Theme.Colors.primary.opacity(0.15)))
                 .overlay(alignment: .topTrailing) {
@@ -460,12 +446,12 @@ private struct StorageLocationCard: View {
             VStack(alignment: .leading, spacing: 3) {
                 Text(location.name)
                     .scaledFont(15, weight: .bold)
-                    .foregroundColor(.white)
+                    .foregroundStyle(.primary)
                     .fixedSize(horizontal: false, vertical: true)
                 if let parentPath {
                     Text(parentPath)
                         .scaledFont(11, weight: .semibold)
-                        .foregroundColor(.white.opacity(0.55))
+                        .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
@@ -475,19 +461,17 @@ private struct StorageLocationCard: View {
                 Text("\(totalCount)")
                     .scaledFont(17, weight: .heavy)
                     .monospacedDigit()
-                    .foregroundColor(totalCount > 0 ? Theme.Colors.primary : .white.opacity(0.35))
+                    .foregroundStyle(totalCount > 0 ? AnyShapeStyle(Theme.Colors.primary) : AnyShapeStyle(.tertiary))
                 Text(totalCount != directCount ? "gesamt" : (totalCount == 1 ? "Teil" : "Teile"))
                     .scaledFont(9, weight: .heavy)
                     .tracking(1)
-                    .foregroundColor(.white.opacity(0.4))
+                    .foregroundStyle(.tertiary)
             }
             Image(systemName: "chevron.right")
                 .scaledFont(12, weight: .bold)
-                .foregroundColor(.white.opacity(0.35))
+                .foregroundStyle(.tertiary)
         }
-        .padding(14)
-        .background(RoundedRectangle(cornerRadius: Theme.Radius.l).fill(Color.white.opacity(0.06)))
-        .overlay(RoundedRectangle(cornerRadius: Theme.Radius.l).stroke(Theme.Glass.border, lineWidth: 0.5))
+        .padding(.vertical, 4)
     }
 }
 
@@ -496,16 +480,34 @@ private struct PartCard: View {
     let onHand: Int
     @ObservedObject var viewModel: PartsViewModel
 
+    /// Skeleton stand-in for the loading state (rendered `.redacted`).
+    static var placeholder: some View {
+        HStack(spacing: 12) {
+            RoundedRectangle(cornerRadius: Theme.Radius.controlInner)
+                .fill(.quaternary)
+                .frame(width: 40, height: 40)
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Bremsbeläge vorn")
+                Text("07BB37.SA")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+            Text("2")
+        }
+        .padding(.vertical, 4)
+    }
+
     var body: some View {
         HStack(spacing: 12) {
             if let imageURL = part.image {
                 RemoteImageView(url: imageURL, maxPixelWidth: 160)
                     .frame(width: 40, height: 40)
-                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                    .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.controlInner))
             } else {
                 Image(systemName: "shippingbox.fill")
                     .scaledFont(17, weight: .semibold)
-                    .foregroundColor(Theme.Colors.primary)
+                    .foregroundStyle(Theme.Colors.primary)
                     .frame(width: 40, height: 40)
                     .background(Circle().fill(Theme.Colors.primary.opacity(0.15)))
             }
@@ -516,23 +518,23 @@ private struct PartCard: View {
                     // of the name, which a one-line clamp cuts off.
                     Text(part.name)
                         .scaledFont(15, weight: .bold)
-                        .foregroundColor(.white)
+                        .foregroundStyle(.primary)
                         .lineLimit(2)
                         .multilineTextAlignment(.leading)
                     if part.isPublic {
                         Image(systemName: "globe")
                             .scaledFont(10, weight: .bold)
-                            .foregroundColor(.white.opacity(0.45))
+                            .foregroundStyle(.tertiary)
                     }
                 }
                 Text(part.partNumber)
                     .scaledFont(11, weight: .semibold)
                     .monospaced()
-                    .foregroundColor(.white.opacity(0.55))
+                    .foregroundStyle(.secondary)
                 if !part.seriesIds.isEmpty {
                     Text(seriesSummary)
                         .scaledFont(10, weight: .semibold)
-                        .foregroundColor(.white.opacity(0.45))
+                        .foregroundStyle(.tertiary)
                         .lineLimit(1)
                 }
             }
@@ -542,16 +544,14 @@ private struct PartCard: View {
                 Text("\(onHand)")
                     .scaledFont(17, weight: .heavy)
                     .monospacedDigit()
-                    .foregroundColor(onHand > 0 ? Theme.Colors.primary : .white.opacity(0.35))
+                    .foregroundStyle(onHand > 0 ? AnyShapeStyle(Theme.Colors.primary) : AnyShapeStyle(.tertiary))
                 Text("Bestand")
                     .scaledFont(9, weight: .heavy)
                     .tracking(1)
-                    .foregroundColor(.white.opacity(0.4))
+                    .foregroundStyle(.tertiary)
             }
         }
-        .padding(14)
-        .background(RoundedRectangle(cornerRadius: Theme.Radius.l).fill(Color.white.opacity(0.06)))
-        .overlay(RoundedRectangle(cornerRadius: Theme.Radius.l).stroke(Theme.Glass.border, lineWidth: 0.5))
+        .padding(.vertical, 4)
     }
 
     private var seriesSummary: String {
@@ -570,25 +570,25 @@ private struct PublicPartCard: View {
             if let imageURL = part.image {
                 RemoteImageView(url: imageURL, maxPixelWidth: 160)
                     .frame(width: 40, height: 40)
-                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                    .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.controlInner))
             } else {
                 Image(systemName: "globe")
                     .scaledFont(17, weight: .semibold)
-                    .foregroundColor(.white.opacity(0.7))
+                    .foregroundStyle(.secondary)
                     .frame(width: 40, height: 40)
-                    .background(Circle().fill(Color.white.opacity(0.08)))
+                    .background(Circle().fill(Color.primary.opacity(0.08)))
             }
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(part.name)
                     .scaledFont(15, weight: .bold)
-                    .foregroundColor(.white)
+                    .foregroundStyle(.primary)
                     .lineLimit(2)
                     .multilineTextAlignment(.leading)
                 Text(part.partNumber)
                     .scaledFont(11, weight: .semibold)
                     .monospaced()
-                    .foregroundColor(.white.opacity(0.55))
+                    .foregroundStyle(.secondary)
                 HStack(spacing: 6) {
                     Text("von \(part.ownerName)")
                     if !part.seriesIds.isEmpty {
@@ -598,7 +598,7 @@ private struct PublicPartCard: View {
                     }
                 }
                 .scaledFont(10, weight: .semibold)
-                .foregroundColor(.white.opacity(0.45))
+                .foregroundStyle(.tertiary)
             }
             Spacer(minLength: 0)
 
@@ -607,15 +607,13 @@ private struct PublicPartCard: View {
             let availability = part.hasStock
             Text(availability == nil ? "Bestand privat" : (availability == true ? "Auf Lager" : "Nicht auf Lager"))
                 .scaledFont(10, weight: .heavy)
-                .foregroundColor(availability == true ? .white : .white.opacity(0.5))
+                .foregroundStyle(availability == true ? AnyShapeStyle(Color.white) : AnyShapeStyle(.secondary))
                 .padding(.horizontal, 9)
                 .padding(.vertical, 5)
                 .background(
-                    Capsule().fill(availability == true ? Theme.Colors.primary : Color.white.opacity(0.10))
+                    Capsule().fill(availability == true ? AnyShapeStyle(Theme.Colors.primary) : AnyShapeStyle(Color.primary.opacity(0.10)))
                 )
         }
-        .padding(14)
-        .background(RoundedRectangle(cornerRadius: Theme.Radius.l).fill(Color.white.opacity(0.06)))
-        .overlay(RoundedRectangle(cornerRadius: Theme.Radius.l).stroke(Theme.Glass.border, lineWidth: 0.5))
+        .padding(.vertical, 4)
     }
 }

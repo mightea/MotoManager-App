@@ -64,69 +64,61 @@ struct AddTirePressureView: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: Theme.Spacing.l) {
-                header
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: Theme.Spacing.l) {
+                    unitPicker
+                    configPicker
 
-                unitPicker
-                configPicker
+                    pressureField("VORDERREIFEN", text: binding(\.front))
+                    pressureField("HINTERREIFEN", text: binding(\.rear))
+                    if hasSidecar {
+                        pressureField("BEIWAGENREIFEN", text: binding(\.sidecar))
+                    }
 
-                pressureField("VORDERREIFEN", text: binding(\.front))
-                pressureField("HINTERREIFEN", text: binding(\.rear))
-                if hasSidecar {
-                    pressureField("BEIWAGENREIFEN", text: binding(\.sidecar))
+                    if state(of: config) == .incomplete {
+                        Text("Vorder- und Hinterreifen zusammen erfassen.")
+                            .scaledFont(11, weight: .semibold)
+                            .foregroundStyle(Theme.Colors.accent)
+                    }
+
+                    if isEditing && state(of: config) != .empty { deleteButton }
                 }
-
-                if state(of: config) == .incomplete {
-                    Text("Vorder- und Hinterreifen zusammen erfassen.")
-                        .scaledFont(11, weight: .semibold)
-                        .foregroundColor(Theme.Colors.accent)
-                }
-
-                saveButton
-                if isEditing && state(of: config) != .empty { deleteButton }
+                .padding(Theme.Spacing.l)
             }
-            .padding(Theme.Spacing.l)
-        }
-        .background(Color.clear)
-        .alert(alertTitle, isPresented: .init(
-            get: { errorMessage != nil },
-            set: { if !$0 { errorMessage = nil } }
-        )) {
-            Button("OK", role: .cancel) { }
-        } message: {
-            Text(errorMessage ?? "")
-        }
-        .alert(deleteRemovesRecord ? "Reifendruck-Eintrag löschen?" : "\(config.label) löschen?", isPresented: $confirmingDelete) {
-            Button("Abbrechen", role: .cancel) { }
-            Button("Löschen", role: .destructive) { deleteSelectedConfig() }
+            .navigationTitle(isEditing ? "Reifendruck bearbeiten" : "Reifendruck erfassen")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Abbrechen") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Speichern") { save() }
+                        .disabled(!canSave || isSaving)
+                }
+            }
+            .alert(alertTitle, isPresented: .init(
+                get: { errorMessage != nil },
+                set: { if !$0 { errorMessage = nil } }
+            )) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                Text(errorMessage ?? "")
+            }
+            .alert(deleteRemovesRecord ? "Reifendruck-Eintrag löschen?" : "\(config.label) löschen?", isPresented: $confirmingDelete) {
+                Button("Abbrechen", role: .cancel) { }
+                Button("Löschen", role: .destructive) { deleteSelectedConfig() }
+            }
         }
     }
 
     // MARK: - Sections
 
-    private var header: some View {
-        HStack {
-            Text(isEditing ? "Reifendruck bearbeiten" : "Reifendruck erfassen")
-                .scaledFont(22, weight: .heavy)
-                .foregroundColor(.white)
-            Spacer()
-            Button { dismiss() } label: {
-                Image(systemName: "xmark")
-                    .scaledFont(14, weight: .bold)
-                    .foregroundColor(.white)
-                    .frame(width: 32, height: 32)
-                    .background(Circle().fill(Color.white.opacity(0.12)))
-            }
-            .accessibilityLabel("Schließen")
-        }
-    }
-
     private var unitPicker: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text("EINHEIT")
                 .scaledFont(10, weight: .heavy).tracking(1.4)
-                .foregroundColor(Theme.Glass.mutedText)
+                .foregroundStyle(.secondary)
             GlassSegmentedControl(
                 segments: [
                     .init(value: "bar", label: "bar"),
@@ -144,7 +136,7 @@ struct AddTirePressureView: View {
         VStack(alignment: .leading, spacing: 6) {
             Text("KONFIGURATION")
                 .scaledFont(10, weight: .heavy).tracking(1.4)
-                .foregroundColor(Theme.Glass.mutedText)
+                .foregroundStyle(.secondary)
             GlassSegmentedControl(
                 segments: PressureConfig.allCases.map { cfg in
                     .init(value: cfg, label: state(of: cfg) == .complete ? "\(cfg.label) ✓" : cfg.label)
@@ -153,7 +145,7 @@ struct AddTirePressureView: View {
             )
             Text("Mindestens eine Konfiguration erfassen — Felder leer lassen, um eine zu entfernen.")
                 .scaledFont(10, weight: .medium)
-                .foregroundColor(.white.opacity(0.45))
+                .foregroundStyle(.tertiary)
         }
     }
 
@@ -161,45 +153,35 @@ struct AddTirePressureView: View {
         VStack(alignment: .leading, spacing: 6) {
             Text(label)
                 .scaledFont(10, weight: .heavy).tracking(1.4)
-                .foregroundColor(Theme.Glass.mutedText)
+                .foregroundStyle(.secondary)
             HStack {
-                TextField("", text: text, prompt: Text(unit == "psi" ? "z. B. 32" : "z. B. 2.2").foregroundColor(.white.opacity(0.3)))
+                TextField("", text: text, prompt: Text(unit == "psi" ? "z. B. 32" : "z. B. 2.2").foregroundStyle(.tertiary))
                     .keyboardType(.decimalPad)
-                    .foregroundColor(.white)
+                    .foregroundStyle(.primary)
                 Text(unit)
                     .scaledFont(11, weight: .heavy).tracking(1)
-                    .foregroundColor(.white.opacity(0.5))
+                    .foregroundStyle(.tertiary)
             }
             .padding(.horizontal, 14).padding(.vertical, 12)
-            .background(RoundedRectangle(cornerRadius: Theme.Glass.fieldRadius).fill(Color.white.opacity(0.06)))
-            .overlay(RoundedRectangle(cornerRadius: Theme.Glass.fieldRadius).stroke(Theme.Glass.border, lineWidth: 0.5))
+            .background(RoundedRectangle(cornerRadius: Theme.Radius.field).fill(Color.primary.opacity(0.06)))
+            .overlay(RoundedRectangle(cornerRadius: Theme.Radius.field).stroke(Theme.Glass.border, lineWidth: 0.5))
 
             if let bar = PressureUnitFormat.parseToBar(text.wrappedValue, unit: unit) {
                 Text(PressureUnitFormat.secondary(bar: bar, unit: unit))
                     .scaledFont(10, weight: .semibold)
-                    .foregroundColor(.white.opacity(0.45))
+                    .foregroundStyle(.tertiary)
             }
         }
-    }
-
-    private var saveButton: some View {
-        Button(action: save) {
-            Text(savedAnim ? "Gespeichert ✓" : "Speichern").frame(maxWidth: .infinity)
-        }
-        .buttonStyle(ModernButtonStyle())
-        .disabled(!canSave || isSaving)
-        .opacity(canSave && !isSaving ? 1 : 0.5)
-        .padding(.top, Theme.Spacing.s)
     }
 
     private var deleteButton: some View {
         Button(role: .destructive) { confirmingDelete = true } label: {
             Text(deleteRemovesRecord ? "Eintrag löschen" : "\(config.label) löschen")
                 .frame(maxWidth: .infinity)
-                .foregroundColor(Theme.Colors.accent)
-                .padding(.vertical, 12)
         }
+        .glassActionButton(.danger, in: .roundedRectangle(radius: Theme.Radius.control))
         .disabled(isSaving)
+        .padding(.top, Theme.Spacing.s)
     }
 
     // MARK: - State

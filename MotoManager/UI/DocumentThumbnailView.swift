@@ -21,7 +21,7 @@ struct DocumentThumbnailView: View {
                 Rectangle().fill(Theme.Colors.accent.opacity(0.16))
                 Image(systemName: DocumentThumbnailer.iconName(for: document))
                     .scaledFont(20, weight: .semibold)
-                    .foregroundColor(Theme.Colors.accent.opacity(0.9))
+                    .foregroundStyle(Theme.Colors.accent.opacity(0.9))
             }
         }
         .task(id: document.id) {

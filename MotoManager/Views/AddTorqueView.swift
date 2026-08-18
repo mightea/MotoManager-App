@@ -43,69 +43,61 @@ struct AddTorqueView: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: Theme.Spacing.l) {
-                header
-
-                field("KATEGORIE") {
-                    TextField("", text: $category, prompt: Text("z. B. Motor").foregroundColor(.white.opacity(0.3)))
-                        .foregroundColor(.white)
-                }
-                field("BAUTEIL") {
-                    TextField("", text: $name, prompt: Text("z. B. Ölablassschraube").foregroundColor(.white.opacity(0.3)))
-                        .foregroundColor(.white)
-                }
-                HStack(spacing: Theme.Spacing.m) {
-                    field("NM") {
-                        TextField("", text: $torque, prompt: Text("42").foregroundColor(.white.opacity(0.3)))
-                            .keyboardType(.decimalPad).foregroundColor(.white)
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: Theme.Spacing.l) {
+                    field("KATEGORIE") {
+                        TextField("", text: $category, prompt: Text("z. B. Motor").foregroundStyle(.tertiary))
+                            .foregroundStyle(.primary)
                     }
-                    field("NM (BIS)") {
-                        TextField("", text: $torqueEnd, prompt: Text("optional").foregroundColor(.white.opacity(0.3)))
-                            .keyboardType(.decimalPad).foregroundColor(.white)
+                    field("BAUTEIL") {
+                        TextField("", text: $name, prompt: Text("z. B. Ölablassschraube").foregroundStyle(.tertiary))
+                            .foregroundStyle(.primary)
                     }
-                }
-                field("WERKZEUG") {
-                    TextField("", text: $toolSize, prompt: Text("z. B. 17 mm").foregroundColor(.white.opacity(0.3)))
-                        .foregroundColor(.white)
-                }
-                field("NOTIZEN") {
-                    TextField("", text: $notes, prompt: Text("Optionale Details").foregroundColor(.white.opacity(0.3)), axis: .vertical)
-                        .lineLimit(2...5).foregroundColor(.white)
-                }
+                    HStack(spacing: Theme.Spacing.m) {
+                        field("NM") {
+                            TextField("", text: $torque, prompt: Text("42").foregroundStyle(.tertiary))
+                                .keyboardType(.decimalPad).foregroundStyle(.primary)
+                        }
+                        field("NM (BIS)") {
+                            TextField("", text: $torqueEnd, prompt: Text("optional").foregroundStyle(.tertiary))
+                                .keyboardType(.decimalPad).foregroundStyle(.primary)
+                        }
+                    }
+                    field("WERKZEUG") {
+                        TextField("", text: $toolSize, prompt: Text("z. B. 17 mm").foregroundStyle(.tertiary))
+                            .foregroundStyle(.primary)
+                    }
+                    field("NOTIZEN") {
+                        TextField("", text: $notes, prompt: Text("Optionale Details").foregroundStyle(.tertiary), axis: .vertical)
+                            .lineLimit(2...5).foregroundStyle(.primary)
+                    }
 
-                unverifiedToggle
+                    unverifiedToggle
 
-                saveButton
-                if existingSpec != nil { deleteButton }
+                    if existingSpec != nil { deleteButton }
+                }
+                .padding(Theme.Spacing.l)
             }
-            .padding(Theme.Spacing.l)
-        }
-        .background(Color.clear)
-        .alert("Drehmoment löschen?", isPresented: $confirmingDelete) {
-            Button("Abbrechen", role: .cancel) { }
-            Button("Löschen", role: .destructive) {
-                guard let spec = existingSpec,
-                      viewModel.deleteTorque(spec) else { return }
-                dismiss()
+            .navigationTitle(existingSpec == nil ? "Drehmoment hinzufügen" : "Drehmoment bearbeiten")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Abbrechen") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Speichern") { save() }
+                        .disabled(!canSave)
+                }
             }
-        }
-    }
-
-    private var header: some View {
-        HStack {
-            Text(existingSpec == nil ? "Drehmoment hinzufügen" : "Drehmoment bearbeiten")
-                .scaledFont(22, weight: .heavy)
-                .foregroundColor(.white)
-            Spacer()
-            Button { dismiss() } label: {
-                Image(systemName: "xmark")
-                    .scaledFont(14, weight: .bold)
-                    .foregroundColor(.white)
-                    .frame(width: 32, height: 32)
-                    .background(Circle().fill(Color.white.opacity(0.12)))
+            .alert("Drehmoment löschen?", isPresented: $confirmingDelete) {
+                Button("Abbrechen", role: .cancel) { }
+                Button("Löschen", role: .destructive) {
+                    guard let spec = existingSpec,
+                          viewModel.deleteTorque(spec) else { return }
+                    dismiss()
+                }
             }
-            .accessibilityLabel("Schließen")
         }
     }
 
@@ -113,11 +105,11 @@ struct AddTorqueView: View {
         VStack(alignment: .leading, spacing: 6) {
             Text(label)
                 .scaledFont(10, weight: .heavy).tracking(1.4)
-                .foregroundColor(Theme.Glass.mutedText)
+                .foregroundStyle(.secondary)
             content()
                 .padding(.horizontal, 14).padding(.vertical, 12)
-                .background(RoundedRectangle(cornerRadius: Theme.Glass.fieldRadius).fill(Color.white.opacity(0.06)))
-                .overlay(RoundedRectangle(cornerRadius: Theme.Glass.fieldRadius).stroke(Theme.Glass.border, lineWidth: 0.5))
+                .background(RoundedRectangle(cornerRadius: Theme.Radius.field).fill(Color.primary.opacity(0.06)))
+                .overlay(RoundedRectangle(cornerRadius: Theme.Radius.field).stroke(Theme.Glass.border, lineWidth: 0.5))
         }
     }
 
@@ -137,30 +129,30 @@ struct AddTorqueView: View {
                     if unverified {
                         Image(systemName: "checkmark")
                             .scaledFont(10, weight: .heavy)
-                            .foregroundColor(.white)
+                            .foregroundStyle(Color.white)
                     } else {
                         Circle()
-                            .stroke(Color.white.opacity(0.35), lineWidth: 1.5)
+                            .stroke(Color.primary.opacity(0.35), lineWidth: 1.5)
                             .frame(width: 18, height: 18)
                     }
                 }
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Unverifiziert")
                         .scaledFont(13, weight: .semibold)
-                        .foregroundColor(unverified ? Color.orange : .white)
+                        .foregroundStyle(unverified ? AnyShapeStyle(Color.orange) : AnyShapeStyle(.primary))
                     Text("Wert aus unsicherer Quelle")
                         .scaledFont(11, weight: .regular)
-                        .foregroundColor(.white.opacity(0.5))
+                        .foregroundStyle(.tertiary)
                 }
                 Spacer()
             }
             .padding(.horizontal, 14).padding(.vertical, 12)
             .background(
-                RoundedRectangle(cornerRadius: Theme.Glass.fieldRadius)
-                    .fill(unverified ? Color.orange.opacity(0.16) : Color.white.opacity(0.06))
+                RoundedRectangle(cornerRadius: Theme.Radius.field)
+                    .fill(unverified ? Color.orange.opacity(0.16) : Color.primary.opacity(0.06))
             )
             .overlay(
-                RoundedRectangle(cornerRadius: Theme.Glass.fieldRadius)
+                RoundedRectangle(cornerRadius: Theme.Radius.field)
                     .stroke(unverified ? Color.orange.opacity(0.35) : Theme.Glass.border, lineWidth: 0.5)
             )
         }
@@ -169,21 +161,12 @@ struct AddTorqueView: View {
         .accessibilityValue(unverified ? "aktiviert" : "deaktiviert")
     }
 
-    private var saveButton: some View {
-        Button(action: save) {
-            Text(savedAnim ? "Gespeichert ✓" : "Speichern").frame(maxWidth: .infinity)
-        }
-        .buttonStyle(ModernButtonStyle())
-        .disabled(!canSave)
-        .opacity(canSave ? 1 : 0.5)
-        .padding(.top, Theme.Spacing.s)
-    }
-
     private var deleteButton: some View {
         Button(role: .destructive) { confirmingDelete = true } label: {
-            Text("Löschen").frame(maxWidth: .infinity).foregroundColor(Theme.Colors.accent)
-                .padding(.vertical, 12)
+            Text("Löschen").frame(maxWidth: .infinity)
         }
+        .glassActionButton(.danger, in: .roundedRectangle(radius: Theme.Radius.control))
+        .padding(.top, Theme.Spacing.s)
     }
 
     private var canSave: Bool {

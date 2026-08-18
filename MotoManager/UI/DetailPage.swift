@@ -47,6 +47,10 @@ struct DetailPage<HeroBackground: View, HeroContent: View, BodyContent: View>: V
         self.bodyContent = body()
     }
 
+    /// Whether the hero sits on a photo/scrim (caller passed a background).
+    /// Photo heroes keep white ink; plain heroes use adaptive label colors.
+    private var hasHeroBackground: Bool { HeroBackground.self != EmptyView.self }
+
     var body: some View {
         ScrollView {
             VStack(spacing: 0) {
@@ -59,10 +63,9 @@ struct DetailPage<HeroBackground: View, HeroContent: View, BodyContent: View>: V
                 .padding(.bottom, 32)
             }
         }
-        .background(Theme.Colors.navy950.ignoresSafeArea())
+        .background(Theme.Colors.background.ignoresSafeArea())
         .toolbar(.visible, for: .navigationBar)
         .toolbar(.hidden, for: .tabBar)
-        .toolbarColorScheme(.dark, for: .navigationBar)
         .navigationTitle(barTitle ?? title)
         .navigationBarTitleDisplayMode(.inline)
     }
@@ -86,17 +89,17 @@ struct DetailPage<HeroBackground: View, HeroContent: View, BodyContent: View>: V
                         Text(eyebrow)
                             .scaledFont(10, weight: .heavy)
                             .tracking(1.6)
-                            .foregroundColor(Theme.Glass.mutedText)
+                            .foregroundStyle(hasHeroBackground ? AnyShapeStyle(Theme.Colors.onPhotoSecondary) : AnyShapeStyle(.secondary))
                     }
                     Text(title)
                         .scaledFont(26, weight: .heavy)
-                        .foregroundColor(.white)
+                        .foregroundStyle(hasHeroBackground ? AnyShapeStyle(Theme.Colors.onPhoto) : AnyShapeStyle(.primary))
                         .multilineTextAlignment(.leading)
                         .fixedSize(horizontal: false, vertical: true)
                     if let subtitle {
                         Text(subtitle)
                             .scaledFont(13, weight: .medium)
-                            .foregroundColor(Theme.Glass.mutedText)
+                            .foregroundStyle(hasHeroBackground ? AnyShapeStyle(Theme.Colors.onPhotoSecondary) : AnyShapeStyle(.secondary))
                     }
                     heroContent
                         .padding(.top, 6)
@@ -118,7 +121,7 @@ struct DetailPage<HeroBackground: View, HeroContent: View, BodyContent: View>: V
 
 /// Single label/value row used inside `DetailSection`. The label sits on the
 /// left, the value on the right with optional accent color and monospaced
-/// formatting (default — toggle off via `mono: false`).
+/// digits (default — toggle off via `mono: false`).
 struct DetailRow: View {
     let label: String
     let value: String
@@ -129,17 +132,24 @@ struct DetailRow: View {
         HStack(alignment: .firstTextBaseline) {
             Text(label)
                 .scaledFont(13, weight: .medium)
-                .foregroundColor(Theme.Glass.mutedText)
+                .foregroundStyle(.secondary)
             Spacer(minLength: 12)
-            Text(value)
+            valueText
                 .scaledFont(14, weight: .bold)
-                .monospacedDigit()
-                .foregroundColor(accent ?? .white)
+                .foregroundStyle(accent.map(AnyShapeStyle.init) ?? AnyShapeStyle(.primary))
                 .multilineTextAlignment(.trailing)
-                .if(!mono) { $0.environment(\.font, .system(size: 14, weight: .bold)) }
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 11)
+    }
+
+    @ViewBuilder
+    private var valueText: some View {
+        if mono {
+            Text(value).monospacedDigit()
+        } else {
+            Text(value)
+        }
     }
 }
 
@@ -162,13 +172,13 @@ struct DetailSection<Content: View>: View {
                 Text(title)
                     .scaledFont(10, weight: .heavy)
                     .tracking(1.4)
-                    .foregroundColor(Theme.Glass.mutedText)
+                    .foregroundStyle(.secondary)
                     .padding(.leading, 6)
             }
             VStack(spacing: 0) {
                 content
             }
-            .glassEffect(.regular, in: RoundedRectangle(cornerRadius: Theme.Glass.fieldRadius))
+            .glassEffect(.regular, in: RoundedRectangle(cornerRadius: Theme.Radius.field))
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -187,38 +197,25 @@ struct HeroStatTile: View {
             Text(eyebrow.uppercased())
                 .scaledFont(9, weight: .heavy)
                 .tracking(1.2)
-                .foregroundColor(Theme.Glass.mutedText)
+                .foregroundStyle(.secondary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.75)
             Text(value)
                 .scaledFont(17, weight: .bold)
                 .monospacedDigit()
-                .foregroundColor(accent ?? .white)
+                .foregroundStyle(accent.map(AnyShapeStyle.init) ?? AnyShapeStyle(.primary))
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
             if let unit {
                 Text(unit)
                     .scaledFont(10, weight: .medium)
-                    .foregroundColor(Theme.Glass.mutedText)
+                    .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 11)
         .padding(.vertical, 10)
-        .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 14))
-    }
-}
-
-// MARK: - Helpers
-
-private extension View {
-    /// Apply a transform conditionally.
-    @ViewBuilder
-    func `if`<Transformed: View>(
-        _ condition: Bool,
-        transform: (Self) -> Transformed
-    ) -> some View {
-        if condition { transform(self) } else { self }
+        .glassEffect(.regular, in: RoundedRectangle(cornerRadius: Theme.Radius.chip))
     }
 }

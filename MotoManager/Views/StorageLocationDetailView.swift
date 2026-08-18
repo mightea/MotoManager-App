@@ -49,7 +49,7 @@ struct StorageLocationDetailView: View {
                 if let serverId = location.serverId {
                     Text("Lagerort #\(serverId)")
                         .scaledFont(11, weight: .semibold)
-                        .foregroundColor(.white.opacity(0.4))
+                        .foregroundStyle(.tertiary)
                 }
             },
             body: { partsSection }
@@ -96,7 +96,7 @@ struct StorageLocationDetailView: View {
             if stockedParts.isEmpty {
                 Text("Keine Teile an diesem Lagerort eingelagert.")
                     .scaledFont(13)
-                    .foregroundColor(.white.opacity(0.5))
+                    .foregroundStyle(.tertiary)
             } else {
                 VStack(spacing: 8) {
                     ForEach(stockedParts, id: \.part.clientId) { entry in
@@ -119,7 +119,7 @@ struct StorageLocationDetailView: View {
             } else {
                 Image(systemName: "shippingbox.fill")
                     .scaledFont(15, weight: .semibold)
-                    .foregroundColor(Theme.Colors.primary)
+                    .foregroundStyle(Theme.Colors.primary)
                     .frame(width: 40, height: 40)
                     .background(Circle().fill(Theme.Colors.primary.opacity(0.15)))
             }
@@ -127,36 +127,36 @@ struct StorageLocationDetailView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(part.name)
                     .scaledFont(13, weight: .bold)
-                    .foregroundColor(.white)
+                    .foregroundStyle(.primary)
                     .lineLimit(1)
                 Text(part.partNumber)
                     .scaledFont(11, weight: .semibold)
                     .monospaced()
-                    .foregroundColor(.white.opacity(0.5))
+                    .foregroundStyle(.tertiary)
             }
             Spacer(minLength: 0)
             Text("\(quantity)×")
                 .scaledFont(16, weight: .heavy)
                 .monospacedDigit()
-                .foregroundColor(Theme.Colors.primary)
+                .foregroundStyle(Theme.Colors.primary)
             Image(systemName: "chevron.right")
                 .scaledFont(11, weight: .semibold)
-                .foregroundColor(.white.opacity(0.3))
+                .foregroundStyle(.tertiary)
         }
         .padding(12)
-        .background(RoundedRectangle(cornerRadius: Theme.Glass.fieldRadius).fill(Color.white.opacity(0.05)))
-        .overlay(RoundedRectangle(cornerRadius: Theme.Glass.fieldRadius).stroke(Theme.Glass.border, lineWidth: 0.5))
+        .background(RoundedRectangle(cornerRadius: Theme.Radius.field).fill(Color.primary.opacity(0.05)))
+        .overlay(RoundedRectangle(cornerRadius: Theme.Radius.field).stroke(Theme.Glass.border, lineWidth: 0.5))
     }
 
     private func sectionHeader(_ label: String, count: Int) -> some View {
         HStack {
             Text(label.uppercased())
                 .scaledFont(11, weight: .heavy).tracking(2)
-                .foregroundColor(.white.opacity(0.55))
+                .foregroundStyle(.secondary)
             Spacer()
             Text("\(count) \(count == 1 ? "Teil" : "Teile")")
                 .scaledFont(11, weight: .semibold)
-                .foregroundColor(.white.opacity(0.5))
+                .foregroundStyle(.tertiary)
         }
     }
 }

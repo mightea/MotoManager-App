@@ -3,6 +3,7 @@ import SwiftUI
 struct MaintenanceLogsView: View {
     @ObservedObject var viewModel: MotorcycleDetailViewModel
     @ObservedObject var partsVM: PartsViewModel
+    @Environment(\.chromeActions) private var chrome
 
     enum ServiceTab: Hashable { case issues, maintenance }
     /// History filter: actual maintenance by default — location moves are
@@ -84,22 +85,27 @@ struct MaintenanceLogsView: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: Theme.Spacing.m) {
-                // Match the fuel page: the photo extends below the content so
-                // the stat strip overlaps the image instead of a hard cut-off.
+        List {
+            // Match the fuel page: the photo extends below the content so
+            // the stat strip overlaps the image instead of a hard cut-off.
+            Section {
                 ZStack(alignment: .bottom) {
                     MotorcycleSummaryHeader(
                         motorcycle: viewModel.motorcycle, type: .service, viewModel: viewModel,
                         bottomExtension: 96
                     )
-                    .ignoresSafeArea(edges: .top)
 
                     statStrip
-                        .padding(.horizontal, 6)
+                        .padding(.horizontal, Theme.Spacing.pageH)
                         .padding(.bottom, 12)
                 }
+            }
+            .listRowInsets(EdgeInsets())
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
+            .listSectionMargins(.all, 0)
 
+            Section {
                 GlassSegmentedControl(
                     segments: [
                         .init(value: .issues, label: "Mängel", count: openIssuesCount),
@@ -107,42 +113,59 @@ struct MaintenanceLogsView: View {
                     ],
                     selection: $tab
                 )
-                .padding(.horizontal, Theme.Spacing.pageH)
+            }
+            .listRowInsets(EdgeInsets())
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
 
-                if tab == .issues {
-                    issuesContent
-                        .padding(.horizontal, Theme.Spacing.pageH)
-                } else {
-                    ServiceIntervalsCard(insights: intervalInsights)
-                        .padding(.horizontal, Theme.Spacing.pageH)
-
-                    sectionHeader("Verlauf", count: groupCount)
-                        .padding(.horizontal, Theme.Spacing.pageH + 6)
-
-                    historyFilterChips
-                        .padding(.horizontal, Theme.Spacing.pageH)
-
-                    maintenanceContent
-                        .padding(.horizontal, Theme.Spacing.pageH)
+            if tab == .issues {
+                issuesContent
+            } else {
+                if !intervalInsights.isEmpty {
+                    Section {
+                        ServiceIntervalsCard(insights: intervalInsights)
+                    }
                 }
+
+                Section {
+                    historyFilterChips
+                } header: {
+                    HStack {
+                        Text("Verlauf")
+                        Spacer()
+                        Text("\(groupCount) \(groupCount == 1 ? "Eintrag" : "Einträge")")
+                    }
+                }
+                .listRowInsets(EdgeInsets())
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
+
+                maintenanceContent
             }
-            .padding(.bottom, 110)
         }
+        .listStyle(.insetGrouped)
+        .scrollContentBackground(.hidden)
         .ignoresSafeArea(edges: .top)
-        .background(Color.clear)
-        // One context-aware add button. Always the app accent — a red button
-        // reads as destructive, and adding a Mangel isn't.
-        // `addAction:` must stay a labeled argument: a trailing closure
-        // backward-matches to `secondaryAction` and the button vanishes.
-        .bottomActionBar(
-            detailVM: viewModel,
-            addLabel: tab == .issues ? "Mangel erfassen" : "Wartung erfassen",
-            addAction: {
-                if tab == .issues { showingAddIssue = true } else { showingAddMaintenance = true }
-            }
-        )
         .refreshable {
             await viewModel.reconnect()
+        }
+        .toolbar {
+            // One context-aware add button. Always the app accent — a red
+            // button reads as destructive, and adding a Mangel isn't.
+            ToolbarItem(placement: .topBarTrailing) {
+                Button(
+                    tab == .issues ? "Mangel erfassen" : "Wartung erfassen",
+                    systemImage: "plus"
+                ) {
+                    if tab == .issues { showingAddIssue = true } else { showingAddMaintenance = true }
+                }
+            }
+            ToolbarSpacer(.fixed, placement: .topBarTrailing)
+            ToolbarItem(placement: .topBarTrailing) {
+                Button("Einstellungen", systemImage: "gearshape") {
+                    chrome.openSettings()
+                }
+            }
         }
         .navigationDestination(item: $selectedRecord) { record in
             MaintenanceDetailView(record: record, viewModel: viewModel, partsVM: partsVM)
@@ -199,32 +222,33 @@ struct MaintenanceLogsView: View {
 
     @ViewBuilder
     private var issuesContent: some View {
-        VStack(spacing: Theme.Spacing.s) {
-            if viewModel.issues.isEmpty {
-                IssuesEmptyCard(motorcycle: viewModel.motorcycle)
-            } else {
-                VStack(spacing: 10) {
-                    ForEach(viewModel.issues, id: \.clientId) { issue in
-                        Button { editingIssue = issue } label: {
-                            IssueRow(issue: issue)
+        if viewModel.issues.isEmpty {
+            Section {
+                ContentUnavailableView {
+                    Label("Super! Keine Mängel", systemImage: "checkmark.circle.fill")
+                        .foregroundStyle(.green)
+                } description: {
+                    Text("Es sind keine offenen Mängel für \(viewModel.motorcycle.make) \(viewModel.motorcycle.model) erfasst.")
+                }
+            }
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
+        } else {
+            Section {
+                ForEach(viewModel.issues, id: \.clientId) { issue in
+                    Button { editingIssue = issue } label: {
+                        IssueRow(issue: issue)
+                    }
+                    .buttonStyle(.plain)
+                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                        Button(role: .destructive) {
+                            _ = viewModel.deleteIssue(issue)
+                        } label: {
+                            Label("Löschen", systemImage: "trash")
                         }
-                        .buttonStyle(.plain)
                     }
                 }
             }
-        }
-    }
-
-    private func sectionHeader(_ label: String, count: Int) -> some View {
-        HStack {
-            Text(label.uppercased())
-                .scaledFont(11, weight: .heavy)
-                .tracking(2)
-                .foregroundColor(.white.opacity(0.7))
-            Spacer()
-            Text("\(count) \(count == 1 ? "Eintrag" : "Einträge")")
-                .scaledFont(11, weight: .semibold)
-                .foregroundColor(.white.opacity(0.5))
         }
     }
 
@@ -242,7 +266,7 @@ struct MaintenanceLogsView: View {
                 } label: {
                     Text(filter.rawValue)
                         .scaledFont(12, weight: .semibold)
-                        .foregroundColor(active ? .white : .white.opacity(0.7))
+                        .foregroundStyle(active ? AnyShapeStyle(Color.white) : AnyShapeStyle(.primary))
                         .padding(.horizontal, 12)
                         .padding(.vertical, 6)
                         .glassEffect(
@@ -263,25 +287,30 @@ struct MaintenanceLogsView: View {
     @ViewBuilder
     private var maintenanceContent: some View {
         if viewModel.isLoading && serviceRecords.isEmpty {
-            VStack(spacing: 10) {
+            Section {
                 ForEach(0..<4, id: \.self) { _ in
-                    GlassShimmerRow()
+                    MaintenanceGroupRow.placeholder
+                        .redacted(reason: .placeholder)
                 }
             }
         } else if historyRecords.isEmpty {
-            EmptyStateView(
-                title: historyFilter == .standort ? "Keine Standortwechsel" : "Keine Wartung erfasst",
-                message: historyFilter == .standort
-                    ? "Standortwechsel tauchen hier auf."
-                    : "Reparaturen und Wartungen tauchen hier auf.",
-                icon: historyFilter == .standort ? "mappin.and.ellipse" : "wrench.and.screwdriver.fill"
-            )
-            .padding(.top, 60)
+            Section {
+                ContentUnavailableView {
+                    Label(
+                        historyFilter == .standort ? "Keine Standortwechsel" : "Keine Wartung erfasst",
+                        systemImage: historyFilter == .standort ? "mappin.and.ellipse" : "wrench.and.screwdriver.fill"
+                    )
+                } description: {
+                    Text(historyFilter == .standort
+                        ? "Standortwechsel tauchen hier auf."
+                        : "Reparaturen und Wartungen tauchen hier auf.")
+                }
+            }
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
         } else {
-            // Lazy so a long service history renders cards on demand.
-            LazyVStack(spacing: 10) {
-                ForEach(groupedByYear, id: \.year) { section in
-                    YearHeader(section.year)
+            ForEach(groupedByYear, id: \.year) { section in
+                Section(section.year) {
                     ForEach(section.groups) { group in
                         Button {
                             selectedRecord = group.primary
@@ -297,69 +326,6 @@ struct MaintenanceLogsView: View {
 
 }
 
-// MARK: - Issues views
-
-private struct IssuesEmptyCard: View {
-    let motorcycle: Motorcycle
-
-    var body: some View {
-        VStack(spacing: 12) {
-            ZStack {
-                Circle()
-                    .fill(Color.green.opacity(0.18))
-                    .frame(width: 56, height: 56)
-                Image(systemName: "checkmark.circle.fill")
-                    .scaledFont(28, weight: .semibold)
-                    .foregroundColor(.green)
-            }
-
-            Text("Super! Keine Mängel")
-                .scaledFont(16, weight: .bold)
-                .foregroundColor(.white)
-
-            Text("Es sind keine offenen Mängel für \(motorcycle.make) \(motorcycle.model) erfasst.")
-                .scaledFont(13)
-                .foregroundColor(Theme.Glass.mutedText)
-                .multilineTextAlignment(.center)
-                .frame(maxWidth: 260)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 28)
-        .padding(.horizontal, 20)
-        .glassEffect(.regular, in: RoundedRectangle(cornerRadius: Theme.Glass.cardRadius))
-    }
-}
-
-private struct IssuesPlaceholderCard: View {
-    let count: Int
-
-    var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 10)
-                    .fill(Theme.Colors.accent.opacity(0.22))
-                Image(systemName: "exclamationmark.triangle.fill")
-                    .scaledFont(16, weight: .semibold)
-                    .foregroundColor(Theme.Colors.accent)
-            }
-            .frame(width: 36, height: 36)
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text("\(count) offene\(count == 1 ? "r" : "") Mangel")
-                    .scaledFont(14, weight: .bold)
-                    .foregroundColor(.white)
-                Text("Detaillierte Mängel werden hier sichtbar, sobald sie verfügbar sind.")
-                    .scaledFont(12)
-                    .foregroundColor(Theme.Glass.mutedText)
-                    .lineLimit(3)
-            }
-            Spacer(minLength: 0)
-        }
-        .padding(14)
-        .glassEffect(.regular, in: RoundedRectangle(cornerRadius: Theme.Glass.fieldRadius))
-    }
-}
-
 // MARK: - Issue row
 
 private struct IssueRow: View {
@@ -368,11 +334,11 @@ private struct IssueRow: View {
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
             ZStack {
-                RoundedRectangle(cornerRadius: 10)
+                RoundedRectangle(cornerRadius: Theme.Radius.controlInner)
                     .fill(statusColor.opacity(0.22))
                 Image(systemName: statusIcon)
                     .scaledFont(16, weight: .semibold)
-                    .foregroundColor(statusColor)
+                    .foregroundStyle(statusColor)
             }
             .frame(width: 36, height: 36)
             .overlay(alignment: .topTrailing) {
@@ -382,12 +348,12 @@ private struct IssueRow: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text(issue.title)
                     .scaledFont(14, weight: .bold)
-                    .foregroundColor(.white)
+                    .foregroundStyle(.primary)
                     .lineLimit(2)
                 if let notes = issue.recordDescription, !notes.isEmpty {
                     Text(notes)
                         .scaledFont(12)
-                        .foregroundColor(.white.opacity(0.65))
+                        .foregroundStyle(.secondary)
                         .lineLimit(2)
                 }
                 HStack(spacing: 6) {
@@ -397,19 +363,18 @@ private struct IssueRow: View {
                         .padding(.horizontal, 7)
                         .padding(.vertical, 2)
                         .background(Capsule().fill(statusColor.opacity(0.22)))
-                        .foregroundColor(statusColor)
-                    Text("·").foregroundColor(.white.opacity(0.4))
+                        .foregroundStyle(statusColor)
+                    Text("·").foregroundStyle(.tertiary)
                     Text(Formatters.mediumDate(issue.date))
-                    Text("·").foregroundColor(.white.opacity(0.4))
+                    Text("·").foregroundStyle(.tertiary)
                     Text("\(issue.odo) km").monospacedDigit()
                 }
                 .scaledFont(10, weight: .semibold)
-                .foregroundColor(.white.opacity(0.55))
+                .foregroundStyle(.secondary)
             }
             Spacer(minLength: 0)
         }
-        .padding(14)
-        .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 18))
+        .padding(.vertical, 4)
         .contentShape(Rectangle())
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(statusLabel) Mangel: \(issue.title), \(Formatters.mediumDate(issue.date)), Kilometerstand \(issue.odo)")
@@ -450,15 +415,32 @@ private struct MaintenanceGroupRow: View {
     let group: MaintenanceGroup
     let fallbackCurrency: String
 
+    /// Skeleton stand-in for the loading state (rendered `.redacted`).
+    static var placeholder: some View {
+        HStack(spacing: 12) {
+            RoundedRectangle(cornerRadius: Theme.Radius.controlInner)
+                .fill(.quaternary)
+                .frame(width: 38, height: 38)
+            VStack(alignment: .leading, spacing: 4) {
+                Text("15. August 2026")
+                Text("Ölwechsel, Kette gespannt")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+        }
+        .padding(.vertical, 4)
+    }
+
     var body: some View {
         let category = group.category
         HStack(alignment: .top, spacing: 12) {
             ZStack {
-                RoundedRectangle(cornerRadius: 10)
+                RoundedRectangle(cornerRadius: Theme.Radius.controlInner)
                     .fill(category.tint.opacity(0.15))
                 Image(systemName: category.icon)
                     .scaledFont(16, weight: .semibold)
-                    .foregroundColor(category.tint)
+                    .foregroundStyle(category.tint)
             }
             .frame(width: 38, height: 38)
             .overlay(alignment: .topTrailing) {
@@ -469,12 +451,12 @@ private struct MaintenanceGroupRow: View {
                 HStack(alignment: .firstTextBaseline) {
                     Text(Formatters.mediumDate(group.date))
                         .scaledFont(14, weight: .bold)
-                        .foregroundColor(.white)
+                        .foregroundStyle(.primary)
                     Spacer(minLength: 8)
                     Text("\(group.odo) km")
                         .scaledFont(12, weight: .semibold)
                         .monospacedDigit()
-                        .foregroundColor(.white.opacity(0.55))
+                        .foregroundStyle(.secondary)
                 }
 
                 if !group.summaries.isEmpty {
@@ -483,11 +465,11 @@ private struct MaintenanceGroupRow: View {
                             Text("\(group.count)×")
                                 .scaledFont(11, weight: .heavy)
                                 .monospacedDigit()
-                                .foregroundColor(.white.opacity(0.55))
+                                .foregroundStyle(.secondary)
                         }
                         Text(group.summaries.joined(separator: ", "))
                             .scaledFont(13, weight: .medium)
-                            .foregroundColor(category.tint)
+                            .foregroundStyle(category.tint)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }
@@ -496,18 +478,17 @@ private struct MaintenanceGroupRow: View {
                     if let metric = MaintenanceGrouper.collapsedMetric(group, fallbackCurrency: fallbackCurrency) {
                         Text(metric)
                             .monospacedDigit()
-                        Text("·").foregroundColor(.white.opacity(0.4))
+                        Text("·").foregroundStyle(.tertiary)
                     }
                     Text(category.label.uppercased())
                         .scaledFont(9, weight: .heavy)
                         .tracking(0.6)
                 }
                 .scaledFont(10, weight: .semibold)
-                .foregroundColor(.white.opacity(0.55))
+                .foregroundStyle(.secondary)
             }
         }
-        .padding(14)
-        .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 18))
+        .padding(.vertical, 4)
         .contentShape(Rectangle())
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityText)
@@ -522,39 +503,6 @@ private struct MaintenanceGroupRow: View {
             parts.append("Kosten \(Formatters.currency(group.cost, code: group.currency ?? fallbackCurrency, fractionDigits: 0))")
         }
         return parts.joined(separator: ", ")
-    }
-}
-
-struct EmptyStateView: View {
-    let title: String
-    let message: String
-    var icon: String = "motorcycle"
-
-    var body: some View {
-        VStack(spacing: Theme.Spacing.m) {
-            ZStack {
-                Circle()
-                    .fill(Theme.Colors.primary.opacity(0.15))
-                    .frame(width: 100, height: 100)
-
-                Image(systemName: icon)
-                    .scaledFont(42)
-                    .foregroundColor(Theme.Colors.primary.opacity(0.85))
-            }
-            .padding(.bottom, Theme.Spacing.s)
-
-            Text(title)
-                .scaledFont(18, weight: .bold, design: .rounded)
-                .foregroundColor(.white)
-
-            Text(message)
-                .font(.subheadline)
-                .foregroundColor(.white.opacity(0.55))
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, Theme.Spacing.xl)
-        }
-        .padding(Theme.Spacing.l)
-        .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 22))
     }
 }
 

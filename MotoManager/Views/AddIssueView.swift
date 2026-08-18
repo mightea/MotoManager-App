@@ -40,59 +40,49 @@ struct AddIssueView: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: Theme.Spacing.l) {
-                header
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: Theme.Spacing.l) {
+                    field("TITEL") {
+                        TextField("", text: $title, prompt: Text("z. B. Bremsbeläge abgenutzt").foregroundStyle(.tertiary))
+                            .textInputAutocapitalization(.sentences)
+                            .foregroundStyle(.primary)
+                    }
 
-                field("TITEL") {
-                    TextField("", text: $title, prompt: Text("z. B. Bremsbeläge abgenutzt").foregroundColor(.white.opacity(0.3)))
-                        .textInputAutocapitalization(.sentences)
-                        .foregroundColor(.white)
+                    field("KILOMETERSTAND") {
+                        TextField("", text: $odo)
+                            .keyboardType(.numberPad)
+                            .foregroundStyle(.primary)
+                    }
+
+                    labeledSegment("PRIORITÄT", selection: $priority, options: priorities, label: priorityLabel)
+                    labeledSegment("STATUS", selection: $status, options: statuses, label: statusLabel)
+
+                    field("DATUM") {
+                        DatePicker("", selection: $date, displayedComponents: .date)
+                            .labelsHidden()
+                            .tint(Theme.Colors.primary)
+                    }
+
+                    field("NOTIZEN") {
+                        TextField("", text: $notes, prompt: Text("Optionale Details").foregroundStyle(.tertiary), axis: .vertical)
+                            .lineLimit(3...6)
+                            .foregroundStyle(.primary)
+                    }
                 }
-
-                field("KILOMETERSTAND") {
-                    TextField("", text: $odo)
-                        .keyboardType(.numberPad)
-                        .foregroundColor(.white)
-                }
-
-                labeledSegment("PRIORITÄT", selection: $priority, options: priorities, label: priorityLabel)
-                labeledSegment("STATUS", selection: $status, options: statuses, label: statusLabel)
-
-                field("DATUM") {
-                    DatePicker("", selection: $date, displayedComponents: .date)
-                        .labelsHidden()
-                        .colorScheme(.dark)
-                        .tint(Theme.Colors.primary)
-                }
-
-                field("NOTIZEN") {
-                    TextField("", text: $notes, prompt: Text("Optionale Details").foregroundColor(.white.opacity(0.3)), axis: .vertical)
-                        .lineLimit(3...6)
-                        .foregroundColor(.white)
-                }
-
-                saveButton
+                .padding(Theme.Spacing.l)
             }
-            .padding(Theme.Spacing.l)
-        }
-        .background(Color.clear)
-    }
-
-    private var header: some View {
-        HStack {
-            Text(existingIssue == nil ? "Mangel erfassen" : "Mangel bearbeiten")
-                .scaledFont(22, weight: .heavy)
-                .foregroundColor(.white)
-            Spacer()
-            Button { dismiss() } label: {
-                Image(systemName: "xmark")
-                    .scaledFont(14, weight: .bold)
-                    .foregroundColor(.white)
-                    .frame(width: 32, height: 32)
-                    .background(Circle().fill(Color.white.opacity(0.12)))
+            .navigationTitle(existingIssue == nil ? "Mangel erfassen" : "Mangel bearbeiten")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Abbrechen") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Speichern") { save() }
+                        .disabled(title.trimmingCharacters(in: .whitespaces).isEmpty)
+                }
             }
-            .accessibilityLabel("Schließen")
         }
     }
 
@@ -100,11 +90,11 @@ struct AddIssueView: View {
         VStack(alignment: .leading, spacing: 6) {
             Text(label)
                 .scaledFont(10, weight: .heavy).tracking(1.4)
-                .foregroundColor(Theme.Glass.mutedText)
+                .foregroundStyle(.secondary)
             content()
                 .padding(.horizontal, 14).padding(.vertical, 12)
-                .background(RoundedRectangle(cornerRadius: Theme.Glass.fieldRadius).fill(Color.white.opacity(0.06)))
-                .overlay(RoundedRectangle(cornerRadius: Theme.Glass.fieldRadius).stroke(Theme.Glass.border, lineWidth: 0.5))
+                .background(RoundedRectangle(cornerRadius: Theme.Radius.field).fill(Color.primary.opacity(0.06)))
+                .overlay(RoundedRectangle(cornerRadius: Theme.Radius.field).stroke(Theme.Glass.border, lineWidth: 0.5))
         }
     }
 
@@ -112,23 +102,12 @@ struct AddIssueView: View {
         VStack(alignment: .leading, spacing: 6) {
             Text(label)
                 .scaledFont(10, weight: .heavy).tracking(1.4)
-                .foregroundColor(Theme.Glass.mutedText)
-            Picker(label, selection: selection) {
-                ForEach(options, id: \.self) { Text(labeler($0)).tag($0) }
-            }
-            .pickerStyle(.segmented)
+                .foregroundStyle(.secondary)
+            GlassSegmentedControl(
+                segments: options.map { .init(value: $0, label: labeler($0)) },
+                selection: selection
+            )
         }
-    }
-
-    private var saveButton: some View {
-        Button(action: save) {
-            Text(savedAnim ? "Gespeichert ✓" : "Speichern")
-                .frame(maxWidth: .infinity)
-        }
-        .buttonStyle(ModernButtonStyle())
-        .disabled(title.trimmingCharacters(in: .whitespaces).isEmpty)
-        .opacity(title.trimmingCharacters(in: .whitespaces).isEmpty ? 0.5 : 1)
-        .padding(.top, Theme.Spacing.s)
     }
 
     private func priorityLabel(_ p: String) -> String {

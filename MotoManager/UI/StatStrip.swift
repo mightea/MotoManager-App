@@ -2,6 +2,12 @@ import SwiftUI
 
 /// Reusable 3-tile glass stat strip used at the top of screen content.
 /// Each tile has an eyebrow label, a main value, and an optional unit/sub line.
+///
+/// The tiles usually sit on the header photo. Ink is `onPhoto` (always white):
+/// the photo underneath doesn't adapt to appearance, and the system glass
+/// derives its look from the photo, not the color scheme. Legibility comes
+/// from the header's photo scrim — the glass carries no extra tint of its own,
+/// so it stays honest under the user's iOS 27 glass-intensity setting.
 struct StatStrip: View {
     let tiles: [StatTile]
 
@@ -31,30 +37,27 @@ struct StatStrip: View {
             Text(tile.eyebrow.uppercased())
                 .scaledFont(9, weight: .heavy)
                 .tracking(1.2)
-                .foregroundColor(.white.opacity(0.7))
+                .foregroundStyle(Theme.Colors.onPhotoSecondary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.75)
 
             Text(tile.value)
                 .scaledFont(17, weight: .bold, design: .rounded)
-                .foregroundColor(tile.accent ?? .white)
+                .foregroundStyle(tile.accent ?? Theme.Colors.onPhoto)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
 
             if let unit = tile.unit, !unit.isEmpty {
                 Text(unit)
                     .scaledFont(10, weight: .medium)
-                    .foregroundColor(.white.opacity(0.7))
+                    .foregroundStyle(Theme.Colors.onPhotoSecondary)
                     .lineLimit(1)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .padding(.horizontal, 11)
         .padding(.vertical, 10)
-        // Dark tint behind the glass: these tiles usually sit on a photo, and
-        // white text over a bright sky washes out on plain glass. The scrim
-        // keeps legibility independent of whatever the bike photo contains.
-        .glassEffect(.regular.tint(Color.black.opacity(0.35)), in: RoundedRectangle(cornerRadius: 14))
+        .glassEffect(.regular, in: RoundedRectangle(cornerRadius: Theme.Radius.chip))
     }
 }
 

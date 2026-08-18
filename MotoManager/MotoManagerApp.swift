@@ -18,7 +18,6 @@ struct MotoManagerApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
-                .preferredColorScheme(.dark)
                 .environmentObject(connectivity)
                 .environmentObject(syncEngine)
                 .environmentObject(persistenceMonitor)

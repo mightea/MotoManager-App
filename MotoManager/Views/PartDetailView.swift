@@ -143,7 +143,7 @@ struct PartDetailView: View {
                 RemoteImageView(url: imageURL, maxPixelWidth: 800)
                     .frame(maxWidth: .infinity)
                     .frame(height: 160)
-                    .clipShape(RoundedRectangle(cornerRadius: Theme.Glass.fieldRadius))
+                    .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.field))
             }
             HStack(spacing: 8) {
                 infoPill(part.manufacturer, icon: "building.2.fill")
@@ -155,19 +155,19 @@ struct PartDetailView: View {
                     Text("\(onHand)")
                         .scaledFont(26, weight: .heavy)
                         .monospacedDigit()
-                        .foregroundColor(onHand > 0 ? Theme.Colors.primary : .white.opacity(0.35))
+                        .foregroundStyle(onHand > 0 ? AnyShapeStyle(Theme.Colors.primary) : AnyShapeStyle(.tertiary))
                     Text("AUF LAGER")
                         .scaledFont(8, weight: .heavy).tracking(1.2)
-                        .foregroundColor(.white.opacity(0.4))
+                        .foregroundStyle(.tertiary)
                     if totalStockValue > 0 {
                         Text(Formatters.currency(totalStockValue, code: "CHF"))
                             .scaledFont(12, weight: .bold)
                             .monospacedDigit()
-                            .foregroundColor(.white.opacity(0.7))
+                            .foregroundStyle(.secondary)
                             .padding(.top, 6)
                         Text("EINKAUFSWERT")
                             .scaledFont(8, weight: .heavy).tracking(1.2)
-                            .foregroundColor(.white.opacity(0.4))
+                            .foregroundStyle(.tertiary)
                     }
                 }
             }
@@ -179,12 +179,12 @@ struct PartDetailView: View {
             if let description = part.partDescription, !description.isEmpty {
                 Text(description)
                     .scaledFont(13)
-                    .foregroundColor(.white.opacity(0.7))
+                    .foregroundStyle(.secondary)
             }
         }
         .padding(14)
-        .background(RoundedRectangle(cornerRadius: Theme.Radius.l).fill(Color.white.opacity(0.06)))
-        .overlay(RoundedRectangle(cornerRadius: Theme.Radius.l).stroke(Theme.Glass.border, lineWidth: 0.5))
+        .background(RoundedRectangle(cornerRadius: Theme.Radius.card).fill(Color.primary.opacity(0.06)))
+        .overlay(RoundedRectangle(cornerRadius: Theme.Radius.card).stroke(Theme.Glass.border, lineWidth: 0.5))
     }
 
     private var seriesChips: some View {
@@ -193,9 +193,9 @@ struct PartDetailView: View {
                 ForEach(part.seriesIds, id: \.self) { id in
                     Text(viewModel.seriesName(id))
                         .scaledFont(11, weight: .semibold)
-                        .foregroundColor(.white.opacity(0.8))
+                        .foregroundStyle(.secondary)
                         .padding(.horizontal, 9).padding(.vertical, 4)
-                        .background(Capsule().fill(Color.white.opacity(0.10)))
+                        .background(Capsule().fill(Color.primary.opacity(0.10)))
                 }
             }
         }
@@ -206,9 +206,9 @@ struct PartDetailView: View {
             Image(systemName: icon).scaledFont(9, weight: .bold)
             Text(text).scaledFont(11, weight: .semibold)
         }
-        .foregroundColor(.white.opacity(0.75))
+        .foregroundStyle(.secondary)
         .padding(.horizontal, 9).padding(.vertical, 4)
-        .background(Capsule().fill(Color.white.opacity(0.10)))
+        .background(Capsule().fill(Color.primary.opacity(0.10)))
     }
 
     // MARK: - Stock
@@ -225,7 +225,7 @@ struct PartDetailView: View {
             if stocks.isEmpty {
                 Text("Noch kein Bestand erfasst.")
                     .scaledFont(13)
-                    .foregroundColor(.white.opacity(0.5))
+                    .foregroundStyle(.tertiary)
             } else {
                 VStack(spacing: 8) {
                     ForEach(stocks, id: \.clientId) { stock in
@@ -259,7 +259,7 @@ struct PartDetailView: View {
             Text("\(stock.quantity)×")
                 .scaledFont(16, weight: .heavy)
                 .monospacedDigit()
-                .foregroundColor(Theme.Colors.primary)
+                .foregroundStyle(Theme.Colors.primary)
                 .frame(width: 44, alignment: .leading)
 
             VStack(alignment: .leading, spacing: 2) {
@@ -268,26 +268,26 @@ struct PartDetailView: View {
                         let unit = price / Double(max(1, stock.quantity))
                         Text("\(Formatters.currency(unit, code: stock.currency ?? "CHF")) / Stk.")
                             .scaledFont(13, weight: .bold)
-                            .foregroundColor(.white)
+                            .foregroundStyle(.primary)
                         if stock.quantity > 1 {
                             Text("· \(Formatters.currency(price, code: stock.currency ?? "CHF")) gesamt")
                                 .scaledFont(12)
-                                .foregroundColor(.white.opacity(0.55))
+                                .foregroundStyle(.secondary)
                         }
                     } else {
                         Text("Ohne Preis")
                             .scaledFont(13, weight: .semibold)
-                            .foregroundColor(.white.opacity(0.5))
+                            .foregroundStyle(.tertiary)
                     }
                     if let date = stock.purchaseDate {
                         Text("· \(Formatters.mediumDate(date))")
                             .scaledFont(12)
-                            .foregroundColor(.white.opacity(0.55))
+                            .foregroundStyle(.secondary)
                     }
                     if stock.isUsed {
                         Text("GEBRAUCHT")
                             .scaledFont(8, weight: .heavy).tracking(1.0)
-                            .foregroundColor(.orange)
+                            .foregroundStyle(.orange)
                             .padding(.horizontal, 6).padding(.vertical, 2)
                             .background(Capsule().fill(Color.orange.opacity(0.16)))
                     }
@@ -300,23 +300,23 @@ struct PartDetailView: View {
                             .lineLimit(1)
                     }
                     .scaledFont(11, weight: .semibold)
-                    .foregroundColor(.white.opacity(0.45))
+                    .foregroundStyle(.tertiary)
                 }
                 if let notes = stock.notes, !notes.isEmpty {
                     Text(notes)
                         .scaledFont(11)
-                        .foregroundColor(.white.opacity(0.4))
+                        .foregroundStyle(.tertiary)
                         .lineLimit(1)
                 }
             }
             Spacer(minLength: 0)
             Image(systemName: "chevron.right")
                 .scaledFont(11, weight: .semibold)
-                .foregroundColor(.white.opacity(0.3))
+                .foregroundStyle(.tertiary)
         }
         .padding(12)
-        .background(RoundedRectangle(cornerRadius: Theme.Glass.fieldRadius).fill(Color.white.opacity(0.05)))
-        .overlay(RoundedRectangle(cornerRadius: Theme.Glass.fieldRadius).stroke(Theme.Glass.border, lineWidth: 0.5))
+        .background(RoundedRectangle(cornerRadius: Theme.Radius.field).fill(Color.primary.opacity(0.05)))
+        .overlay(RoundedRectangle(cornerRadius: Theme.Radius.field).stroke(Theme.Glass.border, lineWidth: 0.5))
     }
 
     // MARK: - Consumption
@@ -335,7 +335,7 @@ struct PartDetailView: View {
             if consumptions.isEmpty {
                 Text("Noch kein Verbrauch erfasst. Teile lassen sich auch direkt beim Erfassen einer Wartung verbuchen.")
                     .scaledFont(13)
-                    .foregroundColor(.white.opacity(0.5))
+                    .foregroundStyle(.tertiary)
             } else {
                 VStack(spacing: 8) {
                     ForEach(consumptions, id: \.clientId) { consumption in
@@ -395,13 +395,13 @@ struct PartDetailView: View {
             Text("−\(consumption.quantity)")
                 .scaledFont(16, weight: .heavy)
                 .monospacedDigit()
-                .foregroundColor(Theme.Colors.accent)
+                .foregroundStyle(Theme.Colors.accent)
                 .frame(width: 44, alignment: .leading)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(Formatters.mediumDate(consumption.date))
                     .scaledFont(13, weight: .bold)
-                    .foregroundColor(.white)
+                    .foregroundStyle(.primary)
                 if let repair {
                     HStack(spacing: 4) {
                         Image(systemName: "wrench.and.screwdriver.fill")
@@ -414,11 +414,11 @@ struct PartDetailView: View {
                         }
                     }
                     .scaledFont(11, weight: .semibold)
-                    .foregroundColor(.white.opacity(0.5))
+                    .foregroundStyle(.tertiary)
                 } else if consumption.maintenanceClientId != nil || consumption.maintenanceServerId != nil {
                     Text("Verknüpfte Wartung")
                         .scaledFont(11, weight: .semibold)
-                        .foregroundColor(.white.opacity(0.5))
+                        .foregroundStyle(.tertiary)
                 }
                 // Which bike the part went into — the whole point of the link,
                 // and the one thing the repair's own description never says.
@@ -429,20 +429,20 @@ struct PartDetailView: View {
                         Text(motorcycle).lineLimit(1)
                     }
                     .scaledFont(11, weight: .semibold)
-                    .foregroundColor(Theme.Colors.primary.opacity(0.8))
+                    .foregroundStyle(Theme.Colors.primary.opacity(0.8))
                 }
                 if let notes = consumption.notes, !notes.isEmpty {
                     Text(notes)
                         .scaledFont(11)
-                        .foregroundColor(.white.opacity(0.4))
+                        .foregroundStyle(.tertiary)
                         .lineLimit(1)
                 }
             }
             Spacer(minLength: 0)
         }
         .padding(12)
-        .background(RoundedRectangle(cornerRadius: Theme.Glass.fieldRadius).fill(Color.white.opacity(0.05)))
-        .overlay(RoundedRectangle(cornerRadius: Theme.Glass.fieldRadius).stroke(Theme.Glass.border, lineWidth: 0.5))
+        .background(RoundedRectangle(cornerRadius: Theme.Radius.field).fill(Color.primary.opacity(0.05)))
+        .overlay(RoundedRectangle(cornerRadius: Theme.Radius.field).stroke(Theme.Glass.border, lineWidth: 0.5))
     }
 
     // MARK: - Shared bits
@@ -451,11 +451,11 @@ struct PartDetailView: View {
         HStack {
             Text(label.uppercased())
                 .scaledFont(11, weight: .heavy).tracking(2)
-                .foregroundColor(.white.opacity(0.55))
+                .foregroundStyle(.secondary)
             Spacer()
             Text("\(count) \(count == 1 ? "Eintrag" : "Einträge")")
                 .scaledFont(11, weight: .semibold)
-                .foregroundColor(.white.opacity(0.5))
+                .foregroundStyle(.tertiary)
         }
     }
 
@@ -467,10 +467,10 @@ struct PartDetailView: View {
                 .scaledFont(13, weight: .bold)
             Spacer(minLength: 0)
         }
-        .foregroundColor(.white)
+        .foregroundStyle(.primary)
         .padding(.horizontal, 14).padding(.vertical, 11)
-        .background(RoundedRectangle(cornerRadius: Theme.Glass.fieldRadius).fill(Color.white.opacity(0.10)))
-        .overlay(RoundedRectangle(cornerRadius: Theme.Glass.fieldRadius).stroke(Theme.Glass.border, lineWidth: 0.5))
+        .background(RoundedRectangle(cornerRadius: Theme.Radius.field).fill(Color.primary.opacity(0.10)))
+        .overlay(RoundedRectangle(cornerRadius: Theme.Radius.field).stroke(Theme.Glass.border, lineWidth: 0.5))
     }
 }
 
@@ -527,47 +527,46 @@ struct AddPartStockView: View {
                     Stepper(value: $quantity, in: 1...999) {
                         Text("\(quantity) Stück")
                             .scaledFont(15, weight: .bold)
-                            .foregroundColor(.white)
+                            .foregroundStyle(.primary)
                     }
-                    .colorScheme(.dark)
                 }
                 HStack(spacing: Theme.Spacing.m) {
                     field("PREIS (GESAMT)") {
-                        TextField("", text: $price, prompt: Text("0").foregroundColor(.white.opacity(0.3)))
-                            .keyboardType(.decimalPad).foregroundColor(.white)
+                        TextField("", text: $price, prompt: Text("0").foregroundStyle(.tertiary))
+                            .keyboardType(.decimalPad).foregroundStyle(.primary)
                     }
                     field("WÄHRUNG") {
-                        TextField("", text: $currency).foregroundColor(.white)
+                        TextField("", text: $currency).foregroundStyle(.primary)
                             .textInputAutocapitalization(.characters)
                     }
                 }
                 field("KAUFDATUM") {
                     DatePicker("", selection: $purchaseDate, displayedComponents: .date)
-                        .labelsHidden().colorScheme(.dark).tint(Theme.Colors.primary)
+                        .labelsHidden().tint(Theme.Colors.primary)
                 }
                 field("LAGERORT") {
                     locationPicker
                 }
                 field("NEUER LAGERORT (OPTIONAL)") {
                     TextField("", text: $newLocationName,
-                              prompt: Text("z. B. Regal A · Kiste 3").foregroundColor(.white.opacity(0.3)))
-                        .foregroundColor(.white)
+                              prompt: Text("z. B. Regal A · Kiste 3").foregroundStyle(.tertiary))
+                        .foregroundStyle(.primary)
                 }
                 field("NOTIZEN") {
                     TextField("", text: $notes,
-                              prompt: Text("z. B. Kauf bei Motorradteile Meyer").foregroundColor(.white.opacity(0.3)),
+                              prompt: Text("z. B. Kauf bei Motorradteile Meyer").foregroundStyle(.tertiary),
                               axis: .vertical)
-                        .lineLimit(2...4).foregroundColor(.white)
+                        .lineLimit(2...4).foregroundStyle(.primary)
                 }
                 field("ZUSTAND") {
                     Toggle(isOn: $isUsed) {
                         VStack(alignment: .leading, spacing: 1) {
                             Text("Gebrauchtteil")
                                 .scaledFont(15, weight: .semibold)
-                                .foregroundColor(.white)
+                                .foregroundStyle(.primary)
                             Text("z. B. aus einem Motorrad ausgeschlachtet")
                                 .scaledFont(11)
-                                .foregroundColor(.white.opacity(0.45))
+                                .foregroundStyle(.tertiary)
                         }
                     }
                     .tint(Theme.Colors.primary)
@@ -580,7 +579,7 @@ struct AddPartStockView: View {
                         dismiss()
                     } label: {
                         Text("Löschen").frame(maxWidth: .infinity)
-                            .foregroundColor(Theme.Colors.accent).padding(.vertical, 12)
+                            .foregroundStyle(Theme.Colors.accent).padding(.vertical, 12)
                     }
                 }
             }
@@ -599,18 +598,18 @@ struct AddPartStockView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(existingStock == nil ? "Bestand hinzufügen" : "Bestand bearbeiten")
                     .scaledFont(22, weight: .heavy)
-                    .foregroundColor(.white)
+                    .foregroundStyle(.primary)
                 Text(part.name)
                     .scaledFont(12, weight: .semibold)
-                    .foregroundColor(.white.opacity(0.55))
+                    .foregroundStyle(.secondary)
             }
             Spacer()
             Button { dismiss() } label: {
                 Image(systemName: "xmark")
                     .scaledFont(14, weight: .bold)
-                    .foregroundColor(.white)
+                    .foregroundStyle(.primary)
                     .frame(width: 32, height: 32)
-                    .background(Circle().fill(Color.white.opacity(0.12)))
+                    .background(Circle().fill(Color.primary.opacity(0.12)))
             }
             .accessibilityLabel("Schließen")
         }
@@ -627,12 +626,12 @@ struct AddPartStockView: View {
         } label: {
             HStack {
                 Text(selectedLocation.flatMap { viewModel.locationPath($0) } ?? "Kein Lagerort")
-                    .foregroundColor(selectedLocation == nil ? .white.opacity(0.35) : .white)
+                    .foregroundStyle(selectedLocation == nil ? AnyShapeStyle(.tertiary) : AnyShapeStyle(.primary))
                     .lineLimit(1)
                 Spacer()
                 Image(systemName: "chevron.up.chevron.down")
                     .scaledFont(11, weight: .semibold)
-                    .foregroundColor(.white.opacity(0.5))
+                    .foregroundStyle(.tertiary)
             }
         }
     }
@@ -641,11 +640,11 @@ struct AddPartStockView: View {
         VStack(alignment: .leading, spacing: 6) {
             Text(label)
                 .scaledFont(10, weight: .heavy).tracking(1.4)
-                .foregroundColor(Theme.Glass.mutedText)
+                .foregroundStyle(.secondary)
             content()
                 .padding(.horizontal, 14).padding(.vertical, 12)
-                .background(RoundedRectangle(cornerRadius: Theme.Glass.fieldRadius).fill(Color.white.opacity(0.06)))
-                .overlay(RoundedRectangle(cornerRadius: Theme.Glass.fieldRadius).stroke(Theme.Glass.border, lineWidth: 0.5))
+                .background(RoundedRectangle(cornerRadius: Theme.Radius.field).fill(Color.primary.opacity(0.06)))
+                .overlay(RoundedRectangle(cornerRadius: Theme.Radius.field).stroke(Theme.Glass.border, lineWidth: 0.5))
         }
     }
 
@@ -653,7 +652,7 @@ struct AddPartStockView: View {
         Button(action: save) {
             Text(savedAnim ? "Gespeichert ✓" : "Speichern").frame(maxWidth: .infinity)
         }
-        .buttonStyle(ModernButtonStyle())
+        .glassActionButton(.primary, in: .roundedRectangle(radius: Theme.Radius.control))
         .padding(.top, Theme.Spacing.s)
     }
 
@@ -709,18 +708,18 @@ struct AddPartConsumptionView: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Verbrauch erfassen")
                             .scaledFont(22, weight: .heavy)
-                            .foregroundColor(.white)
+                            .foregroundStyle(.primary)
                         Text("\(part.name) · \(onHand) auf Lager")
                             .scaledFont(12, weight: .semibold)
-                            .foregroundColor(.white.opacity(0.55))
+                            .foregroundStyle(.secondary)
                     }
                     Spacer()
                     Button { dismiss() } label: {
                         Image(systemName: "xmark")
                             .scaledFont(14, weight: .bold)
-                            .foregroundColor(.white)
+                            .foregroundStyle(.primary)
                             .frame(width: 32, height: 32)
-                            .background(Circle().fill(Color.white.opacity(0.12)))
+                            .background(Circle().fill(Color.primary.opacity(0.12)))
                     }
                     .accessibilityLabel("Schließen")
                 }
@@ -729,30 +728,29 @@ struct AddPartConsumptionView: View {
                     Stepper(value: $quantity, in: 1...max(1, onHand)) {
                         Text("\(quantity) Stück")
                             .scaledFont(15, weight: .bold)
-                            .foregroundColor(.white)
+                            .foregroundStyle(.primary)
                     }
-                    .colorScheme(.dark)
                 }
                 field("DATUM") {
                     DatePicker("", selection: $date, displayedComponents: .date)
-                        .labelsHidden().colorScheme(.dark).tint(Theme.Colors.primary)
+                        .labelsHidden().tint(Theme.Colors.primary)
                 }
                 field("NOTIZ") {
                     TextField("", text: $notes,
-                              prompt: Text("z. B. defekt / verloren").foregroundColor(.white.opacity(0.3)))
-                        .foregroundColor(.white)
+                              prompt: Text("z. B. defekt / verloren").foregroundStyle(.tertiary))
+                        .foregroundStyle(.primary)
                 }
 
                 if let errorText {
                     Text(errorText)
                         .scaledFont(12, weight: .semibold)
-                        .foregroundColor(Theme.Colors.accent)
+                        .foregroundStyle(Theme.Colors.accent)
                 }
 
                 Button(action: save) {
                     Text(savedAnim ? "Gespeichert ✓" : "Speichern").frame(maxWidth: .infinity)
                 }
-                .buttonStyle(ModernButtonStyle())
+                .glassActionButton(.primary, in: .roundedRectangle(radius: Theme.Radius.control))
             }
             .padding(Theme.Spacing.l)
         }
@@ -763,11 +761,11 @@ struct AddPartConsumptionView: View {
         VStack(alignment: .leading, spacing: 6) {
             Text(label)
                 .scaledFont(10, weight: .heavy).tracking(1.4)
-                .foregroundColor(Theme.Glass.mutedText)
+                .foregroundStyle(.secondary)
             content()
                 .padding(.horizontal, 14).padding(.vertical, 12)
-                .background(RoundedRectangle(cornerRadius: Theme.Glass.fieldRadius).fill(Color.white.opacity(0.06)))
-                .overlay(RoundedRectangle(cornerRadius: Theme.Glass.fieldRadius).stroke(Theme.Glass.border, lineWidth: 0.5))
+                .background(RoundedRectangle(cornerRadius: Theme.Radius.field).fill(Color.primary.opacity(0.06)))
+                .overlay(RoundedRectangle(cornerRadius: Theme.Radius.field).stroke(Theme.Glass.border, lineWidth: 0.5))
         }
     }
 

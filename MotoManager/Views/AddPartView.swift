@@ -15,7 +15,6 @@ struct AddPartView: View {
     @State private var selectedSeriesIds: Set<Int>
     @State private var showingSeriesPicker = false
     @State private var confirmingDelete = false
-    @State private var savedAnim = false
     @State private var validationError: String?
 
     // Initial stock (create mode only): a new part always starts with at
@@ -48,88 +47,96 @@ struct AddPartView: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: Theme.Spacing.l) {
-                header
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: Theme.Spacing.l) {
+                    field("TEILENUMMER") {
+                        TextField("", text: $partNumber,
+                                  prompt: Text("z. B. 11 42 7 673 541").foregroundStyle(.tertiary))
+                            .foregroundStyle(.primary)
+                            .autocorrectionDisabled()
+                    }
+                    field("NAME") {
+                        TextField("", text: $name,
+                                  prompt: Text("z. B. Ölfilter").foregroundStyle(.tertiary))
+                            .foregroundStyle(.primary)
+                    }
+                    field("HERSTELLER") {
+                        TextField("", text: $manufacturer).foregroundStyle(.primary)
+                    }
+                    field("BAUREIHEN") {
+                        Button { showingSeriesPicker = true } label: {
+                            HStack {
+                                Text(seriesSummary)
+                                    .foregroundStyle(selectedSeriesIds.isEmpty ? AnyShapeStyle(.tertiary) : AnyShapeStyle(.primary))
+                                    .lineLimit(2)
+                                    .multilineTextAlignment(.leading)
+                                Spacer()
+                                Image(systemName: "chevron.up.chevron.down")
+                                    .scaledFont(11, weight: .semibold)
+                                    .foregroundStyle(.tertiary)
+                            }
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    field("BESCHREIBUNG") {
+                        TextField("", text: $notes,
+                                  prompt: Text("z. B. passt auch für Ölkühler-Variante").foregroundStyle(.tertiary),
+                                  axis: .vertical)
+                            .lineLimit(2...5).foregroundStyle(.primary)
+                    }
 
-                field("TEILENUMMER") {
-                    TextField("", text: $partNumber,
-                              prompt: Text("z. B. 11 42 7 673 541").foregroundColor(.white.opacity(0.3)))
-                        .foregroundColor(.white)
-                        .autocorrectionDisabled()
-                }
-                field("NAME") {
-                    TextField("", text: $name,
-                              prompt: Text("z. B. Ölfilter").foregroundColor(.white.opacity(0.3)))
-                        .foregroundColor(.white)
-                }
-                field("HERSTELLER") {
-                    TextField("", text: $manufacturer).foregroundColor(.white)
-                }
-                field("BAUREIHEN") {
-                    Button { showingSeriesPicker = true } label: {
-                        HStack {
-                            Text(seriesSummary)
-                                .foregroundColor(selectedSeriesIds.isEmpty ? .white.opacity(0.35) : .white)
-                                .lineLimit(2)
-                                .multilineTextAlignment(.leading)
-                            Spacer()
-                            Image(systemName: "chevron.up.chevron.down")
-                                .scaledFont(11, weight: .semibold)
-                                .foregroundColor(.white.opacity(0.5))
+                    Toggle(isOn: $isPublic) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Öffentlich teilen")
+                                .scaledFont(14, weight: .bold)
+                                .foregroundStyle(.primary)
+                            Text("Andere Nutzer sehen Teiledaten und Verfügbarkeit — nie Preise oder Lagerorte.")
+                                .scaledFont(11)
+                                .foregroundStyle(.tertiary)
                         }
                     }
-                    .buttonStyle(.plain)
-                }
-                field("BESCHREIBUNG") {
-                    TextField("", text: $notes,
-                              prompt: Text("z. B. passt auch für Ölkühler-Variante").foregroundColor(.white.opacity(0.3)),
-                              axis: .vertical)
-                        .lineLimit(2...5).foregroundColor(.white)
-                }
+                    .tint(Theme.Colors.primary)
+                    .padding(.horizontal, 4)
 
-                Toggle(isOn: $isPublic) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Öffentlich teilen")
-                            .scaledFont(14, weight: .bold)
-                            .foregroundColor(.white)
-                        Text("Andere Nutzer sehen Teiledaten und Verfügbarkeit — nie Preise oder Lagerorte.")
-                            .scaledFont(11)
-                            .foregroundColor(.white.opacity(0.5))
+                    if existingPart == nil {
+                        initialStockSection
                     }
-                }
-                .tint(Theme.Colors.primary)
-                .padding(.horizontal, 4)
 
-                if existingPart == nil {
-                    initialStockSection
-                }
+                    if let validationError {
+                        Text(validationError)
+                            .scaledFont(12, weight: .semibold)
+                            .foregroundStyle(Theme.Colors.accent)
+                    }
 
-                if let validationError {
-                    Text(validationError)
-                        .scaledFont(12, weight: .semibold)
-                        .foregroundColor(Theme.Colors.accent)
+                    if existingPart != nil { deleteButton }
                 }
-
-                saveButton
-                if existingPart != nil { deleteButton }
+                .padding(Theme.Spacing.l)
             }
-            .padding(Theme.Spacing.l)
-        }
-        .background(Color.clear)
-        .sheet(isPresented: $showingSeriesPicker) {
-            SeriesPickerView(viewModel: viewModel, selection: $selectedSeriesIds)
-                .glassSheet()
-        }
-        .alert("Teil löschen?", isPresented: $confirmingDelete) {
-            Button("Abbrechen", role: .cancel) { }
-            Button("Löschen", role: .destructive) {
-                guard let part = existingPart,
-                      viewModel.deletePart(part) else { return }
-                dismiss()
+            .navigationTitle(existingPart == nil ? "Teil hinzufügen" : "Teil bearbeiten")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Abbrechen") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Speichern", action: save)
+                }
             }
-        } message: {
-            Text("Bestand und Verbrauch dieses Teils werden ebenfalls entfernt.")
+            .sheet(isPresented: $showingSeriesPicker) {
+                SeriesPickerView(viewModel: viewModel, selection: $selectedSeriesIds)
+                    .glassSheet()
+            }
+            .alert("Teil löschen?", isPresented: $confirmingDelete) {
+                Button("Abbrechen", role: .cancel) { }
+                Button("Löschen", role: .destructive) {
+                    guard let part = existingPart,
+                          viewModel.deletePart(part) else { return }
+                    dismiss()
+                }
+            } message: {
+                Text("Bestand und Verbrauch dieses Teils werden ebenfalls entfernt.")
+            }
         }
     }
 
@@ -139,29 +146,28 @@ struct AddPartView: View {
         VStack(alignment: .leading, spacing: Theme.Spacing.l) {
             Text("ERSTER BESTAND")
                 .scaledFont(11, weight: .heavy).tracking(2)
-                .foregroundColor(.white.opacity(0.55))
+                .foregroundStyle(.secondary)
 
             field("MENGE") {
                 Stepper(value: $stockQuantity, in: 1...999) {
                     Text("\(stockQuantity) Stück")
                         .scaledFont(15, weight: .bold)
-                        .foregroundColor(.white)
+                        .foregroundStyle(.primary)
                 }
-                .colorScheme(.dark)
             }
             HStack(spacing: Theme.Spacing.m) {
                 field("PREIS (GESAMT)") {
-                    TextField("", text: $stockPrice, prompt: Text("0").foregroundColor(.white.opacity(0.3)))
-                        .keyboardType(.decimalPad).foregroundColor(.white)
+                    TextField("", text: $stockPrice, prompt: Text("0").foregroundStyle(.tertiary))
+                        .keyboardType(.decimalPad).foregroundStyle(.primary)
                 }
                 field("WÄHRUNG") {
-                    TextField("", text: $stockCurrency).foregroundColor(.white)
+                    TextField("", text: $stockCurrency).foregroundStyle(.primary)
                         .textInputAutocapitalization(.characters)
                 }
             }
             field("KAUFDATUM") {
                 DatePicker("", selection: $stockPurchaseDate, displayedComponents: .date)
-                    .labelsHidden().colorScheme(.dark).tint(Theme.Colors.primary)
+                    .labelsHidden().tint(Theme.Colors.primary)
             }
             field("LAGERORT") {
                 Menu {
@@ -174,19 +180,19 @@ struct AddPartView: View {
                 } label: {
                     HStack {
                         Text(stockLocation.flatMap { viewModel.locationPath($0) } ?? "Kein Lagerort")
-                            .foregroundColor(stockLocation == nil ? .white.opacity(0.35) : .white)
+                            .foregroundStyle(stockLocation == nil ? AnyShapeStyle(.tertiary) : AnyShapeStyle(.primary))
                             .lineLimit(1)
                         Spacer()
                         Image(systemName: "chevron.up.chevron.down")
                             .scaledFont(11, weight: .semibold)
-                            .foregroundColor(.white.opacity(0.5))
+                            .foregroundStyle(.tertiary)
                     }
                 }
             }
             field("NEUER LAGERORT (OPTIONAL)") {
                 TextField("", text: $newLocationName,
-                          prompt: Text("z. B. Regal A · Kiste 3").foregroundColor(.white.opacity(0.3)))
-                    .foregroundColor(.white)
+                          prompt: Text("z. B. Regal A · Kiste 3").foregroundStyle(.tertiary))
+                    .foregroundStyle(.primary)
             }
         }
     }
@@ -198,47 +204,24 @@ struct AddPartView: View {
         return names.joined(separator: ", ") + (more > 0 ? " +\(more)" : "")
     }
 
-    private var header: some View {
-        HStack {
-            Text(existingPart == nil ? "Teil hinzufügen" : "Teil bearbeiten")
-                .scaledFont(22, weight: .heavy)
-                .foregroundColor(.white)
-            Spacer()
-            Button { dismiss() } label: {
-                Image(systemName: "xmark")
-                    .scaledFont(14, weight: .bold)
-                    .foregroundColor(.white)
-                    .frame(width: 32, height: 32)
-                    .background(Circle().fill(Color.white.opacity(0.12)))
-            }
-            .accessibilityLabel("Schließen")
-        }
-    }
-
     private func field<Content: View>(_ label: String, @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(label)
                 .scaledFont(10, weight: .heavy).tracking(1.4)
-                .foregroundColor(Theme.Glass.mutedText)
+                .foregroundStyle(.secondary)
             content()
                 .padding(.horizontal, 14).padding(.vertical, 12)
-                .background(RoundedRectangle(cornerRadius: Theme.Glass.fieldRadius).fill(Color.white.opacity(0.06)))
-                .overlay(RoundedRectangle(cornerRadius: Theme.Glass.fieldRadius).stroke(Theme.Glass.border, lineWidth: 0.5))
+                .background(RoundedRectangle(cornerRadius: Theme.Radius.field).fill(Color.primary.opacity(0.06)))
+                .overlay(RoundedRectangle(cornerRadius: Theme.Radius.field).stroke(Theme.Glass.border, lineWidth: 0.5))
         }
-    }
-
-    private var saveButton: some View {
-        Button(action: save) {
-            Text(savedAnim ? "Gespeichert ✓" : "Speichern").frame(maxWidth: .infinity)
-        }
-        .buttonStyle(ModernButtonStyle())
-        .padding(.top, Theme.Spacing.s)
     }
 
     private var deleteButton: some View {
         Button(role: .destructive) { confirmingDelete = true } label: {
-            Text("Löschen").frame(maxWidth: .infinity).foregroundColor(Theme.Colors.accent).padding(.vertical, 12)
+            Text("Löschen").frame(maxWidth: .infinity)
         }
+        .glassActionButton(.danger, in: .roundedRectangle(radius: Theme.Radius.control))
+        .padding(.top, Theme.Spacing.s)
     }
 
     private func save() {
@@ -276,11 +259,7 @@ struct AddPartView: View {
                 purchaseDate: stockPurchaseDate, storageLocation: stockLocation,
                 newLocationName: newLocationName) != nil else { return }
         }
-        withAnimation { savedAnim = true }
-        Task {
-            try? await Task.sleep(nanoseconds: 400_000_000)
-            dismiss()
-        }
+        dismiss()
     }
 }
 
@@ -321,26 +300,26 @@ struct SeriesPickerView: View {
             HStack {
                 Text("Baureihen")
                     .scaledFont(22, weight: .heavy)
-                    .foregroundColor(.white)
+                    .foregroundStyle(.primary)
                 Spacer()
                 Button("Fertig") { dismiss() }
                     .scaledFont(15, weight: .bold)
-                    .foregroundColor(Theme.Colors.primary)
+                    .foregroundStyle(Theme.Colors.primary)
             }
             .padding(Theme.Spacing.l)
 
             HStack(spacing: 8) {
                 Image(systemName: "magnifyingglass")
                     .scaledFont(13, weight: .semibold)
-                    .foregroundColor(.white.opacity(0.5))
+                    .foregroundStyle(.tertiary)
                 TextField("", text: $searchText,
-                          prompt: Text("Suchen …").foregroundColor(.white.opacity(0.35)))
-                    .foregroundColor(.white)
+                          prompt: Text("Suchen …").foregroundStyle(.tertiary))
+                    .foregroundStyle(.primary)
                     .autocorrectionDisabled()
             }
             .padding(.horizontal, 14).padding(.vertical, 11)
-            .background(RoundedRectangle(cornerRadius: Theme.Glass.fieldRadius).fill(Color.white.opacity(0.06)))
-            .overlay(RoundedRectangle(cornerRadius: Theme.Glass.fieldRadius).stroke(Theme.Glass.border, lineWidth: 0.5))
+            .background(RoundedRectangle(cornerRadius: Theme.Radius.field).fill(Color.primary.opacity(0.06)))
+            .overlay(RoundedRectangle(cornerRadius: Theme.Radius.field).stroke(Theme.Glass.border, lineWidth: 0.5))
             .padding(.horizontal, Theme.Spacing.l)
 
             ScrollView {
@@ -353,7 +332,6 @@ struct SeriesPickerView: View {
                 .padding(Theme.Spacing.l)
             }
         }
-        .background(Color.clear)
         .task { await viewModel.loadSeries() }
     }
 
@@ -368,26 +346,26 @@ struct SeriesPickerView: View {
                          ? ModelSeriesCatalog.path(of: series, in: viewModel.series)
                          : series.displayName)
                         .scaledFont(14, weight: depth == 0 ? .bold : .semibold)
-                        .foregroundColor(.white)
+                        .foregroundStyle(.primary)
                         .lineLimit(2)
                         .multilineTextAlignment(.leading)
                     Text(ModelSeriesCatalog.levelLabel(
                             forDepth: ModelSeriesCatalog.depth(of: series, in: viewModel.series))
                          + (series.userId != nil ? " · Eigene" : ""))
                         .scaledFont(10, weight: .semibold)
-                        .foregroundColor(.white.opacity(0.4))
+                        .foregroundStyle(.tertiary)
                 }
                 Spacer()
                 Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
                     .scaledFont(18)
-                    .foregroundColor(isSelected ? Theme.Colors.primary : .white.opacity(0.25))
+                    .foregroundStyle(isSelected ? AnyShapeStyle(Theme.Colors.primary) : AnyShapeStyle(.tertiary))
             }
             .padding(.vertical, 10)
             .padding(.trailing, 14)
             .padding(.leading, 14 + CGFloat(depth) * 18)
             .background(
-                RoundedRectangle(cornerRadius: Theme.Glass.fieldRadius)
-                    .fill(isSelected ? Theme.Colors.primary.opacity(0.12) : Color.white.opacity(0.04))
+                RoundedRectangle(cornerRadius: Theme.Radius.field)
+                    .fill(isSelected ? Theme.Colors.primary.opacity(0.12) : Color.primary.opacity(0.04))
             )
             .contentShape(Rectangle())
         }
@@ -399,43 +377,43 @@ struct SeriesPickerView: View {
         VStack(alignment: .leading, spacing: 8) {
             Text("EIGENE BAUREIHE")
                 .scaledFont(10, weight: .heavy).tracking(1.4)
-                .foregroundColor(Theme.Glass.mutedText)
+                .foregroundStyle(.secondary)
                 .padding(.top, Theme.Spacing.m)
 
             if !connectivity.isOnline {
                 Text("Nur online möglich — Baureihen werden zentral verwaltet.")
                     .scaledFont(12)
-                    .foregroundColor(.white.opacity(0.5))
+                    .foregroundStyle(.tertiary)
             } else {
                 HStack(spacing: 8) {
                     TextField("", text: $newManufacturer,
-                              prompt: Text("Hersteller").foregroundColor(.white.opacity(0.35)))
-                        .foregroundColor(.white)
+                              prompt: Text("Hersteller").foregroundStyle(.tertiary))
+                        .foregroundStyle(.primary)
                         .frame(maxWidth: 110)
                     TextField("", text: $newName,
-                              prompt: Text("z. B. R 90 S").foregroundColor(.white.opacity(0.35)))
-                        .foregroundColor(.white)
+                              prompt: Text("z. B. R 90 S").foregroundStyle(.tertiary))
+                        .foregroundStyle(.primary)
                     Button {
                         Task { await createSeries() }
                     } label: {
                         if creating {
-                            ProgressView().tint(.white)
+                            ProgressView()
                         } else {
                             Image(systemName: "plus.circle.fill")
                                 .scaledFont(22)
-                                .foregroundColor(Theme.Colors.primary)
+                                .foregroundStyle(Theme.Colors.primary)
                         }
                     }
                     .disabled(creating || newName.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
                 .padding(.horizontal, 14).padding(.vertical, 10)
-                .background(RoundedRectangle(cornerRadius: Theme.Glass.fieldRadius).fill(Color.white.opacity(0.06)))
-                .overlay(RoundedRectangle(cornerRadius: Theme.Glass.fieldRadius).stroke(Theme.Glass.border, lineWidth: 0.5))
+                .background(RoundedRectangle(cornerRadius: Theme.Radius.field).fill(Color.primary.opacity(0.06)))
+                .overlay(RoundedRectangle(cornerRadius: Theme.Radius.field).stroke(Theme.Glass.border, lineWidth: 0.5))
 
                 if let createError {
                     Text(createError)
                         .scaledFont(12, weight: .semibold)
-                        .foregroundColor(Theme.Colors.accent)
+                        .foregroundStyle(Theme.Colors.accent)
                 }
             }
         }

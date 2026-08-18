@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Sectioned-card settings sheet: server + connection info, sync status with
+/// Sectioned settings sheet: server + connection info, sync status with
 /// a manual trigger, and the logout action. Logout sits at the bottom behind
 /// a confirmation — it wipes local data, so it must not be the first thing a
 /// stray tap can hit. The server URL is chosen on the login screen, not here.
@@ -20,29 +20,21 @@ struct SettingsView: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
+        NavigationStack {
+            List {
                 serverSection
                 syncSection
-                logoutButton
-                    .padding(.top, 10)
+                logoutSection
             }
-            .padding(.horizontal, 14)
-            .padding(.top, 8)
-            .padding(.bottom, 24)
+            .scrollContentBackground(.hidden)
+            .navigationTitle("Einstellungen")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Fertig") { dismiss() }
+                }
+            }
         }
-        .safeAreaInset(edge: .top, spacing: 0) {
-            header
-        }
-        // Pinned to the bottom of the sheet, independent of scroll content.
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            Text(versionString)
-                .scaledFont(10, weight: .medium)
-                .foregroundColor(.white.opacity(0.35))
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 10)
-        }
-        .background(sheetBackground)
         .confirmationDialog("Abmelden?", isPresented: $confirmingLogout, titleVisibility: .visible) {
             Button("Abmelden", role: .destructive) {
                 authVM.logout()
@@ -53,41 +45,15 @@ struct SettingsView: View {
         }
     }
 
-    private var header: some View {
-        HStack(alignment: .firstTextBaseline) {
-            Text("Einstellungen")
-                .scaledFont(17, weight: .bold)
-                .foregroundColor(.white)
-            Spacer(minLength: 8)
-            Button {
-                dismiss()
-            } label: {
-                Image(systemName: "xmark")
-                    .scaledFont(12, weight: .bold)
-                    .foregroundColor(.white.opacity(0.7))
-                    .frame(width: 30, height: 30)
-                    .background(Circle().fill(Color.white.opacity(0.12)))
-            }
-            .accessibilityLabel("Schliessen")
-        }
-        .padding(.horizontal, 18)
-        .padding(.top, 14)
-        .padding(.bottom, 10)
-        .glassEffect(.regular, in: Rectangle())
-    }
-
     // MARK: - Server
 
     private var serverSection: some View {
-        DetailSection("SERVER") {
-            DetailRow(label: "Adresse", value: serverDisplay, mono: false)
-            sectionDivider
-            DetailRow(
-                label: "Verbindung",
-                value: connectivity.isOnline ? "Online" : "Offline",
-                accent: connectivity.isOnline ? .green : .orange,
-                mono: false
-            )
+        Section("Server") {
+            LabeledContent("Adresse", value: serverDisplay)
+            LabeledContent("Verbindung") {
+                Text(connectivity.isOnline ? "Online" : "Offline")
+                    .foregroundStyle(connectivity.isOnline ? Color.green : Color.orange)
+            }
         }
     }
 
@@ -105,31 +71,25 @@ struct SettingsView: View {
     // MARK: - Sync
 
     private var syncSection: some View {
-        DetailSection("SYNCHRONISIERUNG") {
-            DetailRow(label: "Status", value: syncStatusText, accent: syncStatusColor, mono: false)
-            sectionDivider
-            DetailRow(label: "Letzte Synchronisierung", value: lastSyncText, mono: false)
-            sectionDivider
+        Section("Synchronisierung") {
+            LabeledContent("Status") {
+                Text(syncStatusText)
+                    .foregroundStyle(syncStatusColor ?? .secondary)
+            }
+            LabeledContent("Letzte Synchronisierung", value: lastSyncText)
             Button {
                 engine.requestSync(motorcycleIds: [])
             } label: {
                 HStack(spacing: 8) {
                     if case .syncing = engine.status {
-                        ProgressView().controlSize(.small).tint(.white)
+                        ProgressView().controlSize(.small)
                     } else {
                         Image(systemName: "arrow.triangle.2.circlepath")
-                            .scaledFont(13, weight: .semibold)
                     }
                     Text("Jetzt synchronisieren")
-                        .scaledFont(13, weight: .semibold)
-                    Spacer(minLength: 0)
                 }
-                .foregroundColor(Theme.Colors.primary)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 11)
-                .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .tint(Theme.Colors.primary)
             .disabled(!connectivity.isOnline || { if case .syncing = engine.status { return true }; return false }())
         }
     }
@@ -161,50 +121,25 @@ struct SettingsView: View {
         return formatter.localizedString(for: date, relativeTo: Date())
     }
 
-    private var sectionDivider: some View {
-        Rectangle()
-            .fill(Theme.Glass.hairline)
-            .frame(height: 0.5)
-            .padding(.leading, 14)
-    }
-
     // MARK: - Logout
 
-    private var logoutButton: some View {
-        Button {
-            confirmingLogout = true
-        } label: {
-            HStack(spacing: 8) {
-                Image(systemName: "rectangle.portrait.and.arrow.right")
-                    .scaledFont(14, weight: .semibold)
-                Text("Abmelden")
-                    .scaledFont(14, weight: .semibold)
+    private var logoutSection: some View {
+        Section {
+            Button(role: .destructive) {
+                confirmingLogout = true
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "rectangle.portrait.and.arrow.right")
+                    Text("Abmelden")
+                }
+                .frame(maxWidth: .infinity)
             }
-            .foregroundColor(Theme.Colors.accent)
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 13)
-            .background(
-                RoundedRectangle(cornerRadius: 14)
-                    .fill(Theme.Colors.accent.opacity(0.16))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 14)
-                    .stroke(Theme.Colors.accent.opacity(0.3), lineWidth: 0.5)
-            )
+        } footer: {
+            Text(versionString)
+                .frame(maxWidth: .infinity)
+                .multilineTextAlignment(.center)
+                .padding(.top, 8)
         }
-        .buttonStyle(.plain)
-    }
-
-    private var sheetBackground: some View {
-        LinearGradient(
-            colors: [
-                Theme.Colors.navy900.opacity(0.6),
-                Theme.Colors.navy950.opacity(0.8)
-            ],
-            startPoint: .top,
-            endPoint: .bottom
-        )
-        .ignoresSafeArea()
     }
 }
 

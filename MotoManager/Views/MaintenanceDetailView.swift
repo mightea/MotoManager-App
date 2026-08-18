@@ -88,7 +88,7 @@ struct MaintenanceDetailView: View {
             Text(record.fluidTypeLabel ?? category.label)
                 .scaledFont(12, weight: .heavy)
         }
-        .foregroundColor(category.tint)
+        .foregroundStyle(category.tint)
         .padding(.horizontal, 12)
         .padding(.vertical, 5)
         .background(Capsule().fill(category.tint.opacity(0.20)))
@@ -166,7 +166,7 @@ struct MaintenanceDetailView: View {
             DetailSection("NOTIZEN") {
                 Text(notes)
                     .scaledFont(14)
-                    .foregroundColor(.white.opacity(0.92))
+                    .foregroundStyle(.primary)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 12)
@@ -311,25 +311,25 @@ struct MaintenanceDetailView: View {
                 Text("\(consumption.quantity)×")
                     .scaledFont(14, weight: .heavy)
                     .monospacedDigit()
-                    .foregroundColor(Theme.Colors.primary)
+                    .foregroundStyle(Theme.Colors.primary)
                     .frame(width: 36, alignment: .leading)
                 VStack(alignment: .leading, spacing: 1) {
                     Text(part?.name ?? "Unbekanntes Teil")
                         .scaledFont(14, weight: .bold)
-                        .foregroundColor(.white)
+                        .foregroundStyle(.primary)
                         .lineLimit(1)
                     if let number = part?.partNumber {
                         Text(number)
                             .scaledFont(11, weight: .semibold)
                             .monospaced()
-                            .foregroundColor(.white.opacity(0.5))
+                            .foregroundStyle(.tertiary)
                     }
                 }
                 Spacer(minLength: 0)
                 if part != nil {
                     Image(systemName: "chevron.right")
                         .scaledFont(11, weight: .semibold)
-                        .foregroundColor(.white.opacity(0.3))
+                        .foregroundStyle(.tertiary)
                 }
             }
             .padding(.horizontal, 14)
@@ -396,22 +396,22 @@ struct MaintenanceDetailView: View {
                         .fill(category.tint.opacity(0.15))
                     Image(systemName: category.icon)
                         .scaledFont(12, weight: .semibold)
-                        .foregroundColor(category.tint)
+                        .foregroundStyle(category.tint)
                 }
                 .frame(width: 28, height: 28)
                 VStack(alignment: .leading, spacing: 1) {
                     Text(MaintenanceSummarizer.summarize(other, locations: viewModel.userLocations))
                         .scaledFont(14, weight: .bold)
-                        .foregroundColor(.white)
+                        .foregroundStyle(.primary)
                         .lineLimit(1)
                     Text(category.label)
                         .scaledFont(11, weight: .semibold)
-                        .foregroundColor(.white.opacity(0.5))
+                        .foregroundStyle(.tertiary)
                 }
                 Spacer(minLength: 0)
                 Image(systemName: "chevron.right")
                     .scaledFont(11, weight: .semibold)
-                    .foregroundColor(.white.opacity(0.3))
+                    .foregroundStyle(.tertiary)
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 11)
@@ -427,18 +427,18 @@ struct MaintenanceDetailView: View {
             Text(eyebrow)
                 .scaledFont(10, weight: .heavy)
                 .tracking(1.2)
-                .foregroundColor(Theme.Glass.mutedText)
+                .foregroundStyle(.secondary)
             Text(value)
                 .scaledFont(22, weight: .heavy)
                 .monospacedDigit()
-                .foregroundColor(accent ?? .white)
+                .foregroundStyle(accent ?? Color.primary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
-        .background(RoundedRectangle(cornerRadius: 16).fill(Color.white.opacity(0.06)))
+        .background(RoundedRectangle(cornerRadius: 16).fill(Color.primary.opacity(0.06)))
         .overlay(RoundedRectangle(cornerRadius: 16).stroke(Theme.Glass.hairline, lineWidth: 0.5))
     }
 

@@ -2,6 +2,7 @@ import SwiftUI
 
 struct WorkshopView: View {
     @ObservedObject var viewModel: MotorcycleDetailViewModel
+    @Environment(\.chromeActions) private var chrome
     @State private var presentedDocument: Document?
     @ObservedObject private var offlineStore = DocumentOfflineStore.shared
     @State private var selectedTorqueGroup: String = "Alle"
@@ -94,125 +95,142 @@ struct WorkshopView: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: Theme.Spacing.l) {
-                // Match the fuel page: the photo extends below the content so
-                // the stat strip overlaps the image instead of a hard cut-off.
+        List {
+            // Match the fuel page: the photo extends below the content so
+            // the stat strip overlaps the image instead of a hard cut-off.
+            Section {
                 ZStack(alignment: .bottom) {
                     MotorcycleSummaryHeader(
                         motorcycle: viewModel.motorcycle, type: .workshop, viewModel: viewModel,
                         bottomExtension: 96
                     )
-                    .ignoresSafeArea(edges: .top)
 
                     statStrip
-                        .padding(.horizontal, 6)
+                        .padding(.horizontal, Theme.Spacing.pageH)
                         .padding(.bottom, 12)
                 }
-
-                if viewModel.isLoading && bothEmpty {
-                    VStack(spacing: 10) {
-                        ForEach(0..<5, id: \.self) { _ in
-                            GlassShimmerRow().padding(.horizontal, Theme.Spacing.pageH)
-                        }
-                    }
-                } else {
-                    tirePressureSection
-                        .padding(.horizontal, Theme.Spacing.pageH)
-                    documentsSection
-                        .padding(.horizontal, Theme.Spacing.pageH)
-                    detailsSection
-                        .padding(.horizontal, Theme.Spacing.pageH)
-                    torqueSection
-                        .padding(.horizontal, Theme.Spacing.pageH)
-                }
             }
-            .padding(.bottom, 110)
+            .listRowInsets(EdgeInsets())
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
+            .listSectionMargins(.all, 0)
+
+            if viewModel.isLoading && bothEmpty {
+                Section {
+                    ForEach(0..<5, id: \.self) { _ in
+                        loadingPlaceholderRow
+                            .redacted(reason: .placeholder)
+                    }
+                }
+            } else {
+                tirePressureSection
+                documentsSection
+                detailsSection
+                torqueSection
+            }
         }
+        .listStyle(.insetGrouped)
+        .scrollContentBackground(.hidden)
         .ignoresSafeArea(edges: .top)
-        .background(Color.clear)
-        // Banner only — Workshop's adds are per-section, so no page-level button.
-        .bottomActionBar(detailVM: viewModel)
         .refreshable {
             await viewModel.reconnect()
+        }
+        .toolbar {
+            // Workshop's adds are per-section — the nav bar only carries settings.
+            ToolbarItem(placement: .topBarTrailing) {
+                Button("Einstellungen", systemImage: "gearshape") {
+                    chrome.openSettings()
+                }
+            }
         }
         .navigationDestination(item: $presentedDocument) { doc in
             DocumentViewerView(document: doc)
         }
         .sheet(isPresented: $showingAddTorque) {
             AddTorqueView(viewModel: viewModel)
-                .glassSheet()
+                .glassSheet(detents: [.medium, .large])
         }
         .sheet(item: $editingTorque) { spec in
             AddTorqueView(viewModel: viewModel, existingSpec: spec)
-                .glassSheet()
+                .glassSheet(detents: [.medium, .large])
         }
         .sheet(isPresented: $showingAddDetail) {
             AddDetailView(viewModel: viewModel)
-                .glassSheet()
+                .glassSheet(detents: [.medium, .large])
         }
         .sheet(item: $editingDetail) { detail in
             AddDetailView(viewModel: viewModel, existingDetail: detail)
-                .glassSheet()
+                .glassSheet(detents: [.medium, .large])
         }
         .sheet(isPresented: $showingTirePressure) {
             AddTirePressureView(viewModel: viewModel)
-                .glassSheet()
+                .glassSheet(detents: [.medium, .large])
+        }
+    }
+
+    private var loadingPlaceholderRow: some View {
+        HStack(spacing: 12) {
+            RoundedRectangle(cornerRadius: Theme.Radius.controlInner)
+                .fill(.quaternary)
+                .frame(width: 36, height: 36)
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Ladeplatzhalter Titel")
+                Text("Zweite Zeile mit Details")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+        }
+        .padding(.vertical, 4)
+    }
+
+    /// Section header with a small trailing add/edit action — the native
+    /// list-header idiom for per-section adds.
+    private func sectionHeader(_ title: String, icon: String, label: String, action: @escaping () -> Void) -> some View {
+        HStack {
+            Text(title)
+            Spacer()
+            Button(action: action) {
+                Image(systemName: icon)
+                    .scaledFont(11, weight: .heavy)
+            }
+            .buttonStyle(.borderless)
+            .tint(Theme.Colors.primary)
+            .accessibilityLabel(label)
         }
     }
 
     // MARK: - Tire pressure
 
+    @ViewBuilder
     private var tirePressureSection: some View {
-        VStack(alignment: .leading, spacing: Theme.Spacing.s) {
-            HStack {
-                Text("Reifendruck".uppercased())
-                    .scaledFont(11, weight: .heavy)
-                    .tracking(2)
-                    .foregroundColor(.white.opacity(0.7))
-                Spacer()
-                Button { showingTirePressure = true } label: {
-                    Image(systemName: viewModel.tirePressure == nil ? "plus" : "pencil")
-                        .scaledFont(12, weight: .heavy)
-                        .frame(width: 26, height: 26)
-                }
-                .glassActionButton(.primary, in: .circle)
-                .accessibilityLabel(viewModel.tirePressure == nil ? "Reifendruck erfassen" : "Reifendruck bearbeiten")
-            }
-            .padding(.horizontal, 6)
-
+        Section {
             if let pressure = viewModel.tirePressure {
                 TirePressureTable(pressure: pressure)
             } else {
                 Button { showingTirePressure = true } label: {
                     Text("Keine Werte erfasst — tippen zum Hinzufügen.")
                         .scaledFont(12, weight: .medium)
-                        .foregroundColor(.white.opacity(0.6))
+                        .foregroundStyle(.secondary)
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, 24)
-                        .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 18))
+                        .padding(.vertical, 8)
                 }
                 .buttonStyle(.plain)
             }
+        } header: {
+            sectionHeader(
+                "Reifendruck",
+                icon: viewModel.tirePressure == nil ? "plus" : "pencil",
+                label: viewModel.tirePressure == nil ? "Reifendruck erfassen" : "Reifendruck bearbeiten"
+            ) { showingTirePressure = true }
         }
     }
 
     // MARK: - Documents
 
+    @ViewBuilder
     private var documentsSection: some View {
-        VStack(alignment: .leading, spacing: Theme.Spacing.s) {
-            HStack {
-                Text("Dokumente".uppercased())
-                    .scaledFont(11, weight: .heavy)
-                    .tracking(2)
-                    .foregroundColor(.white.opacity(0.7))
-                Spacer()
-                Text("\(displayedDocuments.count) \(displayedDocuments.count == 1 ? "Eintrag" : "Einträge")")
-                    .scaledFont(11, weight: .semibold)
-                    .foregroundColor(.white.opacity(0.5))
-            }
-            .padding(.horizontal, 6)
-
+        Section {
             GlassSegmentedControl(
                 segments: [
                     .init(value: .moto, label: motoLabel),
@@ -220,6 +238,9 @@ struct WorkshopView: View {
                 ],
                 selection: $docScope
             )
+            .listRowInsets(EdgeInsets())
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
 
             if displayedDocuments.isEmpty {
                 // Explain what the segment *means* — "Allgemein" being empty
@@ -229,18 +250,30 @@ struct WorkshopView: View {
                     ? "Keine allgemeinen Dokumente — Dokumente ohne Motorrad-Zuordnung erscheinen hier."
                     : "Keine Dokumente für \(motoLabel) erfasst.")
                     .scaledFont(12, weight: .medium)
-                    .foregroundColor(.white.opacity(0.6))
+                    .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 24)
-                    .padding(.horizontal, 16)
-                    .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 18))
+                    .padding(.vertical, 8)
             } else {
                 documentsGrid
+                    .listRowInsets(EdgeInsets())
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
+                    .padding(.vertical, 2)
             }
 
-            UploadDocumentRow {
+            Button {
                 // Upload picker hook — wired when document upload lands.
+            } label: {
+                Label("Dokument hochladen", systemImage: "plus")
+                    .scaledFont(13, weight: .semibold)
+            }
+            .tint(Theme.Colors.primary)
+        } header: {
+            HStack {
+                Text("Dokumente")
+                Spacer()
+                Text("\(displayedDocuments.count) \(displayedDocuments.count == 1 ? "Eintrag" : "Einträge")")
             }
         }
     }
@@ -281,32 +314,16 @@ struct WorkshopView: View {
 
     // MARK: - Torque
 
+    @ViewBuilder
     private var torqueSection: some View {
-        VStack(alignment: .leading, spacing: Theme.Spacing.s) {
-            HStack {
-                Text("Drehmoment-Spezifikationen".uppercased())
-                    .scaledFont(11, weight: .heavy)
-                    .tracking(2)
-                    .foregroundColor(.white.opacity(0.7))
-                Spacer()
-                Button { showingAddTorque = true } label: {
-                    Image(systemName: "plus")
-                        .scaledFont(12, weight: .heavy)
-                        .frame(width: 26, height: 26)
-                }
-                .glassActionButton(.primary, in: .circle)
-                .accessibilityLabel("Drehmoment hinzufügen")
-            }
-            .padding(.horizontal, 6)
-
+        Section {
             if viewModel.torque.isEmpty {
                 Button { showingAddTorque = true } label: {
                     Text("Keine Werte erfasst — tippen zum Hinzufügen.")
                         .scaledFont(12, weight: .medium)
-                        .foregroundColor(.white.opacity(0.6))
+                        .foregroundStyle(.secondary)
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, 24)
-                        .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 18))
+                        .padding(.vertical, 8)
                 }
                 .buttonStyle(.plain)
             } else {
@@ -317,10 +334,32 @@ struct WorkshopView: View {
                         }
                     }
                     .padding(.horizontal, 2)
+                    .padding(.vertical, 2)
                 }
+                .listRowInsets(EdgeInsets())
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
 
-                torqueTable
+                ForEach(filteredTorque, id: \.clientId) { spec in
+                    Button { editingTorque = spec } label: {
+                        TorqueRow(spec: spec, showGroup: selectedTorqueGroup == "Alle")
+                    }
+                    .buttonStyle(.plain)
+                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                        Button(role: .destructive) {
+                            _ = viewModel.deleteTorque(spec)
+                        } label: {
+                            Label("Löschen", systemImage: "trash")
+                        }
+                    }
+                }
             }
+        } header: {
+            sectionHeader(
+                "Drehmoment-Spezifikationen",
+                icon: "plus",
+                label: "Drehmoment hinzufügen"
+            ) { showingAddTorque = true }
         }
     }
 
@@ -333,7 +372,7 @@ struct WorkshopView: View {
         } label: {
             Text(label)
                 .scaledFont(12, weight: .semibold)
-                .foregroundColor(active ? .white : .white.opacity(0.7))
+                .foregroundStyle(active ? AnyShapeStyle(Color.white) : AnyShapeStyle(.primary))
                 .padding(.horizontal, 12)
                 .padding(.vertical, 6)
                 .glassEffect(
@@ -345,94 +384,43 @@ struct WorkshopView: View {
         }
         .animation(.easeOut(duration: 0.2), value: selectedTorqueGroup)
     }
-
-    private var torqueTable: some View {
-        VStack(spacing: 0) {
-            HStack {
-                Text("BAUTEIL")
-                    .scaledFont(9, weight: .heavy)
-                    .tracking(1.5)
-                    .foregroundColor(.white.opacity(0.5))
-                Spacer()
-                Text("DREHMOMENT")
-                    .scaledFont(9, weight: .heavy)
-                    .tracking(1.5)
-                    .foregroundColor(.white.opacity(0.5))
-            }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 8)
-            .background(Color.white.opacity(0.04))
-
-            ForEach(Array(filteredTorque.enumerated()), id: \.element.clientId) { index, spec in
-                Button { editingTorque = spec } label: {
-                    TorqueRow(spec: spec, showGroup: selectedTorqueGroup == "Alle")
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 10)
-                }
-                .buttonStyle(.plain)
-                if index < filteredTorque.count - 1 {
-                    Divider().background(Color.white.opacity(0.06))
-                }
-            }
-        }
-        .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 18))
-    }
 }
 
 // MARK: - Details
 
 extension WorkshopView {
+    @ViewBuilder
     private var detailsSection: some View {
-        VStack(alignment: .leading, spacing: Theme.Spacing.s) {
-            HStack {
-                Text("Details".uppercased())
-                    .scaledFont(11, weight: .heavy)
-                    .tracking(2)
-                    .foregroundColor(.white.opacity(0.7))
-                Spacer()
-                Button { showingAddDetail = true } label: {
-                    Image(systemName: "plus")
-                        .scaledFont(12, weight: .heavy)
-                        .frame(width: 26, height: 26)
-                }
-                .glassActionButton(.primary, in: .circle)
-                .accessibilityLabel("Detail hinzufügen")
-            }
-            .padding(.horizontal, 6)
-
+        Section {
             if viewModel.details.isEmpty {
                 Button { showingAddDetail = true } label: {
                     Text("Keine Details erfasst — tippen zum Hinzufügen.")
                         .scaledFont(12, weight: .medium)
-                        .foregroundColor(.white.opacity(0.6))
+                        .foregroundStyle(.secondary)
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, 24)
-                        .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 18))
+                        .padding(.vertical, 8)
                 }
                 .buttonStyle(.plain)
             } else {
-                detailsTable
-            }
-        }
-    }
-
-    // No TITEL/WERT header row — it's a short key-value list, not a data
-    // table, and the labels explain themselves.
-    private var detailsTable: some View {
-        VStack(spacing: 0) {
-            ForEach(Array(viewModel.details.enumerated()), id: \.element.clientId) { index, detail in
-                Button { editingDetail = detail } label: {
-                    MotorcycleDetailRow(detail: detail)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 10)
-                }
-                .buttonStyle(.plain)
-                if index < viewModel.details.count - 1 {
-                    Divider().background(Color.white.opacity(0.06))
+                ForEach(viewModel.details, id: \.clientId) { detail in
+                    Button { editingDetail = detail } label: {
+                        MotorcycleDetailRow(detail: detail)
+                    }
+                    .buttonStyle(.plain)
+                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                        Button(role: .destructive) {
+                            _ = viewModel.deleteDetail(detail)
+                        } label: {
+                            Label("Löschen", systemImage: "trash")
+                        }
+                    }
                 }
             }
+        } header: {
+            sectionHeader("Details", icon: "plus", label: "Detail hinzufügen") {
+                showingAddDetail = true
+            }
         }
-        .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 18))
     }
 }
 
@@ -448,7 +436,7 @@ private struct MotorcycleDetailRow: View {
             HStack(spacing: 6) {
                 Text(detail.title)
                     .scaledFont(13, weight: .semibold)
-                    .foregroundColor(.white)
+                    .foregroundStyle(.primary)
                     .multilineTextAlignment(.leading)
                     .fixedSize(horizontal: false, vertical: true)
                 if detail.syncState.isPending { PendingBadge() }
@@ -464,13 +452,13 @@ private struct MotorcycleDetailRow: View {
                         Image(systemName: "arrow.up.right")
                             .scaledFont(10, weight: .bold)
                     }
-                    .foregroundColor(Theme.Colors.primary)
+                    .foregroundStyle(Theme.Colors.primary)
                 }
                 .accessibilityLabel("\(detail.title) öffnen")
             } else {
                 Text(detail.value)
                     .scaledFont(13, weight: .medium)
-                    .foregroundColor(.white.opacity(0.8))
+                    .foregroundStyle(.secondary)
                     .multilineTextAlignment(.trailing)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -502,32 +490,24 @@ private struct TirePressureTable: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            if showHeader {
-                HStack {
-                    Color.clear.frame(width: 70, height: 1)
-                    ForEach(configs) { cfg in
-                        Text(cfg.label.uppercased())
-                            .scaledFont(9, weight: .heavy)
-                            .tracking(1.5)
-                            .foregroundColor(.white.opacity(0.5))
-                            .frame(maxWidth: .infinity, alignment: .trailing)
-                    }
+        if showHeader {
+            HStack {
+                Color.clear.frame(width: 70, height: 1)
+                ForEach(configs) { cfg in
+                    Text(cfg.label.uppercased())
+                        .scaledFont(9, weight: .heavy)
+                        .tracking(1.5)
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .trailing)
                 }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 8)
-                .background(Color.white.opacity(0.04))
-            }
-
-            row(label: "Vorne") { $0.front }
-            Divider().background(Color.white.opacity(0.06))
-            row(label: "Hinten") { $0.rear }
-            if pressure.hasSidecarValues {
-                Divider().background(Color.white.opacity(0.06))
-                row(label: "Beiwagen") { $0.sidecar }
             }
         }
-        .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 18))
+
+        row(label: "Vorne") { $0.front }
+        row(label: "Hinten") { $0.rear }
+        if pressure.hasSidecarValues {
+            row(label: "Beiwagen") { $0.sidecar }
+        }
     }
 
     private func row(
@@ -538,15 +518,14 @@ private struct TirePressureTable: View {
             Text(label.uppercased())
                 .scaledFont(9, weight: .heavy)
                 .tracking(1.5)
-                .foregroundColor(.white.opacity(0.5))
+                .foregroundStyle(.secondary)
                 .frame(width: 70, alignment: .leading)
             ForEach(configs) { cfg in
                 cell(bar: value(pressure.values(for: cfg)))
                     .frame(maxWidth: .infinity, alignment: .trailing)
             }
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
+        .padding(.vertical, 2)
     }
 
     private func cell(bar: Double?) -> some View {
@@ -555,14 +534,14 @@ private struct TirePressureTable: View {
                 Text(PressureUnitFormat.display(bar: bar, unit: pressure.preferredUnit))
                     .scaledFont(14, weight: .bold)
                     .monospacedDigit()
-                    .foregroundColor(Theme.Colors.primary)
+                    .foregroundStyle(Theme.Colors.primary)
                 Text(PressureUnitFormat.secondary(bar: bar, unit: pressure.preferredUnit))
                     .scaledFont(9, weight: .semibold)
-                    .foregroundColor(.white.opacity(0.45))
+                    .foregroundStyle(.secondary)
             } else {
                 Text("—")
                     .scaledFont(14, weight: .bold)
-                    .foregroundColor(.white.opacity(0.25))
+                    .foregroundStyle(.tertiary)
             }
         }
     }
@@ -580,7 +559,7 @@ private struct TorqueRow: View {
                 HStack(spacing: 6) {
                     Text(spec.name)
                         .scaledFont(13, weight: .semibold)
-                        .foregroundColor(.white)
+                        .foregroundStyle(.primary)
                         .fixedSize(horizontal: false, vertical: true)
                     if spec.syncState.isPending { PendingBadge() }
                     if spec.unverified {
@@ -591,7 +570,7 @@ private struct TorqueRow: View {
                             .padding(.horizontal, 6)
                             .padding(.vertical, 1.5)
                             .background(Capsule().fill(Color.orange.opacity(0.16)))
-                            .foregroundColor(.orange)
+                            .foregroundStyle(.orange)
                     }
                 }
 
@@ -604,12 +583,12 @@ private struct TorqueRow: View {
                                 .padding(.horizontal, 6)
                                 .padding(.vertical, 1.5)
                                 .background(Capsule().fill(Theme.Colors.primary.opacity(0.22)))
-                                .foregroundColor(Theme.Colors.primary)
+                                .foregroundStyle(Theme.Colors.primary)
                         }
                         if let tool = spec.toolSize, !tool.isEmpty {
                             Text(tool)
                                 .scaledFont(10, weight: .semibold)
-                                .foregroundColor(.white.opacity(0.6))
+                                .foregroundStyle(.secondary)
                         }
                     }
                 }
@@ -619,7 +598,7 @@ private struct TorqueRow: View {
                 if let description = spec.recordDescription, !description.isEmpty {
                     Text(description)
                         .scaledFont(11)
-                        .foregroundColor(.white.opacity(0.6))
+                        .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
@@ -627,7 +606,7 @@ private struct TorqueRow: View {
             Text(torqueDisplay)
                 .scaledFont(15, weight: .bold)
                 .monospacedDigit()
-                .foregroundColor(spec.unverified ? .orange : Theme.Colors.primary)
+                .foregroundStyle(spec.unverified ? Color.orange : Theme.Colors.primary)
         }
         .contentShape(Rectangle())
     }
@@ -660,16 +639,16 @@ private struct DocumentTile: View {
                 // gets cropped instead.
                 Color.clear
                     .overlay(DocumentThumbnailView(document: document))
-                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                    .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.controlInner))
                     .overlay(
-                        RoundedRectangle(cornerRadius: 10)
-                            .stroke(Color.white.opacity(0.12), lineWidth: 0.5)
+                        RoundedRectangle(cornerRadius: Theme.Radius.controlInner)
+                            .stroke(Theme.Glass.strongBorder, lineWidth: 0.5)
                     )
 
                 Text(fileBadge)
                     .scaledFont(9, weight: .black)
                     .tracking(0.4)
-                    .foregroundColor(Theme.Colors.accent)
+                    .foregroundStyle(Theme.Colors.accent)
                     .padding(.horizontal, 6)
                     .padding(.vertical, 3)
                     .background(
@@ -683,13 +662,13 @@ private struct DocumentTile: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text(document.title)
                     .scaledFont(13, weight: .bold)
-                    .foregroundColor(.white)
+                    .foregroundStyle(.primary)
                     .lineLimit(2, reservesSpace: true)
                     .multilineTextAlignment(.leading)
                 HStack(spacing: 6) {
                     Text(Formatters.mediumDate(String(document.createdAt.prefix(10))))
                         .scaledFont(10, weight: .medium)
-                        .foregroundColor(.white.opacity(0.55))
+                        .foregroundStyle(.secondary)
                     Spacer(minLength: 0)
                     offlineBadge
                 }
@@ -698,7 +677,10 @@ private struct DocumentTile: View {
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .topLeading)
         .aspectRatio(documentCardAspect, contentMode: .fit)
-        .glassEffect(.regular, in: RoundedRectangle(cornerRadius: Theme.Glass.fieldRadius))
+        .background(
+            RoundedRectangle(cornerRadius: Theme.Radius.field)
+                .fill(Color(.secondarySystemGroupedBackground))
+        )
     }
 
     @ViewBuilder
@@ -707,12 +689,11 @@ private struct DocumentTile: View {
         case .available:
             Image(systemName: "arrow.down.circle.fill")
                 .scaledFont(11, weight: .semibold)
-                .foregroundColor(.green.opacity(0.85))
+                .foregroundStyle(.green.opacity(0.85))
                 .accessibilityLabel("Offline verfügbar")
         case .downloading:
             ProgressView()
                 .controlSize(.mini)
-                .tint(.white.opacity(0.7))
                 .accessibilityLabel("Wird für offline geladen")
         case .notAvailable:
             EmptyView()
@@ -727,36 +708,6 @@ private struct DocumentTile: View {
         case "": return "DOC"
         default: return ext.uppercased()
         }
-    }
-}
-
-/// Compact full-width upload affordance under the documents grid — a
-/// card-sized dashed tile was mostly empty space next to real documents.
-private struct UploadDocumentRow: View {
-    var action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: 8) {
-                Image(systemName: "plus")
-                    .scaledFont(14, weight: .semibold)
-                Text("Dokument hochladen")
-                    .scaledFont(13, weight: .semibold)
-            }
-            .foregroundColor(.white.opacity(0.65))
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 13)
-            .background(
-                RoundedRectangle(cornerRadius: Theme.Glass.fieldRadius)
-                    .strokeBorder(
-                        Color.white.opacity(0.18),
-                        style: StrokeStyle(lineWidth: 1.5, dash: [5, 4])
-                    )
-            )
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("Dokument hochladen")
     }
 }
 

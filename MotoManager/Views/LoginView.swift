@@ -135,21 +135,21 @@ struct LoginView: View {
                     Text("DEINE DIGITALE GARAGE")
                         .scaledFont(9, weight: .heavy)
                         .tracking(1.8)
-                        .foregroundColor(.white.opacity(0.55))
+                        .foregroundStyle(.white.opacity(0.55))
                     Text("MotoManager")
                         .scaledFont(17, weight: .black)
-                        .foregroundColor(.white)
+                        .foregroundStyle(.white)
                 }
             }
             Text("Willkommen\nzurück.")
                 .scaledFont(30, weight: .heavy)
-                .foregroundColor(.white)
+                .foregroundStyle(.white)
                 .multilineTextAlignment(.leading)
                 .lineSpacing(2)
                 .shadow(color: .black.opacity(0.4), radius: 6, x: 0, y: 1)
             Text("Melde dich an, um deine Garage zu öffnen.")
                 .scaledFont(13, weight: .medium)
-                .foregroundColor(.white.opacity(0.65))
+                .foregroundStyle(.white.opacity(0.65))
                 .shadow(color: .black.opacity(0.4), radius: 2, x: 0, y: 1)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -167,7 +167,7 @@ struct LoginView: View {
             // Wheel + spokes mark — mirrors the SVG in BrandMark
             Image(systemName: "circle.dotted.circle")
                 .scaledFont(19, weight: .semibold)
-                .foregroundColor(.white)
+                .foregroundStyle(.white)
         }
     }
 
@@ -206,7 +206,7 @@ struct LoginView: View {
                     } label: {
                         Image(systemName: showPassword ? "eye.slash.fill" : "eye.fill")
                             .scaledFont(13, weight: .semibold)
-                            .foregroundColor(.white.opacity(0.5))
+                            .foregroundStyle(.white.opacity(0.5))
                             .frame(width: 30, height: 30)
                     }
                 )
@@ -219,7 +219,7 @@ struct LoginView: View {
                         .lineLimit(2)
                 }
                 .scaledFont(12, weight: .semibold)
-                .foregroundColor(Theme.Colors.accent)
+                .foregroundStyle(Theme.Colors.accent)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -260,18 +260,18 @@ struct LoginView: View {
             HStack(spacing: 5) {
                 Image(systemName: icon)
                     .scaledFont(10, weight: .semibold)
-                    .foregroundColor(focused ? Theme.Colors.primary : .white.opacity(0.5))
+                    .foregroundStyle(focused ? Theme.Colors.primary : .white.opacity(0.5))
                 Text(label)
                     .scaledFont(9, weight: .heavy)
                     .tracking(0.6)
-                    .foregroundColor(focused ? Theme.Colors.primary : .white.opacity(0.5))
+                    .foregroundStyle(focused ? Theme.Colors.primary : .white.opacity(0.5))
             }
             HStack(spacing: 6) {
                 Group {
                     if isSecure {
-                        SecureField("", text: text, prompt: Text(placeholder).foregroundColor(.white.opacity(0.3)))
+                        SecureField("", text: text, prompt: Text(placeholder).foregroundStyle(.white.opacity(0.3)))
                     } else {
-                        TextField("", text: text, prompt: Text(placeholder).foregroundColor(.white.opacity(0.3)))
+                        TextField("", text: text, prompt: Text(placeholder).foregroundStyle(.white.opacity(0.3)))
                     }
                 }
                 .focused($focusedField, equals: field)
@@ -280,7 +280,7 @@ struct LoginView: View {
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled(true)
                 .scaledFont(16, weight: .semibold)
-                .foregroundColor(.white)
+                .foregroundStyle(.white)
                 .submitLabel(field == .password ? .go : .next)
                 .onSubmit {
                     switch field {
@@ -326,7 +326,7 @@ struct LoginView: View {
             }
             .scaledFont(15, weight: .heavy)
             .frame(maxWidth: .infinity)
-            .frame(height: 50)
+            .frame(minHeight: 50)
         }
         .glassActionButton(.primary, in: .roundedRectangle(radius: 14))
         .disabled(!canSubmit)
@@ -341,7 +341,7 @@ struct LoginView: View {
             Text("ODER")
                 .scaledFont(11, weight: .heavy)
                 .tracking(0.6)
-                .foregroundColor(Theme.Glass.mutedText)
+                .foregroundStyle(Theme.Glass.mutedText)
             Rectangle()
                 .fill(Color.white.opacity(0.12))
                 .frame(height: 0.5)
@@ -363,7 +363,7 @@ struct LoginView: View {
                     .scaledFont(15, weight: .bold)
             }
             .frame(maxWidth: .infinity)
-            .frame(height: 50)
+            .frame(minHeight: 50)
         }
         .glassActionButton(.secondary, in: .roundedRectangle(radius: 14))
         .disabled(authVM.isLoading || normalizedServerURL == nil)

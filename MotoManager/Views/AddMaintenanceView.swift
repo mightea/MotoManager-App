@@ -63,7 +63,6 @@ struct AddMaintenanceView: View {
     @State private var notes: String
     @State private var date: Date
     @State private var confirmingDelete = false
-    @State private var savedAnim = false
     @State private var showingOdoScanner = false
 
     /// Set when editing a record whose stored type isn't canonical; submitted
@@ -131,101 +130,108 @@ struct AddMaintenanceView: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: Theme.Spacing.l) {
-                header
-
-                field("ART") {
-                    Picker("Art", selection: $formType) {
-                        ForEach(Self.formTypes, id: \.value) { Text($0.label).tag($0.value) }
-                    }
-                    .pickerStyle(.menu)
-                    .tint(.white)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                }
-
-                typeSpecificFields
-
-                field("KILOMETERSTAND") {
-                    HStack(spacing: 8) {
-                        TextField("", text: $odo).keyboardType(.numberPad).foregroundColor(.white)
-                        Button {
-                            showingOdoScanner = true
-                        } label: {
-                            Image(systemName: "camera.viewfinder")
-                                .scaledFont(26, weight: .semibold)
-                                .foregroundColor(Theme.Colors.primary)
-                                .frame(width: 52, height: 44)
-                                .contentShape(Rectangle())
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: Theme.Spacing.l) {
+                    field("ART") {
+                        Picker("Art", selection: $formType) {
+                            ForEach(Self.formTypes, id: \.value) { Text($0.label).tag($0.value) }
                         }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel("Kilometerstand scannen")
+                        .pickerStyle(.menu)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
-                }
-                HStack(spacing: Theme.Spacing.m) {
-                    field("KOSTEN") {
-                        TextField("", text: $cost, prompt: Text("0").foregroundColor(.white.opacity(0.3)))
-                            .keyboardType(.decimalPad).foregroundColor(.white)
-                    }
-                    field("WÄHRUNG") {
-                        TextField("", text: $currency).foregroundColor(.white)
-                            .textInputAutocapitalization(.characters)
-                    }
-                }
-                field("DATUM") {
-                    DatePicker("", selection: $date, displayedComponents: .date)
-                        .labelsHidden().colorScheme(.dark).tint(Theme.Colors.primary)
-                }
-                field("BESCHREIBUNG") {
-                    TextField("", text: $notes, prompt: Text("z. B. Ölwechsel + Filter").foregroundColor(.white.opacity(0.3)), axis: .vertical)
-                        .lineLimit(2...5).foregroundColor(.white)
-                }
 
-                usedPartsSection
+                    typeSpecificFields
 
-                saveButton
-                if existingRecord != nil { deleteButton }
+                    field("KILOMETERSTAND") {
+                        HStack(spacing: 8) {
+                            TextField("", text: $odo).keyboardType(.numberPad).foregroundStyle(.primary)
+                            Button {
+                                showingOdoScanner = true
+                            } label: {
+                                Image(systemName: "camera.viewfinder")
+                                    .scaledFont(26, weight: .semibold)
+                                    .foregroundStyle(Theme.Colors.primary)
+                                    .frame(width: 52, height: 44)
+                                    .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("Kilometerstand scannen")
+                        }
+                    }
+                    HStack(spacing: Theme.Spacing.m) {
+                        field("KOSTEN") {
+                            TextField("", text: $cost, prompt: Text("0").foregroundStyle(.tertiary))
+                                .keyboardType(.decimalPad).foregroundStyle(.primary)
+                        }
+                        field("WÄHRUNG") {
+                            TextField("", text: $currency).foregroundStyle(.primary)
+                                .textInputAutocapitalization(.characters)
+                        }
+                    }
+                    field("DATUM") {
+                        DatePicker("", selection: $date, displayedComponents: .date)
+                            .labelsHidden().tint(Theme.Colors.primary)
+                    }
+                    field("BESCHREIBUNG") {
+                        TextField("", text: $notes, prompt: Text("z. B. Ölwechsel + Filter").foregroundStyle(.tertiary), axis: .vertical)
+                            .lineLimit(2...5).foregroundStyle(.primary)
+                    }
+
+                    usedPartsSection
+
+                    if existingRecord != nil { deleteButton }
+                }
+                .padding(Theme.Spacing.l)
             }
-            .padding(Theme.Spacing.l)
-        }
-        .background(Color.clear)
-        .onChange(of: formType) { typeDirty = true }
-        .onChange(of: brakeComponent) { typeDirty = true }
-        .onChange(of: fluidType) { typeDirty = true }
-        .sheet(isPresented: $showingOdoScanner) {
-            OdometerScanSheet(onResult: { value in odo = "\(value)" })
-                .glassSheet()
-        }
-        .onAppear {
-            let context = PersistenceController.shared.mainContext
-            var parts = PartsInventory.availableParts(in: context)
-
-            // Seed from what the record already holds. Those parts may have
-            // zero on-hand (this entry used them up), so they are missing from
-            // `availableParts` and have to be merged back in — otherwise the
-            // entry's own parts would be invisible in its own form.
-            if let record = existingRecord {
-                let existing = PartsInventory.consumptions(forMaintenance: record, in: context)
-                var booked: [UUID: Int] = [:]
-                for consumption in existing {
-                    booked[consumption.partClientId, default: 0] += consumption.quantity
+            .navigationTitle(existingRecord == nil ? "Wartung erfassen" : "Wartung bearbeiten")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Abbrechen") { dismiss() }
                 }
-                bookedParts = booked
-                usedParts = booked
-
-                let known = Set(parts.map(\.clientId))
-                let missing = ((try? context.fetch(FetchDescriptor<SDPart>())) ?? [])
-                    .filter { booked[$0.clientId] != nil && !known.contains($0.clientId) }
-                parts = (parts + missing).sorted { $0.name < $1.name }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Speichern", action: save)
+                }
             }
-            availableParts = parts
-        }
-        .alert("Eintrag löschen?", isPresented: $confirmingDelete) {
-            Button("Abbrechen", role: .cancel) { }
-            Button("Löschen", role: .destructive) {
-                guard let record = existingRecord,
-                      viewModel.deleteMaintenance(record) else { return }
-                dismiss()
+            .onChange(of: formType) { typeDirty = true }
+            .onChange(of: brakeComponent) { typeDirty = true }
+            .onChange(of: fluidType) { typeDirty = true }
+            .sheet(isPresented: $showingOdoScanner) {
+                OdometerScanSheet(onResult: { value in odo = "\(value)" })
+                    .glassSheet()
+            }
+            .onAppear {
+                let context = PersistenceController.shared.mainContext
+                var parts = PartsInventory.availableParts(in: context)
+
+                // Seed from what the record already holds. Those parts may have
+                // zero on-hand (this entry used them up), so they are missing from
+                // `availableParts` and have to be merged back in — otherwise the
+                // entry's own parts would be invisible in its own form.
+                if let record = existingRecord {
+                    let existing = PartsInventory.consumptions(forMaintenance: record, in: context)
+                    var booked: [UUID: Int] = [:]
+                    for consumption in existing {
+                        booked[consumption.partClientId, default: 0] += consumption.quantity
+                    }
+                    bookedParts = booked
+                    usedParts = booked
+
+                    let known = Set(parts.map(\.clientId))
+                    let missing = ((try? context.fetch(FetchDescriptor<SDPart>())) ?? [])
+                        .filter { booked[$0.clientId] != nil && !known.contains($0.clientId) }
+                    parts = (parts + missing).sorted { $0.name < $1.name }
+                }
+                availableParts = parts
+            }
+            .alert("Eintrag löschen?", isPresented: $confirmingDelete) {
+                Button("Abbrechen", role: .cancel) { }
+                Button("Löschen", role: .destructive) {
+                    guard let record = existingRecord,
+                          viewModel.deleteMaintenance(record) else { return }
+                    dismiss()
+                }
             }
         }
     }
@@ -236,13 +242,13 @@ struct AddMaintenanceView: View {
     private var typeSpecificFields: some View {
         switch formType {
         case "tire":
-            field("POSITION") { tirePositionPicker }
+            labeledControl("POSITION") { tirePositionPicker }
             HStack(spacing: Theme.Spacing.m) {
                 field("GRÖSSE") {
-                    TextField("", text: $tireSize, prompt: prompt("180/55 ZR17")).foregroundColor(.white)
+                    TextField("", text: $tireSize, prompt: prompt("180/55 ZR17")).foregroundStyle(.primary)
                 }
                 field("DOT-CODE") {
-                    TextField("", text: $dotCode, prompt: prompt("2423")).foregroundColor(.white)
+                    TextField("", text: $dotCode, prompt: prompt("2423")).foregroundStyle(.primary)
                 }
             }
             brandModelFields
@@ -253,13 +259,13 @@ struct AddMaintenanceView: View {
                         Text(SDMaintenanceRecord.fluidTypeLabels[$0] ?? $0).tag($0)
                     }
                 }
-                .pickerStyle(.menu).tint(.white)
+                .pickerStyle(.menu)
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
             if fluidType.hasSuffix("oil") {
                 HStack(spacing: Theme.Spacing.m) {
                     field("VISKOSITÄT") {
-                        TextField("", text: $viscosity, prompt: prompt("10W-40")).foregroundColor(.white)
+                        TextField("", text: $viscosity, prompt: prompt("10W-40")).foregroundStyle(.primary)
                     }
                     field("ÖL-TYP") {
                         Picker("Öl-Typ", selection: $oilType) {
@@ -268,23 +274,25 @@ struct AddMaintenanceView: View {
                                 Text(MaintenanceCategory.oilTypeLabels[$0] ?? $0).tag($0)
                             }
                         }
-                        .pickerStyle(.menu).tint(.white)
+                        .pickerStyle(.menu)
                         .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 }
             }
             field("MARKE") {
-                TextField("", text: $brand, prompt: prompt("z. B. Motul")).foregroundColor(.white)
+                TextField("", text: $brand, prompt: prompt("z. B. Motul")).foregroundStyle(.primary)
             }
         case "brake":
-            field("KOMPONENTE") {
-                Picker("Komponente", selection: $brakeComponent) {
-                    Text("Bremsbeläge").tag("brakepad")
-                    Text("Bremsscheibe").tag("brakerotor")
-                }
-                .pickerStyle(.segmented).colorScheme(.dark)
+            labeledControl("KOMPONENTE") {
+                GlassSegmentedControl(
+                    segments: [
+                        .init(value: "brakepad", label: "Bremsbeläge"),
+                        .init(value: "brakerotor", label: "Bremsscheibe"),
+                    ],
+                    selection: $brakeComponent
+                )
             }
-            field("POSITION") { tirePositionPicker }
+            labeledControl("POSITION") { tirePositionPicker }
             brandModelFields
         case "battery":
             field("BATTERIETYP") {
@@ -293,7 +301,7 @@ struct AddMaintenanceView: View {
                         Text(MaintenanceCategory.batteryTypeLabels[$0] ?? $0).tag($0)
                     }
                 }
-                .pickerStyle(.menu).tint(.white)
+                .pickerStyle(.menu)
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
             brandModelFields
@@ -303,55 +311,51 @@ struct AddMaintenanceView: View {
     }
 
     private var tirePositionPicker: some View {
-        Picker("Position", selection: $tirePosition) {
-            Text("Vorne").tag("front")
-            Text("Hinten").tag("rear")
-            Text("Beiwagen").tag("sidecar")
-        }
-        .pickerStyle(.segmented).colorScheme(.dark)
+        GlassSegmentedControl(
+            segments: [
+                .init(value: "front", label: "Vorne"),
+                .init(value: "rear", label: "Hinten"),
+                .init(value: "sidecar", label: "Beiwagen"),
+            ],
+            selection: $tirePosition
+        )
     }
 
     private var brandModelFields: some View {
         HStack(spacing: Theme.Spacing.m) {
             field("MARKE") {
-                TextField("", text: $brand, prompt: prompt("z. B. Michelin")).foregroundColor(.white)
+                TextField("", text: $brand, prompt: prompt("z. B. Michelin")).foregroundStyle(.primary)
             }
             field("MODELL") {
-                TextField("", text: $model, prompt: prompt("z. B. Road 6")).foregroundColor(.white)
+                TextField("", text: $model, prompt: prompt("z. B. Road 6")).foregroundStyle(.primary)
             }
         }
     }
 
     private func prompt(_ text: String) -> Text {
-        Text(text).foregroundColor(.white.opacity(0.3))
-    }
-
-    private var header: some View {
-        HStack {
-            Text(existingRecord == nil ? "Wartung erfassen" : "Wartung bearbeiten")
-                .scaledFont(22, weight: .heavy)
-                .foregroundColor(.white)
-            Spacer()
-            Button { dismiss() } label: {
-                Image(systemName: "xmark")
-                    .scaledFont(14, weight: .bold)
-                    .foregroundColor(.white)
-                    .frame(width: 32, height: 32)
-                    .background(Circle().fill(Color.white.opacity(0.12)))
-            }
-            .accessibilityLabel("Schließen")
-        }
+        Text(text).foregroundStyle(.tertiary)
     }
 
     private func field<Content: View>(_ label: String, @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(label)
                 .scaledFont(10, weight: .heavy).tracking(1.4)
-                .foregroundColor(Theme.Glass.mutedText)
+                .foregroundStyle(.secondary)
             content()
                 .padding(.horizontal, 14).padding(.vertical, 12)
-                .background(RoundedRectangle(cornerRadius: Theme.Glass.fieldRadius).fill(Color.white.opacity(0.06)))
-                .overlay(RoundedRectangle(cornerRadius: Theme.Glass.fieldRadius).stroke(Theme.Glass.border, lineWidth: 0.5))
+                .background(RoundedRectangle(cornerRadius: Theme.Radius.field).fill(Color.primary.opacity(0.06)))
+                .overlay(RoundedRectangle(cornerRadius: Theme.Radius.field).stroke(Theme.Glass.border, lineWidth: 0.5))
+        }
+    }
+
+    /// Field label without the boxed background — for controls that bring
+    /// their own chrome (the glass segmented control).
+    private func labeledControl<Content: View>(_ label: String, @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(label)
+                .scaledFont(10, weight: .heavy).tracking(1.4)
+                .foregroundStyle(.secondary)
+            content()
         }
     }
 
@@ -395,11 +399,11 @@ struct AddMaintenanceView: View {
             VStack(alignment: .leading, spacing: 1) {
                 Text(part.name)
                     .scaledFont(13, weight: .bold)
-                    .foregroundColor(.white)
+                    .foregroundStyle(.primary)
                     .lineLimit(1)
                 Text("\(part.partNumber) · max. \(maxQuantity)")
                     .scaledFont(10, weight: .semibold)
-                    .foregroundColor(.white.opacity(0.5))
+                    .foregroundStyle(.tertiary)
             }
             Spacer(minLength: 0)
             Stepper(
@@ -412,15 +416,14 @@ struct AddMaintenanceView: View {
                 Text("\(quantity)×")
                     .scaledFont(13, weight: .heavy)
                     .monospacedDigit()
-                    .foregroundColor(Theme.Colors.primary)
+                    .foregroundStyle(Theme.Colors.primary)
             }
-            .colorScheme(.dark)
             .fixedSize()
             Button {
                 usedParts.removeValue(forKey: part.clientId)
             } label: {
                 Image(systemName: "xmark.circle.fill")
-                    .foregroundColor(.white.opacity(0.35))
+                    .foregroundStyle(.tertiary)
             }
         }
     }
@@ -441,23 +444,17 @@ struct AddMaintenanceView: View {
                     Text("Teil hinzufügen")
                         .scaledFont(13, weight: .bold)
                 }
-                .foregroundColor(Theme.Colors.primary)
+                .foregroundStyle(Theme.Colors.primary)
             }
         }
     }
 
-    private var saveButton: some View {
-        Button(action: save) {
-            Text(savedAnim ? "Gespeichert ✓" : "Speichern").frame(maxWidth: .infinity)
-        }
-        .buttonStyle(ModernButtonStyle())
-        .padding(.top, Theme.Spacing.s)
-    }
-
     private var deleteButton: some View {
         Button(role: .destructive) { confirmingDelete = true } label: {
-            Text("Löschen").frame(maxWidth: .infinity).foregroundColor(Theme.Colors.accent).padding(.vertical, 12)
+            Text("Löschen").frame(maxWidth: .infinity)
         }
+        .glassActionButton(.danger, in: .roundedRectangle(radius: Theme.Radius.control))
+        .padding(.top, Theme.Spacing.s)
     }
 
     // MARK: - Save
@@ -515,11 +512,7 @@ struct AddMaintenanceView: View {
             guard let record = viewModel.createMaintenance(draft) else { return }
             recordUsedParts(for: record)
         }
-        withAnimation { savedAnim = true }
-        Task {
-            try? await Task.sleep(nanoseconds: 400_000_000)
-            dismiss()
-        }
+        dismiss()
     }
 
     /// Book the selected parts against the freshly created repair. Linked via

@@ -90,7 +90,7 @@ struct RemoteImageView: View {
             Color.secondary.opacity(0.1)
             Image(systemName: "motorcycle")
                 .font(.largeTitle)
-                .foregroundColor(.secondary.opacity(0.3))
+                .foregroundStyle(.secondary.opacity(0.3))
         }
     }
 }

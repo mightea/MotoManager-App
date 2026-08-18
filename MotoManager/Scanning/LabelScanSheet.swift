@@ -117,7 +117,7 @@ struct LabelScanSheet: View {
                 .tint(.white)
             Text("Kamera wird gestartet …")
                 .scaledFont(13, weight: .semibold)
-                .foregroundColor(Theme.Glass.mutedText)
+                .foregroundStyle(Theme.Glass.mutedText)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
@@ -131,7 +131,7 @@ struct LabelScanSheet: View {
         .overlay(alignment: .bottom) {
             Text("Auf den QR-Code des Etiketts zielen")
                 .scaledFont(13, weight: .semibold)
-                .foregroundColor(.white)
+                .foregroundStyle(.white)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 10)
                 .background(Capsule().fill(.black.opacity(0.6)))
@@ -143,13 +143,13 @@ struct LabelScanSheet: View {
         VStack(spacing: 12) {
             Image(systemName: "camera.metering.unknown")
                 .scaledFont(40)
-                .foregroundColor(Theme.Glass.mutedText)
+                .foregroundStyle(Theme.Glass.mutedText)
             Text("Kamera nicht verfügbar")
                 .scaledFont(16, weight: .semibold)
-                .foregroundColor(.white)
+                .foregroundStyle(.white)
             Text("Der Scanner benötigt die Kamera eines echten Geräts.")
                 .scaledFont(13)
-                .foregroundColor(Theme.Glass.mutedText)
+                .foregroundStyle(Theme.Glass.mutedText)
                 .multilineTextAlignment(.center)
         }
         .padding(32)

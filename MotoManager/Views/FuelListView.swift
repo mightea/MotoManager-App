@@ -1,12 +1,11 @@
 import SwiftUI
+import Charts
 
 struct FuelListView: View {
     @ObservedObject var viewModel: MotorcycleDetailViewModel
+    @Environment(\.chromeActions) private var chrome
     @State private var showingAddFuel = false
     @State private var selectedFuelRecord: SDMaintenanceRecord?
-
-    /// Tightened horizontal page margin for the stat strip + list (was 12).
-    private let sideMargin: CGFloat = 6
 
     /// Backed by SwiftData (offline-first); already filtered to fuel + non-deleted.
     private var fuelRecords: [SDMaintenanceRecord] {
@@ -72,45 +71,70 @@ struct FuelListView: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: Theme.Spacing.m) {
-                // The header photo extends below its content so the stat strip
-                // overlaps it (glass pills on the image) instead of sitting on a
-                // hard black cut-off.
+        List {
+            // The header photo extends below its content so the stat strip
+            // overlaps it (glass pills on the image) instead of sitting on a
+            // hard black cut-off.
+            Section {
                 ZStack(alignment: .bottom) {
                     MotorcycleSummaryHeader(
                         motorcycle: viewModel.motorcycle, type: .fuel, viewModel: viewModel,
                         bottomExtension: 96
                     )
-                    .ignoresSafeArea(edges: .top)
 
-                    statStrip
-                        .padding(.horizontal, sideMargin)
-                        .padding(.bottom, 12)
+                    StatStrip([
+                        StatTile(
+                            eyebrow: "Ø Verbrauch",
+                            value: averageConsumption > 0 ? String(format: "%.1f", averageConsumption) : "—",
+                            unit: "L/100 km · letzte 10",
+                            accent: Theme.Colors.primary
+                        ),
+                        StatTile(
+                            eyebrow: "Letzte Tankung",
+                            value: lastEntry.map { Formatters.dayMonth($0.date) } ?? "—",
+                            unit: lastEntry?.cost.map { Formatters.currency($0, code: currency, fractionDigits: 0) }
+                        ),
+                        StatTile(
+                            eyebrow: "Liter",
+                            value: String(format: "%.0f", trailingYearLiters),
+                            unit: "letzte 12 Monate"
+                        )
+                    ])
+                    .padding(.horizontal, Theme.Spacing.pageH)
+                    .padding(.bottom, 12)
                 }
-
-                if trendValues.count >= 3 {
-                    ConsumptionTrendCard(values: trendValues, average: averageConsumption)
-                        .padding(.horizontal, sideMargin)
-                }
-
-                listSection
-                    .padding(.horizontal, sideMargin)
             }
-            // Clears the docked add button so the last row is never hidden.
-            .padding(.bottom, 96)
+            .listRowInsets(EdgeInsets())
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
+            .listSectionMargins(.all, 0)
+
+            if trendValues.count >= 3 {
+                Section {
+                    ConsumptionTrendRow(values: trendValues, average: averageConsumption)
+                }
+            }
+
+            content
         }
+        .listStyle(.insetGrouped)
+        .scrollContentBackground(.hidden)
         .ignoresSafeArea(edges: .top)
-        .background(Color.clear)
-        // `addAction:` must stay a labeled argument: a trailing closure
-        // backward-matches to `secondaryAction` and the button vanishes.
-        .bottomActionBar(
-            detailVM: viewModel,
-            addLabel: "Neue Tankung erfassen",
-            addAction: { showingAddFuel = true }
-        )
         .refreshable {
             await viewModel.reconnect()
+        }
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button("Neue Tankung erfassen", systemImage: "plus") {
+                    showingAddFuel = true
+                }
+            }
+            ToolbarSpacer(.fixed, placement: .topBarTrailing)
+            ToolbarItem(placement: .topBarTrailing) {
+                Button("Einstellungen", systemImage: "gearshape") {
+                    chrome.openSettings()
+                }
+            }
         }
         .sheet(isPresented: $showingAddFuel) {
             AddFuelView(viewModel: viewModel)
@@ -121,100 +145,52 @@ struct FuelListView: View {
         }
     }
 
-    // MARK: - Stat strip
-
-    private var statStrip: some View {
-        StatStrip([
-            StatTile(
-                eyebrow: "Ø Verbrauch",
-                value: averageConsumption > 0 ? String(format: "%.1f", averageConsumption) : "—",
-                unit: "L/100 km · letzte 10",
-                accent: Theme.Colors.primary
-            ),
-            StatTile(
-                eyebrow: "Letzte Tankung",
-                value: lastEntry.map { Formatters.dayMonth($0.date) } ?? "—",
-                unit: lastEntry?.cost.map { Formatters.currency($0, code: currency, fractionDigits: 0) }
-            ),
-            StatTile(
-                eyebrow: "Liter",
-                value: String(format: "%.0f", trailingYearLiters),
-                unit: "letzte 12 Monate"
-            )
-        ])
-    }
-
-    // MARK: - List section
-
-    private var listSection: some View {
-        VStack(alignment: .leading, spacing: Theme.Spacing.s) {
-            HStack {
-                Text("Letzte Tankungen".uppercased())
-                    .scaledFont(11, weight: .heavy)
-                    .tracking(2)
-                    .foregroundColor(.white.opacity(0.7))
-                Spacer()
-                Text("\(fuelRecords.count) \(fuelRecords.count == 1 ? "Eintrag" : "Einträge")")
-                    .scaledFont(11, weight: .semibold)
-                    .foregroundColor(.white.opacity(0.5))
-            }
-            .padding(.horizontal, 6)
-
-            content
-        }
-    }
+    // MARK: - History
 
     @ViewBuilder
     private var content: some View {
         if viewModel.isLoading && fuelRecords.isEmpty {
-            VStack(spacing: 0) {
+            Section {
                 ForEach(0..<4, id: \.self) { _ in
-                    GlassShimmerRow()
+                    FuelRow.placeholder
+                        .redacted(reason: .placeholder)
                 }
             }
-            .clipShape(RoundedRectangle(cornerRadius: 22))
         } else if fuelRecords.isEmpty {
-            VStack(spacing: 6) {
-                Image(systemName: "fuelpump.slash")
-                    .scaledFont(28)
-                    .foregroundColor(.white.opacity(0.45))
-                Text("Noch keine Tankungen erfasst.")
-                    .scaledFont(13, weight: .medium)
-                    .foregroundColor(.white.opacity(0.65))
+            Section {
+                ContentUnavailableView {
+                    Label("Keine Tankungen erfasst", systemImage: "fuelpump.slash")
+                } description: {
+                    Text("Erfasse deine erste Tankung – Verbrauch und Kosten werden automatisch berechnet.")
+                }
             }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 36)
-            .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 22))
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
         } else {
-            // Lazy so a long fuel history renders rows on demand instead of all
-            // up front; one glass card per year section.
-            LazyVStack(spacing: Theme.Spacing.s) {
-                ForEach(recordsByYear, id: \.year) { section in
-                    YearHeader(section.year)
-                    VStack(spacing: 0) {
-                        ForEach(Array(section.records.enumerated()), id: \.element.clientId) { index, record in
-                            Button {
-                                selectedFuelRecord = record
+            ForEach(recordsByYear, id: \.year) { section in
+                Section(section.year) {
+                    ForEach(section.records, id: \.clientId) { record in
+                        Button {
+                            selectedFuelRecord = record
+                        } label: {
+                            FuelRow(
+                                record: record,
+                                averageConsumption: averageConsumption,
+                                currency: currency,
+                                trip: tripDistances[record.clientId],
+                                averagePrice: averagePricePerLiter,
+                                isOldest: record.clientId == fuelRecords.last?.clientId
+                            )
+                        }
+                        .buttonStyle(.plain)
+                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                            Button(role: .destructive) {
+                                _ = viewModel.deleteFuelRecord(record)
                             } label: {
-                                FuelRow(
-                                    record: record,
-                                    averageConsumption: averageConsumption,
-                                    currency: currency,
-                                    trip: tripDistances[record.clientId],
-                                    averagePrice: averagePricePerLiter,
-                                    isOldest: record.clientId == fuelRecords.last?.clientId
-                                )
-                            }
-                            .buttonStyle(.plain)
-
-                            if index < section.records.count - 1 {
-                                Divider()
-                                    .background(Color.white.opacity(0.08))
-                                    .padding(.leading, 60)
+                                Label("Löschen", systemImage: "trash")
                             }
                         }
                     }
-                    .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 22))
                 }
             }
         }
@@ -235,6 +211,24 @@ struct FuelRow: View {
     /// The oldest record can't have a consumption — don't badge it as partial.
     var isOldest: Bool = false
 
+    /// Skeleton stand-in for the loading state (rendered `.redacted`).
+    static var placeholder: some View {
+        HStack(spacing: 12) {
+            RoundedRectangle(cornerRadius: Theme.Radius.controlInner)
+                .fill(.quaternary)
+                .frame(width: 36, height: 36)
+            VStack(alignment: .leading, spacing: 4) {
+                Text("12.3 L · 1.89/L")
+                Text("15. Aug. · 234 km")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+            Text("5.2")
+        }
+        .padding(.vertical, 4)
+    }
+
     var body: some View {
         HStack(alignment: .center, spacing: 12) {
             iconBadge
@@ -247,14 +241,14 @@ struct FuelRow: View {
                             .monospacedDigit()
                         Text("L")
                             .scaledFont(11, weight: .medium)
-                            .foregroundColor(.white.opacity(0.55))
+                            .foregroundStyle(.secondary)
                     }
                     if let pricePerUnit = record.pricePerUnit, pricePerUnit > 0 {
                         Text("·")
-                            .foregroundColor(.white.opacity(0.4))
+                            .foregroundStyle(.tertiary)
                         Text("\(Formatters.currency(pricePerUnit, code: currency))/L")
                             .scaledFont(12, weight: .medium)
-                            .foregroundColor(priceColor(pricePerUnit))
+                            .foregroundStyle(priceStyle(pricePerUnit))
                             .monospacedDigit()
                     }
                 }
@@ -276,7 +270,7 @@ struct FuelRow: View {
                     }
                 }
                 .scaledFont(11, weight: .medium)
-                .foregroundColor(.white.opacity(0.55))
+                .foregroundStyle(.secondary)
                 .lineLimit(1)
             }
 
@@ -291,10 +285,10 @@ struct FuelRow: View {
                         Text(String(format: "%.1f", consumption))
                             .scaledFont(15, weight: .bold)
                             .monospacedDigit()
-                            .foregroundColor(consumptionColor(consumption))
+                            .foregroundStyle(consumptionStyle(consumption))
                         Text("L/100km")
                             .scaledFont(9, weight: .semibold)
-                            .foregroundColor(.white.opacity(0.5))
+                            .foregroundStyle(.secondary)
                     }
                 } else if !isOldest {
                     Text("TEILTANKUNG")
@@ -302,19 +296,18 @@ struct FuelRow: View {
                         .tracking(0.5)
                         .padding(.horizontal, 6)
                         .padding(.vertical, 2)
-                        .background(Capsule().fill(Color.white.opacity(0.10)))
-                        .foregroundColor(.white.opacity(0.6))
+                        .background(Capsule().fill(Color.primary.opacity(0.10)))
+                        .foregroundStyle(.secondary)
                 }
                 if let cost = record.cost {
                     Text(Formatters.currency(cost, code: currency))
                         .scaledFont(11, weight: .medium)
                         .monospacedDigit()
-                        .foregroundColor(.white.opacity(0.6))
+                        .foregroundStyle(.secondary)
                 }
             }
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 16)
+        .padding(.vertical, 4)
         .contentShape(Rectangle())
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityText)
@@ -345,21 +338,21 @@ struct FuelRow: View {
     }
 
     /// Tint the per-liter price against the fleet average so expensive and
-    /// cheap fills stand out (same idea as `consumptionColor`).
-    private func priceColor(_ price: Double) -> Color {
-        guard averagePrice > 0 else { return .white.opacity(0.6) }
-        if price > averagePrice * 1.05 { return .orange.opacity(0.9) }
-        if price < averagePrice * 0.95 { return .green.opacity(0.9) }
-        return .white.opacity(0.6)
+    /// cheap fills stand out (same idea as `consumptionStyle`).
+    private func priceStyle(_ price: Double) -> AnyShapeStyle {
+        guard averagePrice > 0 else { return AnyShapeStyle(.secondary) }
+        if price > averagePrice * 1.05 { return AnyShapeStyle(Color.orange) }
+        if price < averagePrice * 0.95 { return AnyShapeStyle(Color.green) }
+        return AnyShapeStyle(.secondary)
     }
 
     private var iconBadge: some View {
         ZStack {
-            RoundedRectangle(cornerRadius: 10)
+            RoundedRectangle(cornerRadius: Theme.Radius.controlInner)
                 .fill(Theme.Colors.primary.opacity(0.22))
             Image(systemName: "fuelpump.fill")
                 .scaledFont(15, weight: .semibold)
-                .foregroundColor(Theme.Colors.primary)
+                .foregroundStyle(Theme.Colors.primary)
         }
         .frame(width: 36, height: 36)
         .overlay(alignment: .topTrailing) {
@@ -369,21 +362,22 @@ struct FuelRow: View {
         }
     }
 
-    private func consumptionColor(_ value: Double) -> Color {
+    private func consumptionStyle(_ value: Double) -> AnyShapeStyle {
         if averageConsumption <= 0 {
-            return .white.opacity(0.6)
+            return AnyShapeStyle(.secondary)
         }
-        if value > averageConsumption + 0.4 { return .orange }
-        if value < averageConsumption - 0.4 { return .green }
-        return .white.opacity(0.7)
+        if value > averageConsumption + 0.4 { return AnyShapeStyle(Color.orange) }
+        if value < averageConsumption - 0.4 { return AnyShapeStyle(Color.green) }
+        return AnyShapeStyle(.primary)
     }
 }
 
 // MARK: - Consumption trend
 
-/// Compact glass card with a sparkline of the last fills' consumption.
-/// One series, one hue; the bike's average is a muted dashed reference line.
-struct ConsumptionTrendCard: View {
+/// Compact list row with a Swift Charts sparkline of the last fills'
+/// consumption. One series, one hue; the bike's average is a muted dashed
+/// reference line. No axes or grid — the trend direction is the message.
+struct ConsumptionTrendRow: View {
     /// Consumption values, oldest→newest.
     let values: [Double]
     let average: Double
@@ -394,22 +388,59 @@ struct ConsumptionTrendCard: View {
                 Text("Verbrauchstrend".uppercased())
                     .scaledFont(9, weight: .heavy)
                     .tracking(1.2)
-                    .foregroundColor(.white.opacity(0.55))
+                    .foregroundStyle(.secondary)
                 Text("Letzte \(values.count) Tankungen")
                     .scaledFont(11, weight: .medium)
-                    .foregroundColor(.white.opacity(0.6))
+                    .foregroundStyle(.secondary)
             }
 
             Spacer(minLength: Theme.Spacing.m)
 
-            Sparkline(values: values, reference: average > 0 ? average : nil)
+            chart
                 .frame(width: 150, height: 34)
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 12)
-        .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 16))
+        .padding(.vertical, 2)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityText)
+    }
+
+    private var chart: some View {
+        Chart {
+            if average > 0 {
+                RuleMark(y: .value("Durchschnitt", average))
+                    .lineStyle(StrokeStyle(lineWidth: 1, dash: [3, 3]))
+                    .foregroundStyle(.tertiary)
+            }
+            ForEach(Array(values.enumerated()), id: \.offset) { index, value in
+                LineMark(
+                    x: .value("Tankung", index),
+                    y: .value("Verbrauch", value)
+                )
+                .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
+                .foregroundStyle(Theme.Colors.primary)
+            }
+            if let last = values.last {
+                PointMark(
+                    x: .value("Tankung", values.count - 1),
+                    y: .value("Verbrauch", last)
+                )
+                .symbolSize(36)
+                .foregroundStyle(Theme.Colors.primary)
+            }
+        }
+        .chartXAxis(.hidden)
+        .chartYAxis(.hidden)
+        .chartYScale(domain: yDomain)
+        .chartLegend(.hidden)
+    }
+
+    /// Pad the value range so the line never kisses the frame edges, and keep
+    /// the reference line inside the plot.
+    private var yDomain: ClosedRange<Double> {
+        let lo = min(values.min() ?? 0, average > 0 ? average : .greatestFiniteMagnitude)
+        let hi = max(values.max() ?? 1, average > 0 ? average : -.greatestFiniteMagnitude)
+        let pad = max((hi - lo) * 0.15, 0.1)
+        return (lo - pad)...(hi + pad)
     }
 
     private var accessibilityText: String {
@@ -417,58 +448,6 @@ struct ConsumptionTrendCard: View {
         return "Verbrauchstrend der letzten \(values.count) Tankungen, "
             + "zuletzt \(String(format: "%.1f", last)) Liter pro 100 Kilometer, "
             + "Durchschnitt \(String(format: "%.1f", average))"
-    }
-}
-
-/// Minimal line sparkline: 2pt rounded line, endpoint dot, optional dashed
-/// reference line. No axes or grid — the trend direction is the message.
-private struct Sparkline: View {
-    let values: [Double]
-    var reference: Double? = nil
-
-    var body: some View {
-        GeometryReader { geo in
-            let lo = min(values.min() ?? 0, reference ?? .greatestFiniteMagnitude)
-            let hi = max(values.max() ?? 1, reference ?? -.greatestFiniteMagnitude)
-            let span = max(hi - lo, 0.1)
-            // 4pt vertical inset keeps the endpoint dot inside the frame.
-            let plot = geo.size.height - 8
-            let point: (Int, Double) -> CGPoint = { index, value in
-                CGPoint(
-                    x: geo.size.width * CGFloat(index) / CGFloat(max(values.count - 1, 1)),
-                    y: 4 + plot * (1 - CGFloat((value - lo) / span))
-                )
-            }
-
-            ZStack {
-                if let reference {
-                    let y = 4 + plot * (1 - CGFloat((reference - lo) / span))
-                    Path { p in
-                        p.move(to: CGPoint(x: 0, y: y))
-                        p.addLine(to: CGPoint(x: geo.size.width, y: y))
-                    }
-                    .stroke(Color.white.opacity(0.22), style: StrokeStyle(lineWidth: 1, dash: [3, 3]))
-                }
-
-                Path { p in
-                    for (index, value) in values.enumerated() {
-                        let pt = point(index, value)
-                        if index == 0 { p.move(to: pt) } else { p.addLine(to: pt) }
-                    }
-                }
-                .stroke(
-                    Theme.Colors.primary,
-                    style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round)
-                )
-
-                if let lastValue = values.last {
-                    Circle()
-                        .fill(Theme.Colors.primary)
-                        .frame(width: 6, height: 6)
-                        .position(point(values.count - 1, lastValue))
-                }
-            }
-        }
     }
 }
 

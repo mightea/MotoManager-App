@@ -32,7 +32,7 @@ The app must stay iOS 27 compatible (Xcode 27 beta at `/Applications/Xcode-beta.
 - On-device source of truth is **SwiftData** for the syncable write entities (`Persistence/`): per-motorcycle `SDMaintenanceRecord`, `SDTorqueSpec`, `SDIssue`, `SDMotorcycleDetail`, plus the user-scoped parts inventory `SDPart`, `SDPartStock`, `SDPartConsumption`, `SDStorageLocation`. Each carries `clientId` (stable identity + server idempotency key), `serverId`, `syncState`, and push-failure counters (`syncAttempts`/`lastSyncError`).
 - Motorcycles and documents are **not** in SwiftData — still DTOs cached via the JSON `CacheStore`.
 - `Networking/SyncEngine.swift`: push (create→update→delete, keyed by `clientId`) then pull (`?since=` per resource), last-write-wins with local-pending winning. **Invariant to preserve:** each pull `save()`s the context *before* advancing its cursor — never reorder these, or an interrupted pull will skip records permanently.
-- Poisoned records (5 failed pushes) stop retrying and surface as a tappable "retry" on `UI/SyncStatusPill.swift`.
+- Poisoned records (5 failed pushes) stop retrying and surface as a tappable "retry" on `UI/StatusAccessoryBar.swift` (the TabView bottom accessory).
 - Backend support lives in the `MotoManagerApi` migrations, starting with `011_sync_metadata.sql` and extended by the parts/details migrations.
 
 ## Build & test caveat (this machine)

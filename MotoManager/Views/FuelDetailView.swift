@@ -211,7 +211,7 @@ struct FuelDetailView: View {
             DetailSection("NOTIZEN") {
                 Text(notes)
                     .scaledFont(14)
-                    .foregroundColor(.white.opacity(0.92))
+                    .foregroundStyle(.primary)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 12)
@@ -225,14 +225,14 @@ struct FuelDetailView: View {
                 Text("TANKSTELLE\(stationName.map { " · \($0.uppercased())" } ?? "")")
                     .scaledFont(10, weight: .heavy)
                     .tracking(1.4)
-                    .foregroundColor(Theme.Glass.mutedText)
+                    .foregroundStyle(.secondary)
                 Spacer()
                 Button {
                     openInMaps(lat: lat, lon: lon, name: stationName)
                 } label: {
                     Text("In Karten öffnen")
                         .scaledFont(11, weight: .semibold)
-                        .foregroundColor(Theme.Colors.primary)
+                        .foregroundStyle(Theme.Colors.primary)
                 }
             }
             .padding(.leading, 6)
@@ -245,9 +245,9 @@ struct FuelDetailView: View {
                     .tint(Theme.Colors.primary)
             }
             .frame(height: 180)
-            .clipShape(RoundedRectangle(cornerRadius: Theme.Glass.fieldRadius))
+            .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.field))
             .overlay(
-                RoundedRectangle(cornerRadius: Theme.Glass.fieldRadius)
+                RoundedRectangle(cornerRadius: Theme.Radius.field)
                     .stroke(Theme.Glass.hairline, lineWidth: 0.5)
             )
         }

@@ -49,10 +49,9 @@ struct DocumentViewerView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Theme.Colors.navy950.ignoresSafeArea())
+        .background(Theme.Colors.background.ignoresSafeArea())
         .toolbar(.visible, for: .navigationBar)
         .toolbar(.hidden, for: .tabBar)
-        .toolbarColorScheme(.dark, for: .navigationBar)
         .navigationTitle(document.title)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -91,21 +90,21 @@ struct DocumentViewerView: View {
             HStack(spacing: 6) {
                 Image(systemName: "magnifyingglass")
                     .scaledFont(12, weight: .semibold)
-                    .foregroundColor(.white.opacity(0.5))
+                    .foregroundStyle(.tertiary)
                 TextField("Im Dokument suchen …", text: $searchText)
                     .focused($searchFocused)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled(true)
                     .submitLabel(.search)
                     .scaledFont(14, weight: .medium)
-                    .foregroundColor(.white)
+                    .foregroundStyle(.primary)
                 if !searchText.isEmpty {
                     Button {
                         searchText = ""
                     } label: {
                         Image(systemName: "xmark.circle.fill")
                             .scaledFont(13)
-                            .foregroundColor(.white.opacity(0.4))
+                            .foregroundStyle(.tertiary)
                     }
                     .accessibilityLabel("Suche löschen")
                 }
@@ -113,18 +112,18 @@ struct DocumentViewerView: View {
             .padding(.horizontal, 10)
             .padding(.vertical, 8)
             .background(
-                RoundedRectangle(cornerRadius: 10).fill(Color.white.opacity(0.10))
+                RoundedRectangle(cornerRadius: 10).fill(Color.primary.opacity(0.10))
             )
 
             if !matches.isEmpty {
                 Text("\(matchIndex + 1)/\(matches.count)")
                     .scaledFont(12, weight: .semibold)
                     .monospacedDigit()
-                    .foregroundColor(.white.opacity(0.6))
+                    .foregroundStyle(.secondary)
             } else if searchText.count >= 2 {
                 Text("0")
                     .scaledFont(12, weight: .semibold)
-                    .foregroundColor(.white.opacity(0.4))
+                    .foregroundStyle(.tertiary)
             }
 
             Button { step(-1) } label: {
@@ -143,7 +142,7 @@ struct DocumentViewerView: View {
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 8)
-        .background(Theme.Colors.navy950)
+        .background(Theme.Colors.background)
     }
 
     /// PDFKit's `findString` is synchronous and fast enough for the manuals
@@ -181,7 +180,7 @@ struct DocumentViewerView: View {
             ProgressView()
             Text("Dokument wird geladen …")
                 .font(.subheadline)
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
         }
         .accessibilityElement(children: .combine)
     }
@@ -190,12 +189,12 @@ struct DocumentViewerView: View {
         VStack(spacing: Theme.Spacing.m) {
             Image(systemName: loadWasOffline ? "wifi.slash" : "exclamationmark.triangle.fill")
                 .scaledFont(48)
-                .foregroundColor(.orange)
+                .foregroundStyle(.orange)
             Text(loadWasOffline ? "Offline" : "Dokument konnte nicht geladen werden")
                 .font(.headline)
             Text("Bitte Verbindung prüfen und erneut versuchen.")
                 .font(.subheadline)
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
         }
         .padding()
         .accessibilityElement(children: .combine)
@@ -265,7 +264,7 @@ private struct PDFKitView: UIViewRepresentable {
     func makeUIView(context: Context) -> PDFView {
         let view = PDFView()
         view.autoScales = true
-        view.backgroundColor = UIColor(Theme.Colors.navy950)
+        view.backgroundColor = UIColor(Theme.Colors.background)
         view.document = document
         return view
     }

@@ -120,24 +120,36 @@ struct AddFuelView: View {
     // MARK: - Body
 
     var body: some View {
-        ZStack(alignment: .top) {
-            Color.clear
+        NavigationStack {
+            ZStack(alignment: .top) {
+                Color.clear
 
-            VStack(spacing: 0) {
-                header
-                fieldStack
-                dateRow
-                if existingRecord == nil {
-                    stationRow
+                ScrollView {
+                    VStack(spacing: 0) {
+                        fieldStack
+                        dateRow
+                        if existingRecord == nil {
+                            stationRow
+                        }
+                        metaRow
+                        additiveRow
+                        saveButton
+                    }
+                    .padding(.top, 10)
                 }
-                metaRow
-                additiveRow
-                saveButton
-                Spacer(minLength: 0)
+                hiddenTextFields
             }
-            hiddenTextFields
+            .navigationTitle(isEditing ? "Tankung bearbeiten" : "Neue Tankung")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Abbrechen") { dismiss() }
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    currencyMenu
+                }
+            }
         }
-        .background(sheetBackground)
         .sheet(isPresented: $showingOdoScanner) {
             OdometerScanSheet(onResult: { value in
                 odo = "\(value)"
@@ -197,47 +209,6 @@ struct AddFuelView: View {
 
     // MARK: - Sections
 
-    private var sheetBackground: some View {
-        ZStack {
-            LinearGradient(
-                colors: [
-                    Theme.Colors.navy900.opacity(0.6),
-                    Theme.Colors.navy950.opacity(0.8)
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-        }
-        .ignoresSafeArea()
-    }
-
-    private var header: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 10) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(isEditing ? "Tankung bearbeiten" : "Neue Tankung")
-                    .scaledFont(17, weight: .bold)
-                    .foregroundColor(.white)
-                Text(subtitle)
-                    .scaledFont(11, weight: .medium)
-                    .foregroundColor(Theme.Glass.mutedText)
-                    .lineLimit(1)
-            }
-            Spacer(minLength: 8)
-            currencyPill
-            closeButton
-        }
-        .padding(.horizontal, 18)
-        .padding(.top, 14)
-        .padding(.bottom, 10)
-    }
-
-    private var subtitle: String {
-        let plate = viewModel.motorcycle.numberPlate?.isEmpty == false
-            ? " · \(viewModel.motorcycle.numberPlate!)"
-            : ""
-        return "\(viewModel.motorcycle.make) \(viewModel.motorcycle.model)\(plate)"
-    }
-
     private var fieldStack: some View {
         VStack(spacing: 8) {
             // Odometer row carries a camera button to scan the reading from the
@@ -261,7 +232,7 @@ struct AddFuelView: View {
                 } label: {
                     Image(systemName: "camera.viewfinder")
                         .scaledFont(26, weight: .semibold)
-                        .foregroundColor(Theme.Colors.primary)
+                        .foregroundStyle(Theme.Colors.primary)
                         .frame(width: 60, height: 60)
                         .contentShape(Rectangle())
                 }
@@ -366,27 +337,16 @@ struct AddFuelView: View {
                         .scaledFont(16, weight: .bold)
                     Text("Gespeichert")
                 } else if viewModel.isLoading {
-                    ProgressView().tint(.white)
+                    ProgressView()
                 } else {
                     Text(isEditing ? "Änderungen speichern" : "Tankung speichern")
                 }
             }
             .frame(maxWidth: .infinity)
-            .frame(height: 50)
-            .foregroundColor(saveTextColor)
+            .frame(minHeight: 34)
             .scaledFont(15, weight: .heavy)
-            .background(
-                RoundedRectangle(cornerRadius: 14)
-                    .fill(saveButtonColor)
-            )
-            .shadow(
-                color: canSave && !savedAnim
-                    ? Theme.Colors.primary.opacity(0.45)
-                    : .clear,
-                radius: 12, x: 0, y: 6
-            )
         }
-        .buttonStyle(.plain)
+        .glassActionButton(savedAnim ? .success : .primary, in: .roundedRectangle(radius: Theme.Radius.chip))
         .disabled(!canSave || savedAnim)
         .padding(.horizontal, 14)
         .padding(.top, 10)
@@ -395,18 +355,9 @@ struct AddFuelView: View {
         .animation(.easeOut(duration: 0.18), value: savedAnim)
     }
 
-    private var saveButtonColor: Color {
-        if savedAnim { return Color.green }
-        return canSave ? Theme.Colors.primary : Color.white.opacity(0.10)
-    }
+    // MARK: - Toolbar subcomponents
 
-    private var saveTextColor: Color {
-        canSave || savedAnim ? .white : Theme.Glass.mutedText
-    }
-
-    // MARK: - Header subcomponents
-
-    private var currencyPill: some View {
+    private var currencyMenu: some View {
         Menu {
             Picker("Currency", selection: $currency) {
                 ForEach(currencyOptions, id: \.self) { code in
@@ -419,34 +370,9 @@ struct AddFuelView: View {
                     .scaledFont(11, weight: .semibold)
                 Text(currency)
                     .scaledFont(12, weight: .heavy)
-                Image(systemName: "chevron.down")
-                    .scaledFont(9, weight: .heavy)
-                    .opacity(0.6)
             }
-            .foregroundColor(.white)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .background(
-                Capsule().fill(Color.white.opacity(0.10))
-            )
-            .overlay(
-                Capsule().stroke(Color.white.opacity(0.12), lineWidth: 0.5)
-            )
         }
         .accessibilityLabel("Währung")
-    }
-
-    private var closeButton: some View {
-        Button {
-            dismiss()
-        } label: {
-            Image(systemName: "xmark")
-                .scaledFont(12, weight: .bold)
-                .foregroundColor(.white.opacity(0.7))
-                .frame(width: 30, height: 30)
-                .background(Circle().fill(Color.white.opacity(0.12)))
-        }
-        .accessibilityLabel("Schliessen")
     }
 
     // MARK: - Meta-row helpers
@@ -465,16 +391,16 @@ struct AddFuelView: View {
                     if fullTank {
                         Image(systemName: "checkmark")
                             .scaledFont(9, weight: .heavy)
-                            .foregroundColor(.white)
+                            .foregroundStyle(.primary)
                     } else {
                         Circle()
-                            .stroke(Color.white.opacity(0.35), lineWidth: 1.5)
+                            .stroke(Color.primary.opacity(0.35), lineWidth: 1.5)
                             .frame(width: 16, height: 16)
                     }
                 }
                 Text("Voll getankt")
                     .scaledFont(11, weight: .semibold)
-                    .foregroundColor(fullTank ? Color.green : .white)
+                    .foregroundStyle(fullTank ? Color.green : Color.primary)
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 5)
@@ -482,7 +408,7 @@ struct AddFuelView: View {
                 Capsule().fill(
                     fullTank
                         ? Color.green.opacity(0.18)
-                        : Color.white.opacity(0.08)
+                        : Color.primary.opacity(0.08)
                 )
             )
             .overlay(
@@ -512,16 +438,16 @@ struct AddFuelView: View {
                     if isOn.wrappedValue {
                         Image(systemName: "checkmark")
                             .scaledFont(9, weight: .heavy)
-                            .foregroundColor(.white)
+                            .foregroundStyle(.primary)
                     } else {
                         Circle()
-                            .stroke(Color.white.opacity(0.35), lineWidth: 1.5)
+                            .stroke(Color.primary.opacity(0.35), lineWidth: 1.5)
                             .frame(width: 16, height: 16)
                     }
                 }
                 Text(label)
                     .scaledFont(11, weight: .semibold)
-                    .foregroundColor(isOn.wrappedValue ? Color.green : .white)
+                    .foregroundStyle(isOn.wrappedValue ? Color.green : Color.primary)
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 5)
@@ -529,7 +455,7 @@ struct AddFuelView: View {
                 Capsule().fill(
                     isOn.wrappedValue
                         ? Color.green.opacity(0.18)
-                        : Color.white.opacity(0.08)
+                        : Color.primary.opacity(0.08)
                 )
             )
             .overlay(
@@ -554,7 +480,7 @@ struct AddFuelView: View {
                 .scaledFont(11, weight: .heavy)
                 .monospacedDigit()
         }
-        .foregroundColor(color)
+        .foregroundStyle(color)
         .padding(.horizontal, 10)
         .padding(.vertical, 5)
         .background(Capsule().fill(color.opacity(0.18)))
@@ -656,24 +582,23 @@ struct AddFuelView: View {
         HStack(spacing: 10) {
             Image(systemName: "calendar")
                 .scaledFont(14, weight: .semibold)
-                .foregroundColor(Theme.Colors.primary)
+                .foregroundStyle(Theme.Colors.primary)
                 .frame(width: 22)
             Text("DATUM")
                 .scaledFont(9, weight: .heavy)
                 .tracking(1)
-                .foregroundColor(Theme.Glass.mutedText)
+                .foregroundStyle(Theme.Glass.mutedText)
             Spacer(minLength: 0)
             DatePicker("", selection: $date, in: ...Date(), displayedComponents: .date)
                 .labelsHidden()
                 .environment(\.locale, Formatters.displayLocale)
-                .colorScheme(.dark)
                 .tint(Theme.Colors.primary)
         }
         .frame(minHeight: 30)
         .padding(.horizontal, 14)
         .padding(.vertical, 6)
-        .background(RoundedRectangle(cornerRadius: Theme.Glass.fieldRadius).fill(Color.white.opacity(0.05)))
-        .overlay(RoundedRectangle(cornerRadius: Theme.Glass.fieldRadius).stroke(Theme.Glass.border, lineWidth: 0.5))
+        .background(RoundedRectangle(cornerRadius: Theme.Radius.field).fill(Color.primary.opacity(0.05)))
+        .overlay(RoundedRectangle(cornerRadius: Theme.Radius.field).stroke(Theme.Glass.border, lineWidth: 0.5))
         .padding(.horizontal, 14)
         .padding(.top, 8)
         .accessibilityLabel("Datum der Tankung")
@@ -685,15 +610,15 @@ struct AddFuelView: View {
         HStack(spacing: 10) {
             Image(systemName: "fuelpump.fill")
                 .scaledFont(14, weight: .semibold)
-                .foregroundColor(Theme.Colors.primary)
+                .foregroundStyle(Theme.Colors.primary)
                 .frame(width: 22)
             stationContent
         }
         .frame(minHeight: 30)
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
-        .background(RoundedRectangle(cornerRadius: Theme.Glass.fieldRadius).fill(Color.white.opacity(0.05)))
-        .overlay(RoundedRectangle(cornerRadius: Theme.Glass.fieldRadius).stroke(Theme.Glass.border, lineWidth: 0.5))
+        .background(RoundedRectangle(cornerRadius: Theme.Radius.field).fill(Color.primary.opacity(0.05)))
+        .overlay(RoundedRectangle(cornerRadius: Theme.Radius.field).stroke(Theme.Glass.border, lineWidth: 0.5))
         .padding(.horizontal, 14)
         .padding(.top, 8)
     }
@@ -705,55 +630,55 @@ struct AddFuelView: View {
             Button { Task { await detectStation() } } label: {
                 Text("Tankstelle in der Nähe suchen")
                     .scaledFont(13, weight: .semibold)
-                    .foregroundColor(Theme.Colors.primary)
+                    .foregroundStyle(Theme.Colors.primary)
             }
             Spacer(minLength: 0)
         case .detecting:
             ProgressView().controlSize(.small)
             Text("Tankstelle wird gesucht…")
                 .scaledFont(13)
-                .foregroundColor(Theme.Glass.mutedText)
+                .foregroundStyle(Theme.Glass.mutedText)
             Spacer(minLength: 0)
         case .matched:
             VStack(alignment: .leading, spacing: 1) {
                 Text("TANKSTELLE")
                     .scaledFont(9, weight: .heavy).tracking(1)
-                    .foregroundColor(Theme.Glass.mutedText)
+                    .foregroundStyle(Theme.Glass.mutedText)
                 Text(stationName)
                     .scaledFont(14, weight: .semibold)
-                    .foregroundColor(.white).lineLimit(1)
+                    .foregroundStyle(.primary).lineLimit(1)
             }
             Spacer(minLength: 0)
-            Image(systemName: "checkmark.circle.fill").foregroundColor(.green)
+            Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
             Button { clearStation() } label: {
-                Image(systemName: "xmark.circle.fill").foregroundColor(Theme.Glass.mutedText)
+                Image(systemName: "xmark.circle.fill").foregroundStyle(Theme.Glass.mutedText)
             }
         case .suggestCreate:
             VStack(alignment: .leading, spacing: 2) {
                 Text("NEUE TANKSTELLE")
                     .scaledFont(9, weight: .heavy).tracking(1)
-                    .foregroundColor(Theme.Glass.mutedText)
+                    .foregroundStyle(Theme.Glass.mutedText)
                 TextField("Name der Tankstelle", text: $stationName)
                     .scaledFont(14, weight: .semibold)
-                    .foregroundColor(.white)
+                    .foregroundStyle(.primary)
                     .textFieldStyle(.plain)
             }
             Spacer(minLength: 0)
             Button { Task { await createStation() } } label: {
                 Text("Anlegen").scaledFont(13, weight: .heavy)
-                    .foregroundColor(Theme.Colors.primary)
+                    .foregroundStyle(Theme.Colors.primary)
             }
             .disabled(stationName.trimmingCharacters(in: .whitespaces).isEmpty)
         case .denied:
             Text("Standortzugriff verweigert")
-                .scaledFont(13).foregroundColor(Theme.Glass.mutedText)
+                .scaledFont(13).foregroundStyle(Theme.Glass.mutedText)
             Spacer(minLength: 0)
         case .failed:
             Text("Keine Tankstelle gefunden")
-                .scaledFont(13).foregroundColor(Theme.Glass.mutedText)
+                .scaledFont(13).foregroundStyle(Theme.Glass.mutedText)
             Spacer(minLength: 0)
             Button { Task { await detectStation() } } label: {
-                Image(systemName: "arrow.clockwise").foregroundColor(Theme.Colors.primary)
+                Image(systemName: "arrow.clockwise").foregroundStyle(Theme.Colors.primary)
             }
         }
     }
@@ -932,7 +857,7 @@ struct AddFuelView_Previews: PreviewProvider {
             .sheet(isPresented: .constant(true)) {
                 AddFuelView(viewModel: .mock)
                     .presentationDetents([.large])
-                    .presentationCornerRadius(Theme.Glass.sheetRadius)
+                    .presentationCornerRadius(Theme.Radius.sheet)
                     .presentationBackground(.regularMaterial)
             }
     }

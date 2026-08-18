@@ -28,6 +28,7 @@ struct PrintLabelView: View {
     }
 
     var body: some View {
+        NavigationStack {
         ScrollView {
             VStack(alignment: .leading, spacing: Theme.Spacing.l) {
                 previewCard
@@ -39,36 +40,19 @@ struct PrintLabelView: View {
             .padding(Theme.Spacing.l)
             .padding(.bottom, 40)
         }
-        .safeAreaInset(edge: .top, spacing: 0) { header }
-        .background(Color.clear)
+        .navigationTitle("Etikett drucken")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+                Button("Schliessen") { dismiss() }
+            }
+        }
         .task(id: tapeRaw) {
             isRendering = true
             labelImage = await LabelRenderer.renderAsync(content: content, tape: tape)
             isRendering = false
         }
-    }
-
-    // MARK: - Header
-
-    private var header: some View {
-        HStack(alignment: .firstTextBaseline) {
-            Text("Etikett drucken")
-                .scaledFont(17, weight: .bold)
-                .foregroundColor(.white)
-            Spacer(minLength: 8)
-            Button { dismiss() } label: {
-                Image(systemName: "xmark")
-                    .scaledFont(12, weight: .bold)
-                    .foregroundColor(.white.opacity(0.7))
-                    .frame(width: 30, height: 30)
-                    .background(Circle().fill(Color.white.opacity(0.12)))
-            }
-            .accessibilityLabel("Schliessen")
         }
-        .padding(.horizontal, 18)
-        .padding(.top, 14)
-        .padding(.bottom, 10)
-        .glassEffect(.regular, in: Rectangle())
     }
 
     // MARK: - Preview
@@ -92,20 +76,20 @@ struct PrintLabelView: View {
                 } else {
                     Text("Vorschau nicht verfügbar")
                         .scaledFont(13)
-                        .foregroundColor(.black.opacity(0.5))
+                        .foregroundStyle(.black.opacity(0.5))
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 24)
                 }
             }
             .padding(10)
-            .background(RoundedRectangle(cornerRadius: Theme.Glass.fieldRadius).fill(Color.white))
+            .background(RoundedRectangle(cornerRadius: Theme.Radius.field).fill(Color.white))
             .overlay(
-                RoundedRectangle(cornerRadius: Theme.Glass.fieldRadius)
+                RoundedRectangle(cornerRadius: Theme.Radius.field)
                     .stroke(Theme.Glass.border, lineWidth: 0.5)
             )
             Text(content.url)
                 .scaledFont(10, design: .monospaced)
-                .foregroundColor(.white.opacity(0.4))
+                .foregroundStyle(.tertiary)
                 .lineLimit(1)
                 .truncationMode(.middle)
         }
@@ -132,28 +116,26 @@ struct PrintLabelView: View {
                 HStack(spacing: 12) {
                     Image(systemName: "printer.fill")
                         .scaledFont(13, weight: .semibold)
-                        .foregroundColor(.white.opacity(0.75))
+                        .foregroundStyle(.secondary)
                         .frame(width: 30, height: 30)
-                        .background(RoundedRectangle(cornerRadius: 8).fill(Color.white.opacity(0.10)))
+                        .background(RoundedRectangle(cornerRadius: Theme.Radius.badge).fill(Color.primary.opacity(0.08)))
                     TextField("IP-Adresse (z. B. 192.168.1.50)", text: $printerIP)
                         .scaledFont(14, design: .monospaced)
-                        .foregroundColor(.white)
+                        .foregroundStyle(.primary)
                         .keyboardType(.decimalPad)
                         .autocorrectionDisabled()
                 }
                 .padding(.horizontal, 14)
                 .padding(.vertical, 11)
 
-                Divider()
-                    .background(Color.white.opacity(0.06))
-                    .padding(.leading, 56)
+                Divider().padding(.leading, 56)
 
                 Button {
                     search()
                 } label: {
                     HStack(spacing: 8) {
                         if isSearching {
-                            ProgressView().tint(.white).scaleEffect(0.8)
+                            ProgressView().scaleEffect(0.8)
                         } else {
                             Image(systemName: "magnifyingglass")
                                 .scaledFont(12, weight: .bold)
@@ -161,7 +143,7 @@ struct PrintLabelView: View {
                         Text(isSearching ? "Suche läuft…" : "Im Netzwerk suchen")
                             .scaledFont(13, weight: .semibold)
                     }
-                    .foregroundColor(.white.opacity(0.85))
+                    .foregroundStyle(.primary)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 11)
                     .contentShape(Rectangle())
@@ -170,9 +152,7 @@ struct PrintLabelView: View {
                 .disabled(isSearching)
 
                 ForEach(discovered) { printer in
-                    Divider()
-                        .background(Color.white.opacity(0.06))
-                        .padding(.leading, 56)
+                Divider().padding(.leading, 56)
                     Button {
                         printerIP = printer.ipAddress
                     } label: {
@@ -180,16 +160,16 @@ struct PrintLabelView: View {
                             Image(systemName: printerIP == printer.ipAddress
                                   ? "checkmark.circle.fill" : "circle")
                                 .scaledFont(15, weight: .semibold)
-                                .foregroundColor(printerIP == printer.ipAddress
-                                                 ? Theme.Colors.primary : .white.opacity(0.35))
+                                .foregroundStyle(printerIP == printer.ipAddress
+                                                 ? Theme.Colors.primary : Color.secondary.opacity(0.5))
                                 .frame(width: 30)
                             VStack(alignment: .leading, spacing: 1) {
                                 Text(printer.modelName)
                                     .scaledFont(14, weight: .medium)
-                                    .foregroundColor(.white)
+                                    .foregroundStyle(.primary)
                                 Text(printer.ipAddress)
                                     .scaledFont(11, design: .monospaced)
-                                    .foregroundColor(Theme.Glass.mutedText)
+                                    .foregroundStyle(.secondary)
                             }
                             Spacer(minLength: 0)
                         }
@@ -201,22 +181,20 @@ struct PrintLabelView: View {
                 }
 
                 if searchedOnce && !isSearching && discovered.isEmpty {
-                    Divider()
-                        .background(Color.white.opacity(0.06))
-                        .padding(.leading, 56)
+                Divider().padding(.leading, 56)
                     Text("Kein Drucker gefunden. IP-Adresse manuell eingeben (auf dem Gerät: Menü → WLAN-Status).")
                         .scaledFont(11)
-                        .foregroundColor(.white.opacity(0.45))
+                        .foregroundStyle(.tertiary)
                         .padding(.horizontal, 14)
                         .padding(.vertical, 10)
                 }
             }
             .background(
-                RoundedRectangle(cornerRadius: Theme.Glass.fieldRadius)
-                    .fill(Color.white.opacity(0.06))
+                RoundedRectangle(cornerRadius: Theme.Radius.field)
+                    .fill(Color.primary.opacity(0.06))
             )
             .overlay(
-                RoundedRectangle(cornerRadius: Theme.Glass.fieldRadius)
+                RoundedRectangle(cornerRadius: Theme.Radius.field)
                     .stroke(Theme.Glass.hairline, lineWidth: 0.5)
             )
         }
@@ -230,7 +208,7 @@ struct PrintLabelView: View {
         } label: {
             HStack(spacing: 8) {
                 if isPrinting {
-                    ProgressView().tint(.white).scaleEffect(0.8)
+                    ProgressView().scaleEffect(0.8)
                 } else {
                     Image(systemName: "printer.fill")
                         .scaledFont(14, weight: .semibold)
@@ -250,12 +228,12 @@ struct PrintLabelView: View {
         if let successMessage {
             Label(successMessage, systemImage: "checkmark.circle.fill")
                 .scaledFont(13, weight: .semibold)
-                .foregroundColor(.green)
+                .foregroundStyle(.green)
                 .frame(maxWidth: .infinity)
         } else if let errorMessage {
             Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
                 .scaledFont(13, weight: .semibold)
-                .foregroundColor(Theme.Colors.accent)
+                .foregroundStyle(Theme.Colors.accent)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
@@ -264,7 +242,7 @@ struct PrintLabelView: View {
         Text(text)
             .scaledFont(10, weight: .heavy)
             .tracking(1.2)
-            .foregroundColor(Theme.Glass.mutedText)
+            .foregroundStyle(.secondary)
     }
 
     private func search() {

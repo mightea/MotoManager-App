@@ -6,7 +6,7 @@ struct PendingBadge: View {
     var body: some View {
         Image(systemName: "arrow.triangle.2.circlepath")
             .scaledFont(8, weight: .black)
-            .foregroundColor(.white)
+            .foregroundStyle(.white)
             .padding(3)
             .background(Circle().fill(Theme.Colors.primary))
             .overlay(Circle().stroke(Color.black.opacity(0.35), lineWidth: 0.5))

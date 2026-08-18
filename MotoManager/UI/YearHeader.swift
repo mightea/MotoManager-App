@@ -16,7 +16,7 @@ struct YearHeader: View {
                 .scaledFont(11, weight: .heavy)
                 .monospacedDigit()
                 .tracking(1.5)
-                .foregroundColor(.white.opacity(0.45))
+                .foregroundStyle(.secondary)
             Rectangle().fill(Theme.Glass.hairline).frame(height: 0.5)
         }
         .padding(.vertical, 4)
