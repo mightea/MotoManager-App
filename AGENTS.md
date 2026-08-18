@@ -4,7 +4,7 @@ Guidance for AI coding agents working in this repository. Read this before explo
 
 ## Project Summary
 
-**MotoManager** is a SwiftUI iOS app for managing a personal motorcycle fleet — fuel logs and consumption analytics, service/maintenance records, torque specs, and a document vault. It is backed by a self-hosted private API (JWT auth, with passkey/WebAuthn support); the server URL is entered on the login screen.
+**MotoManager** is a SwiftUI iOS app for managing a personal motorcycle fleet — fuel logs and consumption analytics, service/maintenance records, issues, torque specs, a parts inventory, and a document vault. It is backed by the self-hosted Rust/Axum API in `../MotoManagerApi` (opaque bearer session tokens, with passkey/WebAuthn support); the server URL is entered on the login screen (TestFlight builds get a pre-filled default injected from a CI secret).
 
 ## Build & Run
 
@@ -14,21 +14,19 @@ This is a plain Xcode project. **No SPM, CocoaPods, Carthage, or fastlane.** Cur
 |---|---|
 | Scheme | `MotoManager` |
 | Bundle ID | `ltd.herrmann.MotoManager` |
-| Deployment target | iOS 26.4 |
-| Swift version | 5.0 |
+| Deployment target | iOS 26.0 |
+| Swift version | 5.0 language mode; `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor`, approachable concurrency |
 | Project file | `MotoManager.xcodeproj` |
 
 Build:
 ```sh
-xcodebuild -project MotoManager.xcodeproj -scheme MotoManager \
-  -destination 'generic/platform=iOS' build
+env -u LD -u LD_FOR_TARGET xcodebuild -scheme MotoManager \
+  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' build
 ```
 
-Test:
-```sh
-xcodebuild -project MotoManager.xcodeproj -scheme MotoManager \
-  -destination 'platform=iOS Simulator,name=iPhone 16' test
-```
+Test (same destination, `test` instead of `build`). The `env -u LD` wrapper matters — see below.
+
+New `.swift` files under `MotoManager/` are auto-included (Xcode 26 `PBXFileSystemSynchronizedRootGroup`) — no `project.pbxproj` edit needed.
 
 ### Driving the Simulator
 
@@ -43,14 +41,24 @@ env -u LD -u LD_FOR_TARGET xcodebuild build -scheme MotoManager \
 
 Then drive the produced `.app` with `xcrun simctl` (no `env -u LD` needed for these):
 
-1. `xcrun simctl boot` a device (target: **`iPhone 17 Pro`** — iOS 26.5 runtime matches the
-   26.4 deploy target)
+1. `xcrun simctl boot` a device (target: **`iPhone 17 Pro`**)
 2. `xcrun simctl install <device> <DerivedData>/…/MotoManager.app`
 3. `xcrun simctl launch <device> ltd.herrmann.MotoManager`
 4. `xcrun simctl io <device> screenshot out.png` to see the screen; `openurl` for deep links
 
-`idb` is **not** installed; for taps use AppleScript (`System Events`) or CoreGraphics HID
-mouse events, not the `idb_*` tools.
+For taps and swipes, `idb` **is installed** (client via pipx at `~/.local/bin/idb`, companion
+via `brew install facebook/fb/idb-companion` — the tap-qualified name matters). It is
+deterministic where AppleScript/CGEvent hacks are not:
+
+```sh
+idb ui tap   --udid <udid> 158 821                      # coordinates in device POINTS
+idb ui swipe --udid <udid> --duration 0.4 200 700 200 250
+```
+
+Gotchas: without the companion, gesture tools hang ~120s; accessibility-tree queries report
+scroll-content coordinates that shift as you scroll — re-query right before tapping. To
+fabricate data scenarios, run `../MotoManagerApi` on a scratch DB and point the app at it
+via the login screen's Server field — see CLAUDE.md for the recipe.
 
 ## iOS 27 Compatibility — required
 
@@ -90,10 +98,13 @@ MVVM. Source layout under `MotoManager/`:
 MotoManager/
 ├── MotoManagerApp.swift     # @main entry point — minimal
 ├── ContentView.swift        # auth gate + fleet load orchestration
-├── Models/                  # Codable structs
+├── Models/                  # Codable structs (API DTOs)
 ├── ViewModels/              # @MainActor ObservableObjects
 ├── Views/                   # SwiftUI screens
-├── Networking/              # NetworkManager + KeychainHelper
+├── Networking/              # NetworkManager, KeychainHelper, SyncEngine, CacheStore
+├── Persistence/             # SwiftData @Model entities + DTO⇆model mapping
+├── Printing/                # part-label rendering + AirPrint
+├── Scanning/                # odometer OCR + part-label scanning
 └── UI/                      # design tokens + reusable visual primitives
 ```
 
@@ -106,7 +117,7 @@ MotoManager/
 ### Navigation
 
 - Use `NavigationStack` — **never** `NavigationView`. The codebase was recently modernized; do not regress.
-- `Views/MainTabView.swift` is the post-auth root, with 5 tabs: Fuel, Service, Torque, Docs, Settings.
+- `Views/MainTabView.swift` is the post-auth root, with 4 tabs defined by `AppTab` in `UI/GlassTabBar.swift`: Fuel (`Tanken`), Workshop (`Werkstatt`), Service, Parts (`Teile`).
 - `Views/GarageView.swift` opens via `.sheet()` for motorcycle selection.
 - The selected motorcycle ID persists to `UserDefaults` under `com.motomanager.lastSelectedId`.
 
@@ -115,7 +126,7 @@ MotoManager/
 Singleton at `MotoManager/Networking/NetworkManager.swift`.
 
 - **Base URL**: stored in `UserDefaults` under `com.motomanager.baseURL`, entered by the user on the login screen. The build-time default comes from the `MMDefaultBaseURL` Info.plist key (`MM_DEFAULT_BASE_URL` build setting — empty in repo builds, injected from the `DEFAULT_SERVER_URL` CI secret for TestFlight). Always go through `NetworkManager.shared.baseURL` — do not hardcode a URL.
-- **Auth**: JWT bearer token, stored in Keychain via `MotoManager/Networking/KeychainHelper.swift` (service `com.motomanager.auth`, account `jwt-token`). Use `NetworkManager.saveToken(_:)`, `getToken()`, `deleteToken()` — do not touch the Keychain directly from elsewhere.
+- **Auth**: opaque Bearer session token stored server-side (14-day expiry, deleted on logout) — **not a JWT**, despite the legacy `jwt-token` Keychain account name; its expiry cannot be inspected client-side. Stored in Keychain via `MotoManager/Networking/KeychainHelper.swift` (service `com.motomanager.auth`, account `jwt-token`). Use `NetworkManager.saveToken(_:)`, `getToken()`, `deleteToken()` — do not touch the Keychain directly from elsewhere.
 - **401 handling**: `NetworkManager.performRequest` posts `NetworkManager.unauthorizedNotification` (`com.motomanager.unauthorized`) on a 401 response. `AuthViewModel` observes this and clears the session.
 - **Passkey login**: WebAuthn types live in `Models/AuthModels.swift`; `NetworkManager` exposes `fetchPasskeyLoginOptions` / `verifyPasskeyLogin`.
 
@@ -123,18 +134,21 @@ Singleton at `MotoManager/Networking/NetworkManager.swift`.
 
 - Models in `Models/` are Codable structs used as **API DTOs** (decoded by `NetworkManager`).
 - **SwiftData is the on-device source of truth** for the syncable write entities — see `Persistence/`:
-  - `SDMaintenanceRecord`, `SDTorqueSpec`, `SDIssue` (`@Model`), each with sync metadata: `clientId: UUID` (stable identity + server idempotency key), `serverId: Int?`, `syncState`, `serverUpdatedAt`. `description` is spelled `recordDescription` to avoid the `CustomStringConvertible` clash.
-  - `SyncMapping.swift` converts DTO ⇆ `@Model` and builds the camelCase create/update payloads (always including `clientId`).
+  - Per-motorcycle: `SDMaintenanceRecord`, `SDTorqueSpec`, `SDIssue`, `SDMotorcycleDetail` (`SyncModels.swift`). User-scoped (parts inventory): `SDPart`, `SDPartStock`, `SDPartConsumption`, `SDStorageLocation` (`PartsSyncModels.swift`).
+  - Each `@Model` carries sync metadata: `clientId: UUID` (stable identity + server idempotency key), `serverId: Int?`, `syncState`, `serverUpdatedAt`, plus push-failure counters (`syncAttempts`/`lastSyncError`). `description` is spelled `recordDescription` to avoid the `CustomStringConvertible` clash.
+  - `SyncMapping.swift` / `PartsSyncMapping.swift` convert DTO ⇆ `@Model` and build the camelCase create/update payloads (always including `clientId`).
   - `PersistenceController.shared` owns the `ModelContainer`; the VMs and `SyncEngine` share `mainContext`.
-- Motorcycles & documents are **not** in SwiftData yet — still fetched as DTOs and cached via the JSON `CacheStore` (offline reads). Keychain (JWT) and UserDefaults (base URL, last-selected id, sync cursors) are unchanged.
+- Motorcycles & documents are **not** in SwiftData yet — still fetched as DTOs and cached via the JSON `CacheStore` (offline reads). Keychain (session token) and UserDefaults (base URL, last-selected id, sync cursors) are unchanged.
 - `MaintenanceRecord` is polymorphic via a `type` discriminator (`fuel`, `oil`, `tire`, `battery`, `inspection`, …). Maps `type` → `recordType` in `CodingKeys`.
 
 ## Offline-first sync
 
 - **Writes are offline-first**: VM methods (`createFuelRecord`, `createIssue`, `createTorque`, `createMaintenance`, plus update/delete) write to SwiftData with a `pending*` `syncState`, then call `SyncEngine.shared.requestSync`. Deletes are tombstones (`pendingDelete`) until the server confirms.
 - `Networking/SyncEngine.swift` does **push (create→update→delete, keyed by `clientId`) then pull (`?since=` per resource)**, reconciling by `clientId` (fallback `serverId`), last-write-wins (local pending wins). `Networking/ConnectivityMonitor.swift` (`NWPathMonitor`) triggers a flush when connectivity returns; `MotoManagerApp` also flushes on foreground.
+- **Invariant to preserve:** each pull `save()`s the context *before* advancing its sync cursor — never reorder these, or an interrupted pull will skip records permanently.
+- Poisoned records (5 failed pushes) stop retrying and surface as a tappable "retry" on the sync pill.
 - Status is **transparent**: `UI/SyncStatusPill.swift` in the header (offline / syncing / N pending / synced) + `UI/PendingBadge.swift` on unsynced rows.
-- Backend support lives in `MotoManagerApi` migration `011_sync_metadata.sql` (`clientId`/`updatedAt`/`deletedAt` + idempotent creates + soft-delete + `?since`). **Deploy the API before the client relies on it** (the client tolerates missing fields: falls back to `serverId` matching + full fetch).
+- Backend support lives in the `MotoManagerApi` migrations, starting with `011_sync_metadata.sql` (`clientId`/`updatedAt`/`deletedAt` + idempotent creates + soft-delete + `?since`) and extended by the parts/details migrations. **Deploy the API before the client relies on it** (the client tolerates missing fields: falls back to `serverId` matching + full fetch).
 
 ## UI / Visual Style
 
@@ -153,9 +167,9 @@ The app has a deliberate glassmorphic, immersive aesthetic — full-bleed images
 
 ## Tests
 
-- **Framework: Swift Testing** (`import Testing`, `@Test`, `#expect`) — **not XCTest**. New unit tests must follow Swift Testing patterns. See `MotoManagerTests/MotoManagerTests.swift`.
+- **Framework: Swift Testing** (`import Testing`, `@Test`, `#expect`) — **not XCTest**. New unit tests must follow Swift Testing patterns.
 - UI tests in `MotoManagerUITests/` use XCUITest (Apple does not yet provide a Swift Testing alternative for UI tests).
-- Coverage is currently scaffolding-only.
+- Real coverage exists in `MotoManagerTests/` (~70 tests): maintenance logic, sync mapping/cursors, parts inventory, passkey decoding, label links. Extend the matching file when touching those areas.
 
 ## Commit Messages — Conventional Commits (no scope)
 
@@ -183,10 +197,10 @@ fix(networking): handle 401 retry
 - Don't introduce XCTest in `MotoManagerTests/` — use Swift Testing.
 - Don't add CocoaPods / SPM dependencies without discussion. The repo is intentionally dependency-free.
 - Don't hardcode any server URL — read it from `NetworkManager.shared.baseURL`.
-- Don't read or write the JWT directly — go through `NetworkManager`.
+- Don't read or write the session token directly — go through `NetworkManager`.
 - Don't migrate ViewModels to `@Observable` piecemeal — either all or none.
 - Don't give a `@State` property both a declaration default and a `State(initialValue:)` assignment in `init` — iOS 27 discards the init value (see "iOS 27 Compatibility").
 
 ## Recent Direction
 
-Recent commits have focused on: `NavigationStack` migration, immersive headers (`MotorcycleSummaryHeader`), fuel consumption analytics, glass/liquid visual language, and a polished launch sequence (splash + persisted motorcycle selection). New work should extend this direction, not regress it.
+Recent work has focused on: offline-first SwiftData sync (including the parts inventory), the parts/label printing & scanning workflow, fuel-station detection, glass/liquid visual language, and iOS 27 readiness. New work should extend this direction, not regress it.
