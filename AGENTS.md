@@ -52,6 +52,36 @@ Then drive the produced `.app` with `xcrun simctl` (no `env -u LD` needed for th
 `idb` is **not** installed; for taps use AppleScript (`System Events`) or CoreGraphics HID
 mouse events, not the `idb_*` tools.
 
+## iOS 27 Compatibility — required
+
+The app must stay compatible with iOS 27 (audited 2026-08 against the Xcode 27.0 beta; the
+app builds warning-free, all tests pass, and every screen was verified on the iOS 27
+simulator). Any change that touches views or the build must not regress this.
+
+- **The `@State` rule (the one change that actually bit us):** iOS 27's revised `@State`
+  macro **silently discards `_x = State(initialValue:)` assignments made in `init` when the
+  property also has a declaration-site default**. For any `@State` property seeded from
+  `init` (edit sheets prefilled from an existing record), the declaration must have **no
+  default value**, and every `init` path must assign it. Never write both
+  `@State private var x = ""` *and* `_x = State(initialValue:)` — on iOS 27 the form opens
+  with the declaration default instead of the record's data.
+- **Verify against the iOS 27 SDK** for anything non-trivial: Xcode 27 beta lives at
+  `/Applications/Xcode-beta.app` with the iOS 27.0 SDK and simulator runtime. Build/test with:
+
+  ```sh
+  env -u LD -u LD_FOR_TARGET DEVELOPER_DIR=/Applications/Xcode-beta.app \
+    xcodebuild test -scheme MotoManager \
+    -destination 'platform=iOS Simulator,OS=27.0,name=iPhone 17 Pro'
+  ```
+- Already satisfied — don't regress: generated scene manifest + launch screen
+  (`INFOPLIST_KEY_UIApplicationSceneManifest_Generation` / `…UILaunchScreen_Generation`),
+  no `actionSheet` (use `confirmationDialog`), no `UIScreen.main` (use
+  `windowScene.screen`), no SceneKit, no Liquid Glass compatibility opt-out
+  (`UIDesignRequiresCompatibility` is removed in iOS 27 — the app adopted the design
+  natively).
+- iOS 27 also makes iPhone apps live-resizable (iPad large displays, iPhone Mirroring):
+  no hard-coded screen-size assumptions in layout code (decorative fixed frames are fine).
+
 ## Architecture
 
 MVVM. Source layout under `MotoManager/`:
@@ -155,6 +185,7 @@ fix(networking): handle 401 retry
 - Don't hardcode any server URL — read it from `NetworkManager.shared.baseURL`.
 - Don't read or write the JWT directly — go through `NetworkManager`.
 - Don't migrate ViewModels to `@Observable` piecemeal — either all or none.
+- Don't give a `@State` property both a declaration default and a `State(initialValue:)` assignment in `init` — iOS 27 discards the init value (see "iOS 27 Compatibility").
 
 ## Recent Direction
 
