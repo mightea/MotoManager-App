@@ -1,4 +1,3 @@
-import Combine
 import SwiftUI
 
 struct MainTabView: View {
@@ -7,16 +6,11 @@ struct MainTabView: View {
     @EnvironmentObject private var persistenceMonitor: PersistenceMonitor
     @EnvironmentObject private var syncEngine: SyncEngine
     @ObservedObject private var quickActions = QuickActionRouter.shared
-    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var detailVM: MotorcycleDetailViewModel?
     @StateObject private var partsVM = PartsViewModel()
     @State private var activeTab: AppTab = .fuel
     @State private var showingGarage = false
     @State private var showingSettings = false
-    // Regular-width split selections (list + detail side by side). Torn down
-    // with the rest of the per-bike UI via `.id(dVM.motorcycle.id)`.
-    @State private var splitFuelSelection: SDMaintenanceRecord?
-    @State private var splitServiceSelection: SDMaintenanceRecord?
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -91,7 +85,9 @@ struct MainTabView: View {
         let tabs = TabView(selection: $activeTab) {
             ForEach(AppTab.allCases) { tab in
                 Tab(tab.label, systemImage: tab.systemImage, value: tab) {
-                    screen(for: tab, dVM: dVM)
+                    NavigationStack {
+                        screen(for: tab, dVM: dVM)
+                    }
                 }
             }
         }
@@ -123,85 +119,13 @@ struct MainTabView: View {
     private func screen(for tab: AppTab, dVM: MotorcycleDetailViewModel) -> some View {
         switch tab {
         case .fuel:
-            if horizontalSizeClass == .regular {
-                recordSplit(
-                    selection: $splitFuelSelection,
-                    records: dVM.$fuelRecords,
-                    placeholderIcon: "fuelpump",
-                    placeholderText: "Wähle eine Tankung"
-                ) {
-                    FuelListView(viewModel: dVM, externalSelection: $splitFuelSelection)
-                } detail: { record in
-                    FuelDetailView(record: record, viewModel: dVM)
-                }
-            } else {
-                NavigationStack {
-                    FuelListView(viewModel: dVM)
-                }
-            }
+            FuelListView(viewModel: dVM)
         case .workshop:
-            NavigationStack {
-                WorkshopView(viewModel: dVM)
-            }
+            WorkshopView(viewModel: dVM)
         case .service:
-            if horizontalSizeClass == .regular {
-                recordSplit(
-                    selection: $splitServiceSelection,
-                    records: dVM.$serviceRecords,
-                    placeholderIcon: "wrench.and.screwdriver",
-                    placeholderText: "Wähle einen Eintrag"
-                ) {
-                    MaintenanceLogsView(
-                        viewModel: dVM, partsVM: partsVM,
-                        externalSelection: $splitServiceSelection)
-                } detail: { record in
-                    MaintenanceDetailView(record: record, viewModel: dVM, partsVM: partsVM)
-                }
-            } else {
-                NavigationStack {
-                    MaintenanceLogsView(viewModel: dVM, partsVM: partsVM)
-                }
-            }
+            MaintenanceLogsView(viewModel: dVM, partsVM: partsVM)
         case .parts:
-            NavigationStack {
-                PartsView(viewModel: partsVM, detailVM: dVM, motorcycle: dVM.motorcycle)
-            }
-        }
-    }
-
-    /// Regular-width list + detail pair for record-driven tabs. The list stays
-    /// the compact design (the sidebar column is compact-width); the detail
-    /// renders the selection and falls back to a placeholder. Selection is
-    /// cleared when the record vanishes underneath us (local or synced
-    /// delete) — `dismiss()` inside the detail is a no-op at column root.
-    private func recordSplit(
-        selection: Binding<SDMaintenanceRecord?>,
-        records: Published<[SDMaintenanceRecord]>.Publisher,
-        placeholderIcon: String,
-        placeholderText: String,
-        @ViewBuilder list: @escaping () -> some View,
-        @ViewBuilder detail: @escaping (SDMaintenanceRecord) -> some View
-    ) -> some View {
-        NavigationSplitView {
-            list()
-                .navigationSplitViewColumnWidth(min: 360, ideal: 420, max: 480)
-        } detail: {
-            NavigationStack {
-                if let record = selection.wrappedValue {
-                    detail(record)
-                        .id(record.clientId)
-                } else {
-                    DetailColumnPlaceholder(icon: placeholderIcon, text: placeholderText)
-                }
-            }
-            .environment(\.keepsTabBar, true)
-        }
-        .navigationSplitViewStyle(.balanced)
-        .onReceive(records) { current in
-            guard let selected = selection.wrappedValue,
-                  !current.contains(where: { $0.clientId == selected.clientId })
-            else { return }
-            selection.wrappedValue = nil
+            PartsView(viewModel: partsVM, detailVM: dVM, motorcycle: dVM.motorcycle)
         }
     }
 

@@ -8,23 +8,6 @@ struct FuelListView: View {
     @ObservedObject private var quickActions = QuickActionRouter.shared
     @State private var showingAddFuel = false
     @State private var selectedFuelRecord: SDMaintenanceRecord?
-    /// Set by the regular-width split container: row taps write the selection
-    /// here (rendered in the detail column) instead of pushing.
-    var externalSelection: Binding<SDMaintenanceRecord?>? = nil
-
-    private func select(_ record: SDMaintenanceRecord) {
-        if let externalSelection {
-            externalSelection.wrappedValue = record
-        } else {
-            selectedFuelRecord = record
-        }
-    }
-
-    /// Row highlight for the split layout's current selection.
-    private func splitHighlight(for record: SDMaintenanceRecord) -> Color? {
-        guard externalSelection?.wrappedValue?.clientId == record.clientId else { return nil }
-        return Theme.Colors.primary.opacity(0.14)
-    }
 
     /// Backed by SwiftData (offline-first); already filtered to fuel + non-deleted.
     private var fuelRecords: [SDMaintenanceRecord] {
@@ -208,7 +191,7 @@ struct FuelListView: View {
                 Section(section.year) {
                     ForEach(section.records, id: \.clientId) { record in
                         Button {
-                            select(record)
+                            selectedFuelRecord = record
                         } label: {
                             FuelRow(
                                 record: record,
@@ -220,7 +203,6 @@ struct FuelListView: View {
                             )
                         }
                         .buttonStyle(.plain)
-                        .listRowBackground(splitHighlight(for: record))
                         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                             Button(role: .destructive) {
                                 _ = viewModel.deleteFuelRecord(record)

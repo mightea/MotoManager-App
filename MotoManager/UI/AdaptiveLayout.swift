@@ -12,35 +12,6 @@ enum AdaptiveLayout {
     static let formMaxWidth: CGFloat = 560
 }
 
-/// Set on the detail column of a regular-width split layout: detail pages
-/// normally hide the tab bar (phone convention), but inside a split column
-/// that would rip away the iPad top tab strip.
-private struct KeepsTabBarKey: EnvironmentKey {
-    static let defaultValue = false
-}
-
-extension EnvironmentValues {
-    var keepsTabBar: Bool {
-        get { self[KeepsTabBarKey.self] }
-        set { self[KeepsTabBarKey.self] = newValue }
-    }
-}
-
-/// Empty-selection placeholder for the detail column of a split layout.
-struct DetailColumnPlaceholder: View {
-    let icon: String
-    let text: String
-
-    var body: some View {
-        ZStack {
-            Theme.Colors.background.ignoresSafeArea()
-            ContentUnavailableView {
-                Label(text, systemImage: icon)
-            }
-        }
-    }
-}
-
 private struct ContentColumn: ViewModifier {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     let maxWidth: CGFloat
