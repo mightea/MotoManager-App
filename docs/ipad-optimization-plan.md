@@ -1,6 +1,14 @@
 # iPad Optimization Plan
 
-*Status: proposed — 2026-08-20. Verified against the live app on an iPad Pro 13" (M5) simulator with seeded test data (local API), plus a full source survey.*
+*Status: **implemented** (Phases 1–3 plus parts of 4) — 2026-08-20, commits `ef99710` and `e03977f`. Originally proposed the same day after verifying the app on an iPad Pro 13" (M5) simulator with seeded test data (local API) plus a full source survey.*
+
+## Implementation status
+
+- **Phase 1 — done.** `UI/AdaptiveLayout.swift` provides `.contentColumn()` (700 pt, Workshop 860 pt) and `.gridCardChrome()`; `glassSheet()` gained `presentationSizing(.form)`; the hero header and empty-fleet chrome lost their hardcoded status-bar guesses; documents grid is adaptive; all background halos are proportional.
+- **Phase 2 — done, with two items resolved differently.** Fuel got a full `ConsumptionTrendChart` (area fill + y-axis) on regular width; Parts/locations/public render as 2-up card grids (delete via context menu); Workshop is a two-column card dashboard; detail maps/photos grew. 2.4 (garage grid) became unnecessary — the garage sheet is now a form sheet; 2.5 (stat strip) is solved by the content column cap rather than extra tiles.
+- **Phase 3 — done for Fuel and Service.** `NavigationSplitView` on regular width with the compact list as sidebar, selection-driven detail column, selection cleared on local/synced delete, and detail pages keeping the top tab strip via the `keepsTabBar` environment key. **Parts still pushes full-screen** (two detail types — part and storage location — need an enum selection; follow-up).
+- **Phase 4 — partially done.** ⌘N opens the fuel form (4.1, partial). Still open: the AddFuelView hidden-TextField keypad rework for hardware keyboards (4.1), pointer hover polish (4.2), popovers for print-label sheets (4.3), scanner rotation (4.4), multi-window (4.5).
+- Verified on iPad Pro 13" (M5): all four tabs, both split views, form sheets; iPhone 17 Pro re-checked (compact unchanged); full test suite green. Not yet manually verified: iPad Split View/Stage Manager widths and landscape.
 
 ## Current state
 
