@@ -1,0 +1,71 @@
+# Push App Store listing assets (metadata + screenshots) to App Store Connect.
+#
+# Source of truth is the repo: appstore/metadata/<locale>/*.txt and
+# appstore/screenshots/<locale>/<DISPLAY_TYPE>/*.png — see
+# scripts/appstore_assets.py for the exact layout. Screenshots are generated
+# locally with scripts/make-screenshots.sh and committed.
+#
+# Trigger: any push to main touching appstore/** (or the push script), or a
+# manual dispatch. The run is idempotent — unchanged screenshot sets are
+# skipped by checksum, metadata is simply re-applied.
+#
+# Auth reuses the TestFlight workflow's App Manager API key from the
+# "testflight" environment. NOTE: that environment's deployment-branch policy
+# must allow the main branch (Settings → Environments → testflight →
+# Deployment branches and tags → add "main"), otherwise this job is rejected
+# before it starts.
+#
+# Metadata is only editable while a version is in an editable state
+# (Prepare for Submission, rejected, …). With no editable version the run
+# fails with a hint; dispatch with a version input to create one.
+
+name: App Store assets
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "appstore/**"
+      - "scripts/appstore_assets.py"
+      - ".github/workflows/appstore.yml"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version string to target (created if missing), e.g. 1.2.0"
+        required: false
+        type: string
+      dry_run:
+        description: "Log what would change without writing"
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: appstore-assets
+  cancel-in-progress: false
+
+jobs:
+  push_assets:
+    name: Push metadata & screenshots
+    runs-on: ubuntu-latest
+    environment: testflight
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Push to App Store Connect
+        env:
+          ASC_API_KEY_ID: ${{ secrets.ASC_API_KEY_ID }}
+          ASC_API_ISSUER_ID: ${{ secrets.ASC_API_ISSUER_ID }}
+          ASC_API_KEY_P8: ${{ secrets.ASC_API_KEY_P8 }}
+          VERSION: ${{ inputs.version }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          set -euo pipefail
+          pip install --quiet PyJWT cryptography
+          python3 scripts/appstore_assets.py \
+            ${VERSION:+--version "$VERSION"} \
+            $([ "${DRY_RUN:-false}" = "true" ] && echo --dry-run)

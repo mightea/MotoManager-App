@@ -67,6 +67,37 @@ TestFlight; add it to a tester group there. Export compliance is answered
 by `ITSAppUsesNonExemptEncryption=false` in `Supporting/Info.plist`
 (standard HTTPS only).
 
+## App Store listing (metadata & screenshots)
+
+The store listing lives in the repo and is pushed by
+[`.github/workflows/appstore.yml`](.github/workflows/appstore.yml)
+(via `scripts/appstore_assets.py`, authenticated with the same
+`ASC_API_KEY_*` secrets — no signing material involved):
+
+- **Metadata** — `appstore/metadata/de-DE/*.txt` (description, keywords,
+  promo text, name/subtitle, URLs). Edit the files, push to `main`, done.
+  `release_notes.txt` (optional) becomes the version's "What's New".
+- **Screenshots** — `appstore/screenshots/de-DE/<DISPLAY_TYPE>/*.png`,
+  uploaded in filename order, re-uploaded only when checksums change.
+  Regenerate them locally with `scripts/make-screenshots.sh`: it builds the
+  app, seeds a throwaway local API with a demo garage
+  (`scripts/seed-demo-data.py`), drives the login and all four tabs on an
+  iPhone 17 Pro Max and iPad Pro 13-inch simulator via `idb`, and writes
+  pixel-exact PNGs (1320×2868 / 2064×2752). Review the images, commit.
+
+Two one-time settings, both in the browser:
+
+- The `testflight` environment must allow deployments from `main`
+  (Settings → Environments → testflight → Deployment branches and tags),
+  otherwise the workflow is rejected before it starts.
+- App Privacy labels and the age rating are not in the public ASC API and
+  stay manual in App Store Connect.
+
+Metadata is only writable while a version is editable (Prepare for
+Submission / rejected). To start a new version's listing, dispatch the
+workflow manually with the version input — it creates the App Store version
+if needed.
+
 ## Annual chore
 
 The Apple Distribution certificate expires after one year. Re-export a new

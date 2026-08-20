@@ -172,6 +172,16 @@ The app is **native-first with a motorsport accent**, and it **supports light an
 - UI tests in `MotoManagerUITests/` use XCUITest (Apple does not yet provide a Swift Testing alternative for UI tests).
 - Real coverage exists in `MotoManagerTests/` (~70 tests): maintenance logic, sync mapping/cursors, parts inventory, passkey decoding, label links. Extend the matching file when touching those areas.
 
+## App Store listing assets
+
+The store listing (description, keywords, screenshots) is repo-managed and
+pushed to App Store Connect by `.github/workflows/appstore.yml` →
+`scripts/appstore_assets.py`. Metadata: `appstore/metadata/de-DE/*.txt`.
+Screenshots: `appstore/screenshots/de-DE/<DISPLAY_TYPE>/*.png`, regenerated
+locally with `scripts/make-screenshots.sh` (builds the app, seeds a scratch
+API with `scripts/seed-demo-data.py`, drives both simulators via idb) —
+always review the PNGs before committing. Details in RELEASING.md.
+
 ## Commit Messages — Conventional Commits (no scope)
 
 Format: `<type>: <description>` — the optional `(<scope>)` component is **not used** in this repo.

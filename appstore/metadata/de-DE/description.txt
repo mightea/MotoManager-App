@@ -1,0 +1,31 @@
+MotoManager ist das Cockpit für deinen Motorrad-Fuhrpark: Tankbuch mit Verbrauchsanalyse, komplette Wartungshistorie, offene Arbeiten, Drehmomentwerte, Ersatzteillager und Dokumentenablage — für ein Motorrad oder die ganze Sammlung.
+
+TANKBUCH & VERBRAUCH
+• Tankstopps in Sekunden erfassen: Kilometerstand, Liter, Preis
+• Verbrauch und Kosten werden automatisch berechnet
+• Trends und Statistiken pro Motorrad
+• Tankstellen-Erkennung per GPS
+
+SERVICE & WARTUNG
+• Lückenlose Historie: Öl, Reifen, Batterie, Bremsen, Kette und mehr
+• Reifen mit Position, Grösse und DOT-Code
+• Kosten je Motorrad und Kategorie im Blick
+
+WERKSTATT
+• Offene Mängel und anstehende Arbeiten mit Priorität verwalten
+• Drehmomentwerte je Motorrad hinterlegen
+• Reifendrücke immer zur Hand
+
+ERSATZTEILLAGER
+• Teilekatalog mit Beständen und Lagerorten
+• Einbau bucht den Bestand automatisch ab
+• Etikettendruck über Brother-Beschriftungsdrucker
+
+OFFLINE-FIRST
+• Alle Daten liegen lokal auf dem Gerät, synchronisiert wird im Hintergrund
+• Funktioniert auch in der Garage ohne Empfang
+
+DEIN SERVER, DEINE DATEN
+MotoManager verbindet sich mit deinem selbst gehosteten MotoManager-Server. Deine Daten bleiben bei dir — kein Fremd-Konto, kein Tracking, keine Werbung. Anmeldung per Passkey oder Passwort.
+
+Hinweis: Für die Nutzung wird ein eigener MotoManager-Server benötigt; die Adresse wird beim Anmelden eingetragen.

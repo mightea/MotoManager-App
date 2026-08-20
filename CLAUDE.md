@@ -79,6 +79,10 @@ Caveats: the app may briefly show stale cached motorcycles from the previous bac
 
 New `.swift` files under `MotoManager/` are auto-included (Xcode 26 `PBXFileSystemSynchronizedRootGroup`) — no `project.pbxproj` edit needed.
 
+## App Store listing
+
+Repo-managed: metadata in `appstore/metadata/de-DE/`, screenshots in `appstore/screenshots/de-DE/<DISPLAY_TYPE>/`, pushed by `.github/workflows/appstore.yml` (`scripts/appstore_assets.py`). Screenshots are regenerated with `scripts/make-screenshots.sh` (seeded scratch API + idb-driven simulators — review the PNGs before committing). See RELEASING.md → "App Store listing".
+
 ## Conventions
 
 See AGENTS.md for the full list. The load-bearing ones: `NavigationStack` (never `NavigationView`); Swift Testing (never XCTest) in `MotoManagerTests/`; no new dependencies; read the base URL from `NetworkManager.shared.baseURL`; go through `NetworkManager` for the token; don't migrate ViewModels to `@Observable` piecemeal; no `@State` declaration-default + init double-set (iOS 27). Commits: Conventional Commits, no scope.
