@@ -16,6 +16,26 @@ struct MaintenanceLogsView: View {
     @State private var tab: ServiceTab = .maintenance
     @State private var historyFilter: HistoryFilter = .wartung
     @State private var selectedRecord: SDMaintenanceRecord?
+    /// Set by the regular-width split container: row taps write the selection
+    /// here (rendered in the detail column) instead of pushing.
+    var externalSelection: Binding<SDMaintenanceRecord?>? = nil
+
+    /// `MaintenanceGroup.primary` is optional, hence the optional parameter.
+    private func select(_ record: SDMaintenanceRecord?) {
+        guard let record else { return }
+        if let externalSelection {
+            externalSelection.wrappedValue = record
+        } else {
+            selectedRecord = record
+        }
+    }
+
+    /// Row highlight for the split layout's current selection.
+    private func splitHighlight(for record: SDMaintenanceRecord?) -> Color? {
+        guard let record,
+              externalSelection?.wrappedValue?.clientId == record.clientId else { return nil }
+        return Theme.Colors.primary.opacity(0.14)
+    }
     @State private var showingAddIssue = false
     @State private var editingIssue: SDIssue?
     @State private var showingAddMaintenance = false
@@ -315,11 +335,12 @@ struct MaintenanceLogsView: View {
                 Section(section.year) {
                     ForEach(section.groups) { group in
                         Button {
-                            selectedRecord = group.primary
+                            select(group.primary)
                         } label: {
                             MaintenanceGroupRow(group: group, fallbackCurrency: currency)
                         }
                         .buttonStyle(.plain)
+                        .listRowBackground(splitHighlight(for: group.primary))
                     }
                 }
             }

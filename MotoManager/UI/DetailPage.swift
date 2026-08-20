@@ -17,6 +17,7 @@ import SwiftUI
 /// `heroBackground` renders behind the hero (under the accent gradient) —
 /// callers supply their own scrim to keep the text legible.
 struct DetailPage<HeroBackground: View, HeroContent: View, BodyContent: View>: View {
+    @Environment(\.keepsTabBar) private var keepsTabBar
     let accent: Color?
     let eyebrow: String?
     let title: String
@@ -72,7 +73,9 @@ struct DetailPage<HeroBackground: View, HeroContent: View, BodyContent: View>: V
         .contentColumn()
         .background(Theme.Colors.background.ignoresSafeArea())
         .toolbar(.visible, for: .navigationBar)
-        .toolbar(.hidden, for: .tabBar)
+        // Hiding the tab bar is the phone convention; in a split detail
+        // column it would remove the iPad top tab strip instead.
+        .toolbar(keepsTabBar ? .automatic : .hidden, for: .tabBar)
         .navigationTitle(barTitle ?? title)
         .navigationBarTitleDisplayMode(.inline)
     }
