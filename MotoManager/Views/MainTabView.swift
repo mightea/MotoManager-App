@@ -134,22 +134,24 @@ struct MainTabView: View {
     private var emptyFleetStack: some View {
         ZStack(alignment: .bottom) {
             VStack(spacing: 0) {
-                // Compact glass chrome with settings access while the fleet is empty
-                ZStack {
-                    Rectangle()
-                        .fill(Color.clear)
-                        .frame(height: 110)
-                        .glassEffect(.regular, in: Rectangle())
-                    HStack {
-                        Spacer()
-                        glassIconButton(systemImage: "gearshape.fill") {
-                            showingSettings = true
-                        }
-                        .padding(.trailing, Theme.Spacing.m)
-                        .padding(.top, Theme.Spacing.l)
+                // Compact glass chrome with settings access while the fleet is
+                // empty. The bar hugs its content; the glass background bleeds
+                // into the status bar via the safe-area ignore — no hardcoded
+                // status-bar height.
+                HStack {
+                    Spacer()
+                    glassIconButton(systemImage: "gearshape.fill") {
+                        showingSettings = true
                     }
                 }
-                .ignoresSafeArea(edges: .top)
+                .padding(.horizontal, Theme.Spacing.m)
+                .padding(.vertical, Theme.Spacing.s)
+                .background {
+                    Rectangle()
+                        .fill(Color.clear)
+                        .glassEffect(.regular, in: Rectangle())
+                        .ignoresSafeArea(edges: .top)
+                }
 
                 EmptyFleetView(onAdd: { showingGarage = true })
                     .frame(maxWidth: .infinity, maxHeight: .infinity)

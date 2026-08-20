@@ -11,6 +11,7 @@ struct FuelDetailView: View {
     let record: SDMaintenanceRecord
     @ObservedObject var viewModel: MotorcycleDetailViewModel
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var showingEdit = false
     @State private var confirmingDelete = false
     @State private var didAutoDismiss = false
@@ -219,7 +220,9 @@ struct FuelDetailView: View {
                 Marker(stationName ?? "Tankstelle", coordinate: CLLocationCoordinate2D(latitude: lat, longitude: lon))
                     .tint(Theme.Colors.primary)
             }
-            .frame(height: 180)
+            // More map on regular width — 180 pt spanning the full column
+            // reads as a letterbox stripe there.
+            .frame(height: horizontalSizeClass == .regular ? 260 : 180)
             .listRowInsets(EdgeInsets())
 
             Button {

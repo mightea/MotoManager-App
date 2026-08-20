@@ -9,6 +9,7 @@ struct PartsView: View {
     /// The currently selected bike, used for the "Passend für …" filter chip.
     let motorcycle: Motorcycle?
     @Environment(\.chromeActions) private var chrome
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @ObservedObject private var quickActions = QuickActionRouter.shared
 
     enum PartsTab: Hashable { case mine, locations, publicParts }
@@ -85,6 +86,7 @@ struct PartsView: View {
         .listStyle(.insetGrouped)
         .scrollContentBackground(.hidden)
         .ignoresSafeArea(edges: .top)
+        .contentColumn()
         .searchable(
             text: $searchText,
             prompt: tab == .locations ? "Lagerort suchen …" : "Name oder Teilenummer …"
@@ -322,6 +324,25 @@ struct PartsView: View {
 
         if filteredParts.isEmpty {
             emptyStateRow(title: emptyPartsTitle, message: emptyPartsMessage, icon: "shippingbox.fill")
+        } else if horizontalSizeClass == .regular {
+            // Two-up card grid on iPad; delete moves from swipe to the
+            // context menu (the iPad idiom — grid cells don't swipe).
+            cardGrid(filteredParts, id: \.clientId) { part in
+                Button {
+                    selectedPart = part
+                } label: {
+                    PartCard(part: part, onHand: viewModel.onHand(for: part), viewModel: viewModel)
+                        .gridCardChrome()
+                }
+                .buttonStyle(.plain)
+                .contextMenu {
+                    Button(role: .destructive) {
+                        _ = viewModel.deletePart(part)
+                    } label: {
+                        Label("Löschen", systemImage: "trash")
+                    }
+                }
+            }
         } else {
             ForEach(filteredParts, id: \.clientId) { part in
                 Button {
@@ -340,6 +361,22 @@ struct PartsView: View {
                 }
             }
         }
+    }
+
+    /// Full-bleed list row hosting a 2-up adaptive card grid — the regular-
+    /// width replacement for the single-column rows.
+    private func cardGrid<Data: RandomAccessCollection, ID: Hashable>(
+        _ data: Data, id: KeyPath<Data.Element, ID>,
+        @ViewBuilder cell: @escaping (Data.Element) -> some View
+    ) -> some View {
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 290), spacing: 12)], spacing: 12) {
+            ForEach(data, id: id) { element in
+                cell(element)
+            }
+        }
+        .listRowInsets(EdgeInsets())
+        .listRowBackground(Color.clear)
+        .listRowSeparator(.hidden)
     }
 
     // MARK: - Storage locations
@@ -369,6 +406,21 @@ struct PartsView: View {
                     : "Kein Lagerort passt zur Suche.",
                 icon: "archivebox.fill"
             )
+        } else if horizontalSizeClass == .regular {
+            cardGrid(filteredLocations, id: \.clientId) { location in
+                Button {
+                    selectedLocation = location
+                } label: {
+                    StorageLocationCard(
+                        location: location,
+                        parentPath: viewModel.locationParentPath(location),
+                        directCount: viewModel.stockedParts(at: location).count,
+                        totalCount: viewModel.totalStockedPartCount(at: location)
+                    )
+                    .gridCardChrome()
+                }
+                .buttonStyle(.plain)
+            }
         } else {
             ForEach(filteredLocations, id: \.clientId) { location in
                 Button {
@@ -413,6 +465,11 @@ struct PartsView: View {
                 message: "Andere Nutzer haben noch keine passenden Teile geteilt.",
                 icon: "shippingbox"
             )
+        } else if horizontalSizeClass == .regular {
+            cardGrid(viewModel.publicParts, id: \.id) { part in
+                PublicPartCard(part: part, viewModel: viewModel)
+                    .gridCardChrome()
+            }
         } else {
             ForEach(viewModel.publicParts) { part in
                 PublicPartCard(part: part, viewModel: viewModel)

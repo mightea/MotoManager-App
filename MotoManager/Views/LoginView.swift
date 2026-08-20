@@ -54,6 +54,9 @@ struct LoginView: View {
                     brandBlock
                     form
                 }
+                // Readable form column on iPad — the hero photo stays
+                // full-bleed, only brand block + form are capped.
+                .frame(maxWidth: AdaptiveLayout.formMaxWidth)
                 .frame(maxWidth: .infinity, minHeight: geometry.size.height)
             }
             .scrollDismissesKeyboard(.interactively)
@@ -100,17 +103,24 @@ struct LoginView: View {
     }
 
     private var brandHalos: some View {
-        ZStack {
-            Circle()
-                .fill(Theme.Colors.primary.opacity(0.25))
-                .frame(width: 280, height: 280)
-                .blur(radius: 80)
-                .offset(x: -120, y: -240)
-            Circle()
-                .fill(Theme.Colors.accent.opacity(0.18))
-                .frame(width: 280, height: 280)
-                .blur(radius: 80)
-                .offset(x: 140, y: 200)
+        // Proportional placement + size so the halos frame the content on any
+        // canvas instead of clustering at phone-tuned pixel offsets.
+        GeometryReader { proxy in
+            let w = proxy.size.width
+            let h = proxy.size.height
+            let size = max(280, min(w, h) * 0.5)
+            ZStack {
+                Circle()
+                    .fill(Theme.Colors.primary.opacity(0.25))
+                    .frame(width: size, height: size)
+                    .blur(radius: 80)
+                    .position(x: w * 0.2, y: h * 0.22)
+                Circle()
+                    .fill(Theme.Colors.accent.opacity(0.18))
+                    .frame(width: size, height: size)
+                    .blur(radius: 80)
+                    .position(x: w * 0.85, y: h * 0.72)
+            }
         }
         .ignoresSafeArea()
         .allowsHitTesting(false)

@@ -146,6 +146,7 @@ struct MaintenanceLogsView: View {
         .listStyle(.insetGrouped)
         .scrollContentBackground(.hidden)
         .ignoresSafeArea(edges: .top)
+        .contentColumn()
         .refreshable {
             await viewModel.reconnect()
         }

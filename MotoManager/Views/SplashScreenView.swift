@@ -67,20 +67,23 @@ struct SplashScreenView: View {
         GeometryReader { proxy in
             let w = proxy.size.width
             let h = proxy.size.height
+            // Scale the blobs with the canvas so they still fill an iPad
+            // screen; offsets were already proportional.
+            let size = max(360, min(w, h) * 0.55)
             ZStack {
                 Circle()
                     .fill(dakarBlue.opacity(0.30))
-                    .frame(width: 360, height: 360)
+                    .frame(width: size, height: size)
                     .blur(radius: 80)
                     .offset(x: -w * 0.40, y: -h * 0.30)
                 Circle()
                     .fill(dakarVerm.opacity(0.22))
-                    .frame(width: 360, height: 360)
+                    .frame(width: size, height: size)
                     .blur(radius: 80)
                     .offset(x: w * 0.40, y: h * 0.30)
                 Circle()
                     .fill(dakarPlum.opacity(0.45))
-                    .frame(width: 280, height: 280)
+                    .frame(width: size * 0.78, height: size * 0.78)
                     .blur(radius: 70)
                     .offset(x: 0, y: -h * 0.10)
             }

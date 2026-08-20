@@ -4,6 +4,7 @@ import SwiftUI
 /// entries ("Bestand") and the consumption history ("Verbrauch"), with
 /// add-affordances for both. All writes are offline-first via PartsViewModel.
 struct PartDetailView: View {
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     let part: SDPart
     @ObservedObject var viewModel: PartsViewModel
     @Environment(\.dismiss) private var dismiss
@@ -142,7 +143,9 @@ struct PartDetailView: View {
             if let imageURL = part.image {
                 RemoteImageView(url: imageURL, maxPixelWidth: 800)
                     .frame(maxWidth: .infinity)
-                    .frame(height: 160)
+                    // Taller photo on regular width — the wide column turns
+                    // 160 pt into an extreme crop.
+                    .frame(height: horizontalSizeClass == .regular ? 240 : 160)
                     .listRowInsets(EdgeInsets())
             }
             HStack(spacing: 8) {
