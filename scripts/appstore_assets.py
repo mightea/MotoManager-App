@@ -16,7 +16,7 @@ Source of truth is the repo:
 
     appstore/screenshots/<locale>/<DISPLAY_TYPE>/*.png
         DISPLAY_TYPE is the raw App Store Connect enum value, e.g.
-        APP_IPHONE_67 (top iPhone slot, 1260x2736 — 1320x2868 is REJECTED) or
+        APP_IPHONE_69 (6.9" slot, 1260x2736) or
         APP_IPAD_PRO_3GEN_129 (13" iPad, 2064x2752).
         Files are uploaded in sorted filename order (01-..., 02-..., ...).
 
