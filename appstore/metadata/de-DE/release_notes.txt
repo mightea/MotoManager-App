@@ -1,0 +1,1 @@
+Erste Version von MotoManager: Tankbuch mit Verbrauchsanalyse, Wartungshistorie, Werkstatt mit Mängeln und Drehmomentwerten, Ersatzteillager und Dokumentenablage.
