@@ -82,8 +82,8 @@ The store listing lives in the repo and is pushed by
   Regenerate them locally with `scripts/make-screenshots.sh`: it builds the
   app, seeds a throwaway local API with a demo garage
   (`scripts/seed-demo-data.py`), drives the login and all four tabs on an
-  iPhone 17 Pro Max and iPad Pro 13-inch simulator via `idb`, and writes
-  pixel-exact PNGs (1320×2868 / 2064×2752). Review the images, commit.
+  iPhone Air and iPad Pro 13-inch simulator via `idb`, and writes
+  pixel-exact PNGs (1260×2736 / 2064×2752). Review the images, commit.
 
 Two one-time settings, both in the browser:
 

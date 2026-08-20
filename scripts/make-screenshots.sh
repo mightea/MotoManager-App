@@ -1,13 +1,14 @@
 #!/bin/zsh
 # Generate the App Store screenshots in appstore/screenshots/de-DE/ from a
 # seeded local API — deterministic demo data, clean 9:41 status bar, exact
-# App Store pixel sizes (iPhone 6.9" 1320x2868, iPad 13" 2064x2752).
+# App Store pixel sizes (iPhone 1260x2736, iPad 13" 2064x2752 — per Apple's
+# current screenshot spec; both verified accepted by the ASC API).
 #
 # What it does:
 #   1. builds the app for the simulator (skip with --skip-build)
 #   2. starts ../MotoManagerApi on a throwaway SQLite DB (port 3010) and
 #      seeds it via scripts/seed-demo-data.py
-#   3. per device (iPhone 17 Pro Max, iPad Pro 13-inch): fresh-installs the
+#   3. per device (iPhone Air, iPad Pro 13-inch): fresh-installs the
 #      app, drives the login form and tab navigation with idb, captures the
 #      five listing screenshots
 #
@@ -32,7 +33,7 @@ SERVER_URL="http://localhost:$PORT"
 BUNDLE_ID="ltd.herrmann.MotoManager"
 WORK="$(mktemp -d /tmp/mm-screenshots.XXXXXX)"
 
-IPHONE_NAME="iPhone 17 Pro Max"
+IPHONE_NAME="iPhone Air"   # 420x912 pt @3x = 1260x2736 px, the required size
 IPAD_NAME="iPad Pro 13-inch (M5)"
 
 cleanup() {
@@ -102,25 +103,26 @@ boot_device() {
   sleep 4
 }
 
-# --- 3a. iPhone 6.9" ---------------------------------------------------------
-# Point geometry 440x956. Login fields at x=220: server y=544, user y=612,
-# password y=679, Anmelden y=736. "Not Now" (178,587). Tab bar y=920:
-# Tanken 62, Werkstatt 171, Service 270, Teile 361. Mängel segment (118,319).
+# --- 3a. iPhone --------------------------------------------------------------
+# Point geometry 420x912 (iPhone Air). Login fields: server y=500, user
+# y=558 (tap at x=210 — a right-edge tap does not move focus here),
+# password y=625, Anmelden y=691. "Not Now" (126,580). Tab bar y=874:
+# Tanken 74, Werkstatt 156, Service 256, Teile 347. Mängel segment (112,320).
 echo "==> iPhone ($IPHONE_NAME)"
-DISPLAY_TYPE="APP_IPHONE_67"   # the 6.7" slot also takes 6.9" (1320x2868)
+DISPLAY_TYPE="APP_IPHONE_67"   # top iPhone slot; accepts 1260x2736
 mkdir -p "$OUT/$DISPLAY_TYPE"
 boot_device "$IPHONE_NAME"
-clear_field 390 544; type_ "$SERVER_URL"
-clear_field 390 612; type_ "demo"
-tap 200 679 0.8;     type_ "demo-pass-123"
-tap 220 736 4                      # Anmelden
-tap 178 587 1.5                    # Save Password? -> Not Now (blind)
-tap 62 920                         # normalize: pop Tanken to root
+clear_field 380 500; type_ "$SERVER_URL"
+tap 210 558 0.8;     type_ "demo"
+tap 200 625 0.8;     type_ "demo-pass-123"
+tap 210 691 4                      # Anmelden
+tap 126 580 1.5                    # Save Password? -> Not Now (blind)
+tap 74 874                         # normalize: pop Tanken to root
 shot 01-tanken
-tap 171 920 2.5;  shot 02-werkstatt
-tap 270 920 2.5;  shot 03-service
-tap 118 319 2;    shot 04-maengel  # Mängel segment
-tap 361 920 2.5;  shot 05-teile
+tap 156 874 2.5;  shot 02-werkstatt
+tap 256 874 2.5;  shot 03-service
+tap 112 320 2;    shot 04-maengel  # Mängel segment
+tap 347 874 2.5;  shot 05-teile
 
 # --- 3b. iPad 13" ------------------------------------------------------------
 # Point geometry 1032x1376 portrait. Login fields at x=515: server y=969,
