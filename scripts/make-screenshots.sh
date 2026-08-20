@@ -109,7 +109,7 @@ boot_device() {
 # password y=625, Anmelden y=691. "Not Now" (126,580). Tab bar y=874:
 # Tanken 74, Werkstatt 156, Service 256, Teile 347. Mängel segment (112,320).
 echo "==> iPhone ($IPHONE_NAME)"
-DISPLAY_TYPE="APP_IPHONE_69"   # 6.9" slot; accepts 1260x2736
+DISPLAY_TYPE="APP_IPHONE_67"   # top iPhone slot; takes all 6.9" sizes
 mkdir -p "$OUT/$DISPLAY_TYPE"
 boot_device "$IPHONE_NAME"
 clear_field 380 500; type_ "$SERVER_URL"

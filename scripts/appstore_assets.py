@@ -16,7 +16,7 @@ Source of truth is the repo:
 
     appstore/screenshots/<locale>/<DISPLAY_TYPE>/*.png
         DISPLAY_TYPE is the raw App Store Connect enum value, e.g.
-        APP_IPHONE_69 (6.9" slot, 1260x2736) or
+        APP_IPHONE_67 (top iPhone slot — takes all 6.9" sizes) or
         APP_IPAD_PRO_3GEN_129 (13" iPad, 2064x2752).
         Files are uploaded in sorted filename order (01-..., 02-..., ...).
 
@@ -255,13 +255,12 @@ def upload_binary(client, upload_operations, data):
             resp.read()
 
 
-def push_screenshot_set(client, loc_id, display_type, files, dry_run):
+def push_screenshot_set(client, loc_id, display_type, shot_set, files, dry_run):
+    # NOTE: shot_set is matched by the caller on the attribute, never via a
+    # filter query — ASC silently ignores unsupported filter params on the
+    # localization relationship, which once routed iPhone uploads into the
+    # iPad set (IMAGE_INCORRECT_DIMENSIONS on perfectly valid files).
     local = [(f.name, hashlib.md5(f.read_bytes()).hexdigest()) for f in files]
-
-    sets = client.call(
-        "GET", f"/v1/appStoreVersionLocalizations/{loc_id}/appScreenshotSets"
-        f"?filter[screenshotDisplayType]={display_type}")["data"]
-    shot_set = sets[0] if sets else None
 
     if shot_set:
         remote_shots = client.paged(
@@ -283,6 +282,9 @@ def push_screenshot_set(client, loc_id, display_type, files, dry_run):
                          "data": {"type": "appStoreVersionLocalizations",
                                   "id": loc_id}}}}})["data"]
         remote_shots = []
+        log(f"    {display_type}: created set")
+    else:
+        log(f"    {display_type}: replacing {len(remote_shots)} screenshots")
 
     for shot in remote_shots:
         client.call("DELETE", f"/v1/appScreenshots/{shot['id']}")
@@ -348,19 +350,23 @@ def push_screenshots(client, version, screenshots_dir, dry_run):
         remote_sets = client.call(
             "GET",
             f"/v1/appStoreVersionLocalizations/{loc_id}/appScreenshotSets")["data"]
+        set_by_type = {}
         wanted = {d.name for d in type_dirs}
         for s in remote_sets:
             dtype = s["attributes"]["screenshotDisplayType"]
-            if dtype not in wanted:
-                if dry_run:
-                    log(f"    [dry-run] {dtype}: would delete stale set")
-                else:
-                    client.call("DELETE", f"/v1/appScreenshotSets/{s['id']}")
-                    log(f"    {dtype}: deleted stale set")
+            if dtype in wanted:
+                set_by_type[dtype] = s
+            elif dry_run:
+                log(f"    [dry-run] {dtype}: would delete stale set")
+            else:
+                client.call("DELETE", f"/v1/appScreenshotSets/{s['id']}")
+                log(f"    {dtype}: deleted stale set")
         for type_dir in type_dirs:
             files = sorted(type_dir.glob("*.png")) + sorted(type_dir.glob("*.jpg"))
             if files:
-                push_screenshot_set(client, loc_id, type_dir.name, files, dry_run)
+                push_screenshot_set(client, loc_id, type_dir.name,
+                                    set_by_type.get(type_dir.name), files,
+                                    dry_run)
 
 
 # --- main ---------------------------------------------------------------------
