@@ -16,7 +16,7 @@ Source of truth is the repo:
 
     appstore/screenshots/<locale>/<DISPLAY_TYPE>/*.png
         DISPLAY_TYPE is the raw App Store Connect enum value, e.g.
-        APP_IPHONE_69 (6.9" iPhone, 1320x2868) or
+        APP_IPHONE_67 (6.7"/6.9" iPhone, 1290x2796 or 1320x2868) or
         APP_IPAD_PRO_3GEN_129 (13" iPad, 2064x2752).
         Files are uploaded in sorted filename order (01-..., 02-..., ...).
 
@@ -340,11 +340,27 @@ def push_screenshots(client, version, screenshots_dir, dry_run):
             log(f"  {locale}: no version localization — push metadata first")
             continue
         log(f"  {locale}:")
-        for type_dir in sorted(p for p in locale_dir.iterdir() if p.is_dir()):
+        loc_id = loc_by_locale[locale]["id"]
+        type_dirs = sorted(p for p in locale_dir.iterdir() if p.is_dir())
+        # The repo is the source of truth for managed locales: drop remote
+        # sets whose display type has no local directory (e.g. leftovers from
+        # a renamed slot).
+        remote_sets = client.call(
+            "GET",
+            f"/v1/appStoreVersionLocalizations/{loc_id}/appScreenshotSets")["data"]
+        wanted = {d.name for d in type_dirs}
+        for s in remote_sets:
+            dtype = s["attributes"]["screenshotDisplayType"]
+            if dtype not in wanted:
+                if dry_run:
+                    log(f"    [dry-run] {dtype}: would delete stale set")
+                else:
+                    client.call("DELETE", f"/v1/appScreenshotSets/{s['id']}")
+                    log(f"    {dtype}: deleted stale set")
+        for type_dir in type_dirs:
             files = sorted(type_dir.glob("*.png")) + sorted(type_dir.glob("*.jpg"))
             if files:
-                push_screenshot_set(client, loc_by_locale[locale]["id"],
-                                    type_dir.name, files, dry_run)
+                push_screenshot_set(client, loc_id, type_dir.name, files, dry_run)
 
 
 # --- main ---------------------------------------------------------------------
