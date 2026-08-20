@@ -69,7 +69,6 @@ struct DetailPage<HeroBackground: View, HeroContent: View, BodyContent: View>: V
         }
         .listStyle(.insetGrouped)
         .scrollContentBackground(.hidden)
-        .contentColumn()
         .background(Theme.Colors.background.ignoresSafeArea())
         .toolbar(.visible, for: .navigationBar)
         .toolbar(.hidden, for: .tabBar)

@@ -37,17 +37,11 @@ struct MotorcycleSummaryHeader: View {
     var bottomExtension: CGFloat = 0
 
     @Environment(\.chromeActions) private var chrome
-    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     /// Scales with Dynamic Type so the two-line name + meta line never get
     /// clipped out of a fixed box at accessibility sizes.
     @ScaledMetric(relativeTo: .title) private var contentHeight: CGFloat = 180
     private var totalHeight: CGFloat { contentHeight + bottomExtension }
-
-    /// The header sits in a list that ignores the top safe area, so the row
-    /// can't read the inset itself. 54 matches the iPhone status bar +
-    /// notch; iPad status bars are much shallower.
-    private var topChromeInset: CGFloat { horizontalSizeClass == .regular ? 30 : 54 }
 
     var body: some View {
         ZStack(alignment: .topLeading) {
@@ -59,7 +53,7 @@ struct MotorcycleSummaryHeader: View {
                 bikeBlock
             }
             .padding(.horizontal, 14)
-            .padding(.top, topChromeInset)
+            .padding(.top, 54)
             .padding(.bottom, 14)
             // Keep the content in the top region; the extension below is pure image.
             .frame(height: contentHeight, alignment: .bottom)

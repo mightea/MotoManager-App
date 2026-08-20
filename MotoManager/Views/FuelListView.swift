@@ -4,7 +4,6 @@ import Charts
 struct FuelListView: View {
     @ObservedObject var viewModel: MotorcycleDetailViewModel
     @Environment(\.chromeActions) private var chrome
-    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @ObservedObject private var quickActions = QuickActionRouter.shared
     @State private var showingAddFuel = false
     @State private var selectedFuelRecord: SDMaintenanceRecord?
@@ -113,13 +112,7 @@ struct FuelListView: View {
 
             if trendValues.count >= 3 {
                 Section {
-                    // The regular-width layout has room for a real chart; the
-                    // compact row keeps its sparkline.
-                    if horizontalSizeClass == .regular {
-                        ConsumptionTrendChart(values: trendValues, average: averageConsumption)
-                    } else {
-                        ConsumptionTrendRow(values: trendValues, average: averageConsumption)
-                    }
+                    ConsumptionTrendRow(values: trendValues, average: averageConsumption)
                 }
             }
 
@@ -128,7 +121,6 @@ struct FuelListView: View {
         .listStyle(.insetGrouped)
         .scrollContentBackground(.hidden)
         .ignoresSafeArea(edges: .top)
-        .contentColumn()
         .refreshable {
             await viewModel.reconnect()
         }
@@ -137,10 +129,6 @@ struct FuelListView: View {
                 Button("Neue Tankung erfassen", systemImage: "plus") {
                     showingAddFuel = true
                 }
-                // Hardware-keyboard path on iPad; only this tab claims ⌘N
-                // (mirrors the app shortcut, and duplicate claims across
-                // tabs would collide).
-                .keyboardShortcut("n", modifiers: .command)
             }
             ToolbarSpacer(.fixed, placement: .topBarTrailing)
             ToolbarItem(placement: .topBarTrailing) {
@@ -457,114 +445,6 @@ struct ConsumptionTrendRow: View {
 
     /// Pad the value range so the line never kisses the frame edges, and keep
     /// the reference line inside the plot.
-    private var yDomain: ClosedRange<Double> {
-        let lo = min(values.min() ?? 0, average > 0 ? average : .greatestFiniteMagnitude)
-        let hi = max(values.max() ?? 1, average > 0 ? average : -.greatestFiniteMagnitude)
-        let pad = max((hi - lo) * 0.15, 0.1)
-        return (lo - pad)...(hi + pad)
-    }
-
-    private var accessibilityText: String {
-        guard let last = values.last else { return "Verbrauchstrend" }
-        return "Verbrauchstrend der letzten \(values.count) Tankungen, "
-            + "zuletzt \(String(format: "%.1f", last)) Liter pro 100 Kilometer, "
-            + "Durchschnitt \(String(format: "%.1f", average))"
-    }
-}
-
-/// Full-size variant of the consumption trend for regular-width layouts:
-/// same data and reference line as `ConsumptionTrendRow`, but with room for
-/// an area fill and a labeled y-axis.
-struct ConsumptionTrendChart: View {
-    /// Consumption values, oldest→newest.
-    let values: [Double]
-    let average: Double
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .firstTextBaseline) {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("Verbrauchstrend".uppercased())
-                        .scaledFont(9, weight: .heavy)
-                        .tracking(1.2)
-                        .foregroundStyle(.secondary)
-                    Text("Letzte \(values.count) Tankungen")
-                        .scaledFont(11, weight: .medium)
-                        .foregroundStyle(.secondary)
-                }
-                Spacer()
-                if average > 0 {
-                    HStack(alignment: .firstTextBaseline, spacing: 3) {
-                        Text("Ø")
-                            .scaledFont(11, weight: .semibold)
-                            .foregroundStyle(.secondary)
-                        Text(String(format: "%.1f", average))
-                            .scaledFont(15, weight: .bold)
-                            .monospacedDigit()
-                            .foregroundStyle(Theme.Colors.primary)
-                        Text("L/100km")
-                            .scaledFont(9, weight: .semibold)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-            }
-
-            chart
-                .frame(height: 150)
-        }
-        .padding(.vertical, 6)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(accessibilityText)
-    }
-
-    private var chart: some View {
-        Chart {
-            if average > 0 {
-                RuleMark(y: .value("Durchschnitt", average))
-                    .lineStyle(StrokeStyle(lineWidth: 1, dash: [3, 3]))
-                    .foregroundStyle(.tertiary)
-            }
-            ForEach(Array(values.enumerated()), id: \.offset) { index, value in
-                AreaMark(
-                    x: .value("Tankung", index),
-                    y: .value("Verbrauch", value)
-                )
-                .foregroundStyle(
-                    LinearGradient(
-                        colors: [Theme.Colors.primary.opacity(0.22), Theme.Colors.primary.opacity(0.02)],
-                        startPoint: .top, endPoint: .bottom
-                    )
-                )
-                LineMark(
-                    x: .value("Tankung", index),
-                    y: .value("Verbrauch", value)
-                )
-                .lineStyle(StrokeStyle(lineWidth: 2.5, lineCap: .round, lineJoin: .round))
-                .foregroundStyle(Theme.Colors.primary)
-            }
-            if let last = values.last {
-                PointMark(
-                    x: .value("Tankung", values.count - 1),
-                    y: .value("Verbrauch", last)
-                )
-                .symbolSize(48)
-                .foregroundStyle(Theme.Colors.primary)
-            }
-        }
-        .chartXAxis(.hidden)
-        .chartYAxis {
-            AxisMarks(position: .trailing) { _ in
-                AxisGridLine().foregroundStyle(.quaternary)
-                AxisValueLabel()
-                    .font(.system(size: 9, weight: .medium))
-                    .foregroundStyle(.secondary)
-            }
-        }
-        .chartYScale(domain: yDomain)
-        .chartLegend(.hidden)
-    }
-
-    /// Same padding rule as the compact sparkline so both variants agree.
     private var yDomain: ClosedRange<Double> {
         let lo = min(values.min() ?? 0, average > 0 ? average : .greatestFiniteMagnitude)
         let hi = max(values.max() ?? 1, average > 0 ? average : -.greatestFiniteMagnitude)

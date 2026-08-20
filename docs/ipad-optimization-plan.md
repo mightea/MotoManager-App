@@ -1,8 +1,8 @@
 # iPad Optimization Plan
 
-*Status: **implemented** (Phases 1–2 plus parts of 4; Phase 3 built and then removed by decision) — 2026-08-20, commits `ef99710`, `e03977f`, `420ccd6`. Originally proposed the same day after verifying the app on an iPad Pro 13" (M5) simulator with seeded test data (local API) plus a full source survey.*
+*Status: **reverted** except the login screen — 2026-08-20. After the split-layout removal (`420ccd6`), the remaining iPad adaptations from `ef99710` (content columns, card grids, workshop dashboard, form sheets, proportional halos) were also removed by decision. What survives: the login form's 560 pt width cap (`AdaptiveLayout.formMaxWidth`). Don't reintroduce iPad-specific layout on the app screens without an explicit go-ahead. The history below is kept for reference.*
 
-## Implementation status
+## Implementation status (historical — since reverted)
 
 - **Phase 1 — done.** `UI/AdaptiveLayout.swift` provides `.contentColumn()` (700 pt, Workshop 860 pt) and `.gridCardChrome()`; `glassSheet()` gained `presentationSizing(.form)`; the hero header and empty-fleet chrome lost their hardcoded status-bar guesses; documents grid is adaptive; all background halos are proportional.
 - **Phase 2 — done, with two items resolved differently.** Fuel got a full `ConsumptionTrendChart` (area fill + y-axis) on regular width; Parts/locations/public render as 2-up card grids (delete via context menu); Workshop is a two-column card dashboard; detail maps/photos grew. 2.4 (garage grid) became unnecessary — the garage sheet is now a form sheet; 2.5 (stat strip) is solved by the content column cap rather than extra tiles.

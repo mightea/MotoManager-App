@@ -13,37 +13,29 @@ struct LiquidBackgroundView: View {
     private var haloStrength: Double { colorScheme == .dark ? 1.0 : 0.35 }
 
     var body: some View {
-        // Proportional halo placement/size so the blobs spread across any
-        // canvas (iPad, Split View) instead of clustering at phone-tuned
-        // pixel offsets.
-        GeometryReader { proxy in
-            let w = proxy.size.width
-            let h = proxy.size.height
-            let size = max(320, min(w, h) * 0.6)
-            ZStack {
-                Theme.Colors.background.ignoresSafeArea()
+        ZStack {
+            Theme.Colors.background.ignoresSafeArea()
 
-                // Blue halo — top-left
-                Circle()
-                    .fill(Theme.Colors.primary.opacity(0.25 * haloStrength))
-                    .frame(width: size, height: size)
-                    .blur(radius: 90)
-                    .position(x: w * 0.2, y: h * 0.14)
+            // Blue halo — top-left
+            Circle()
+                .fill(Theme.Colors.primary.opacity(0.25 * haloStrength))
+                .frame(width: 360, height: 360)
+                .blur(radius: 90)
+                .offset(x: -120, y: -260)
 
-                // Violet halo — middle-right
-                Circle()
-                    .fill(Theme.Colors.primaryDark.opacity(0.45 * haloStrength))
-                    .frame(width: size * 1.05, height: size * 1.05)
-                    .blur(radius: 100)
-                    .position(x: w * 0.9, y: h * 0.55)
+            // Violet halo — middle-right
+            Circle()
+                .fill(Theme.Colors.primaryDark.opacity(0.45 * haloStrength))
+                .frame(width: 380, height: 380)
+                .blur(radius: 100)
+                .offset(x: 160, y: 60)
 
-                // Red halo — bottom-left
-                Circle()
-                    .fill(Theme.Colors.accent.opacity(0.18 * haloStrength))
-                    .frame(width: size * 0.9, height: size * 0.9)
-                    .blur(radius: 90)
-                    .position(x: w * 0.3, y: h * 0.85)
-            }
+            // Red halo — bottom-left
+            Circle()
+                .fill(Theme.Colors.accent.opacity(0.18 * haloStrength))
+                .frame(width: 320, height: 320)
+                .blur(radius: 90)
+                .offset(x: -80, y: 280)
         }
         .accessibilityHidden(true)
     }

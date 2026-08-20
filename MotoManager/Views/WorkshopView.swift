@@ -3,7 +3,6 @@ import SwiftUI
 struct WorkshopView: View {
     @ObservedObject var viewModel: MotorcycleDetailViewModel
     @Environment(\.chromeActions) private var chrome
-    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var presentedDocument: Document?
     @ObservedObject private var offlineStore = DocumentOfflineStore.shared
     @State private var selectedTorqueGroup: String = "Alle"
@@ -123,15 +122,6 @@ struct WorkshopView: View {
                             .redacted(reason: .placeholder)
                     }
                 }
-            } else if horizontalSizeClass == .regular {
-                // Two-column dashboard: the four sections become cards so the
-                // page uses the width instead of one long scroll.
-                Section {
-                    regularDashboard
-                }
-                .listRowInsets(EdgeInsets())
-                .listRowBackground(Color.clear)
-                .listRowSeparator(.hidden)
             } else {
                 tirePressureSection
                 documentsSection
@@ -142,9 +132,6 @@ struct WorkshopView: View {
         .listStyle(.insetGrouped)
         .scrollContentBackground(.hidden)
         .ignoresSafeArea(edges: .top)
-        // Wider than the standard column: this screen lays out two card
-        // columns side by side on regular width.
-        .contentColumn(maxWidth: 860)
         .refreshable {
             await viewModel.reconnect()
         }
@@ -178,204 +165,6 @@ struct WorkshopView: View {
         .sheet(isPresented: $showingTirePressure) {
             AddTirePressureView(viewModel: viewModel)
                 .glassSheet(detents: [.medium, .large])
-        }
-    }
-
-    // MARK: - Regular-width dashboard
-
-    private var regularDashboard: some View {
-        HStack(alignment: .top, spacing: Theme.Spacing.m) {
-            VStack(spacing: Theme.Spacing.m) {
-                tirePressureCard
-                detailsCard
-            }
-            VStack(spacing: Theme.Spacing.m) {
-                torqueCard
-                documentsCard
-            }
-        }
-    }
-
-    /// Card chrome mirroring the compact layout's list sections: uppercase
-    /// header with the same trailing add/edit affordance, rows inside.
-    private func workshopCard(
-        _ title: String, icon: String? = nil, label: String = "",
-        action: (() -> Void)? = nil,
-        @ViewBuilder content: () -> some View
-    ) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text(title.uppercased())
-                    .scaledFont(11, weight: .heavy)
-                    .tracking(1.2)
-                    .foregroundStyle(.secondary)
-                Spacer()
-                if let icon, let action {
-                    Button(action: action) {
-                        Image(systemName: icon)
-                            .scaledFont(11, weight: .heavy)
-                    }
-                    .buttonStyle(.borderless)
-                    .tint(Theme.Colors.primary)
-                    .accessibilityLabel(label)
-                }
-            }
-            content()
-        }
-        .padding(14)
-        .frame(maxWidth: .infinity, alignment: .topLeading)
-        .background(
-            RoundedRectangle(cornerRadius: Theme.Radius.card)
-                .fill(Color(.secondarySystemGroupedBackground))
-        )
-        // Same hairline as the grid cards — the fill alone is nearly
-        // invisible against the light-mode page background.
-        .overlay(
-            RoundedRectangle(cornerRadius: Theme.Radius.card)
-                .stroke(Theme.Glass.hairline, lineWidth: 0.5)
-        )
-    }
-
-    private func emptyCardHint(_ text: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Text(text)
-                .scaledFont(12, weight: .medium)
-                .foregroundStyle(.secondary)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 8)
-        }
-        .buttonStyle(.plain)
-    }
-
-    private var tirePressureCard: some View {
-        workshopCard(
-            "Reifendruck",
-            icon: viewModel.tirePressure == nil ? "plus" : "pencil",
-            label: viewModel.tirePressure == nil ? "Reifendruck erfassen" : "Reifendruck bearbeiten",
-            action: { showingTirePressure = true }
-        ) {
-            if let pressure = viewModel.tirePressure {
-                VStack(alignment: .leading, spacing: 8) {
-                    TirePressureTable(pressure: pressure)
-                }
-            } else {
-                emptyCardHint("Keine Werte erfasst — tippen zum Hinzufügen.") {
-                    showingTirePressure = true
-                }
-            }
-        }
-    }
-
-    private var detailsCard: some View {
-        workshopCard(
-            "Details", icon: "plus", label: "Detail hinzufügen",
-            action: { showingAddDetail = true }
-        ) {
-            if viewModel.details.isEmpty {
-                emptyCardHint("Keine Details erfasst — tippen zum Hinzufügen.") {
-                    showingAddDetail = true
-                }
-            } else {
-                VStack(alignment: .leading, spacing: 0) {
-                    ForEach(viewModel.details, id: \.clientId) { detail in
-                        Button { editingDetail = detail } label: {
-                            MotorcycleDetailRow(detail: detail)
-                                .padding(.vertical, 8)
-                        }
-                        .buttonStyle(.plain)
-                        .contextMenu {
-                            Button(role: .destructive) {
-                                _ = viewModel.deleteDetail(detail)
-                            } label: {
-                                Label("Löschen", systemImage: "trash")
-                            }
-                        }
-                        if detail.clientId != viewModel.details.last?.clientId {
-                            Divider()
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    private var torqueCard: some View {
-        workshopCard(
-            "Drehmoment-Spezifikationen", icon: "plus", label: "Drehmoment hinzufügen",
-            action: { showingAddTorque = true }
-        ) {
-            if viewModel.torque.isEmpty {
-                emptyCardHint("Keine Werte erfasst — tippen zum Hinzufügen.") {
-                    showingAddTorque = true
-                }
-            } else {
-                VStack(alignment: .leading, spacing: 4) {
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 6) {
-                            ForEach(torqueGroups, id: \.self) { group in
-                                chip(group)
-                            }
-                        }
-                        .padding(.horizontal, 2)
-                        .padding(.vertical, 2)
-                    }
-                    .padding(.bottom, 4)
-
-                    ForEach(filteredTorque, id: \.clientId) { spec in
-                        Button { editingTorque = spec } label: {
-                            TorqueRow(spec: spec, showGroup: selectedTorqueGroup == "Alle")
-                                .padding(.vertical, 8)
-                        }
-                        .buttonStyle(.plain)
-                        .contextMenu {
-                            Button(role: .destructive) {
-                                _ = viewModel.deleteTorque(spec)
-                            } label: {
-                                Label("Löschen", systemImage: "trash")
-                            }
-                        }
-                        if spec.clientId != filteredTorque.last?.clientId {
-                            Divider()
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    private var documentsCard: some View {
-        workshopCard("Dokumente") {
-            VStack(alignment: .leading, spacing: 10) {
-                GlassSegmentedControl(
-                    segments: [
-                        .init(value: .moto, label: motoLabel),
-                        .init(value: .common, label: "Allgemein")
-                    ],
-                    selection: $docScope
-                )
-
-                if displayedDocuments.isEmpty {
-                    Text(docScope == .common
-                        ? "Keine allgemeinen Dokumente — Dokumente ohne Motorrad-Zuordnung erscheinen hier."
-                        : "Keine Dokumente für \(motoLabel) erfasst.")
-                        .scaledFont(12, weight: .medium)
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 8)
-                } else {
-                    documentsGrid
-                }
-
-                Button {
-                    // Upload picker hook — wired when document upload lands.
-                } label: {
-                    Label("Dokument hochladen", systemImage: "plus")
-                        .scaledFont(13, weight: .semibold)
-                }
-                .buttonStyle(.borderless)
-                .tint(Theme.Colors.primary)
-            }
         }
     }
 
@@ -490,11 +279,8 @@ struct WorkshopView: View {
     }
 
     private var documentsGrid: some View {
-        // Adaptive columns: 2-up at phone widths (as before), 3-up in the
-        // regular-width content column — the tiles keep a sane size instead
-        // of two enormous cards.
         LazyVGrid(
-            columns: [GridItem(.adaptive(minimum: 165), spacing: 10)],
+            columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)],
             spacing: 10
         ) {
             ForEach(displayedDocuments) { doc in
