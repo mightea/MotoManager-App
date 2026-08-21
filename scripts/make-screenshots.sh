@@ -101,7 +101,9 @@ tap 210 558 0.8;     type_ "$DEMO_USER"
 tap 200 625 0.8;     type_ "$DEMO_PASSWORD"
 tap 210 691 5                      # Anmelden (live server: allow a beat more)
 tap 126 580 1.5                    # Save Password? -> Not Now (blind)
-tap 74 874                         # normalize: pop Tanken to root
+# Long settle: the Dynamic Island stays rendered for ~10s after launch and
+# would otherwise show up in the first capture only.
+tap 74 874 8                       # normalize: pop Tanken to root
 shot 01-tanken
 tap 156 874 2.5;  shot 02-werkstatt
 tap 256 874 2.5;  shot 03-service
