@@ -65,6 +65,9 @@ final class SyncEngine: ObservableObject {
     /// and the user-scoped parts inventory.
     func sync(motorcycleIds: [Int]) async {
         if !motorcycleIds.isEmpty { knownMotorcycleIds = motorcycleIds }
+        // Hard upgrade block: skip entirely instead of letting every push
+        // fail against the request gate and burn the records' retry budgets.
+        guard !NetworkManager.shared.isUpdateBlocked else { refreshStatus(); return }
         guard connectivity.isOnline else { refreshStatus(); return }
         guard !isSyncing else { return }
 

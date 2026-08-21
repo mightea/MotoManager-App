@@ -19,6 +19,9 @@ enum APIError: LocalizedError {
     /// is unreachable (a connectivity-class `URLError`). Surfaced to the user as
     /// "Offline" rather than a raw transport error.
     case offline
+    /// The backend declared this app build out of support (hard upgrade
+    /// requirement). Requests are refused locally until the app is updated.
+    case unsupportedVersion
 
     var errorDescription: String? {
         switch self {
@@ -37,6 +40,8 @@ enum APIError: LocalizedError {
             return "Antwort konnte nicht verarbeitet werden."
         case .offline:
             return "Offline"
+        case .unsupportedVersion:
+            return "Diese App-Version wird nicht mehr unterstützt. Bitte aktualisiere die App."
         }
     }
 }

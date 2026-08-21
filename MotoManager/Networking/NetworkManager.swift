@@ -29,6 +29,14 @@ class NetworkManager {
     private let tokenService = "com.motomanager.auth"
     private let tokenAccount = "jwt-token"
 
+    /// Set by `AppUpgradeManager` when the backend declares this build below
+    /// the hard upgrade requirement. While true, every request except the
+    /// upgrade check itself is refused locally — an out-of-support app must
+    /// not talk to the backend anymore.
+    var isUpdateBlocked = false
+
+    private static let appUpgradePath = "/api/app-upgrade"
+
     private init() {}
 
     // MARK: - Token storage
@@ -62,6 +70,10 @@ class NetworkManager {
         authorized: Bool,
         jsonBody: Data? = nil
     ) throws -> URLRequest {
+        if isUpdateBlocked && path != Self.appUpgradePath {
+            throw APIError.unsupportedVersion
+        }
+
         let urlString = path.hasPrefix("http") ? path : "\(baseURL)\(path)"
         guard let url = URL(string: urlString) else {
             throw APIError.badURL
@@ -153,6 +165,15 @@ class NetworkManager {
         let raw = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
         if let raw, !raw.isEmpty, raw.count <= 300 { return raw }
         return nil
+    }
+
+    // MARK: - App upgrade requirements
+
+    /// Unauthenticated on purpose: the route must stay reachable while the
+    /// app is hard-blocked (to detect recovery) and regardless of session
+    /// state. This is the only path exempt from the `isUpdateBlocked` gate.
+    func fetchAppUpgradeInfo() async throws -> AppUpgradeInfo {
+        try await get(Self.appUpgradePath, authorized: false)
     }
 
     // MARK: - Auth
