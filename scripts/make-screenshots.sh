@@ -1,16 +1,19 @@
 #!/bin/zsh
-# Generate the App Store screenshots in appstore/screenshots/de-DE/ from a
-# seeded local API — deterministic demo data, clean 9:41 status bar, exact
-# App Store pixel sizes (iPhone 1260x2736, iPad 13" 2064x2752 — per Apple's
-# current screenshot spec; both verified accepted by the ASC API).
+# Generate the App Store screenshots in appstore/screenshots/de-DE/ against
+# the live demo server — clean 9:41 status bar, exact App Store pixel sizes
+# (iPhone 1260x2736, iPad 13" 2064x2752 — per Apple's current screenshot
+# spec; both verified accepted by the ASC API).
 #
 # What it does:
 #   1. builds the app for the simulator (skip with --skip-build)
-#   2. starts ../MotoManagerApi on a throwaway SQLite DB (port 3010) and
-#      seeds it via scripts/seed-demo-data.py
-#   3. per device (iPhone Air, iPad Pro 13-inch): fresh-installs the
-#      app, drives the login form and tab navigation with idb, captures the
-#      five listing screenshots
+#   2. per device (iPhone Air, iPad Pro 13-inch): fresh-installs the app,
+#      signs in to the demo server as the demo admin, drives the tab
+#      navigation with idb, captures the five listing screenshots
+#
+# Data comes from the demo instance (moto-api-demo.herrmann.ltd), which is
+# seeded with the curated demo garage — the same content the public demo
+# shows. Override DEMO_SERVER_URL / DEMO_USER / DEMO_PASSWORD to shoot
+# against a different instance (e.g. a local scratch API).
 #
 # Semi-automated by design: the tap coordinates below are tuned to the
 # current login/tab layout on exactly these two simulator models. After any
@@ -25,21 +28,15 @@
 set -euo pipefail
 
 APP_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-API_DIR="$APP_DIR/../MotoManagerApi"
 OUT="$APP_DIR/appstore/screenshots/de-DE"
 IDB="${IDB:-$HOME/.local/bin/idb}"
-PORT=3010
-SERVER_URL="http://localhost:$PORT"
+SERVER_URL="${DEMO_SERVER_URL:-https://moto-api-demo.herrmann.ltd}"
+DEMO_USER="${DEMO_USER:-admin-demo}"
+DEMO_PASSWORD="${DEMO_PASSWORD:-demo-admin-2026}"
 BUNDLE_ID="ltd.herrmann.MotoManager"
-WORK="$(mktemp -d /tmp/mm-screenshots.XXXXXX)"
 
 IPHONE_NAME="iPhone Air"   # 420x912 pt @3x = 1260x2736 px, the required size
 IPAD_NAME="iPad Pro 13-inch (M5)"
-
-cleanup() {
-  [[ -n "${API_PID:-}" ]] && kill "$API_PID" 2>/dev/null || true
-}
-trap cleanup EXIT
 
 # --- 1. Build ----------------------------------------------------------------
 if [[ "${1:-}" != "--skip-build" ]]; then
@@ -52,23 +49,10 @@ fi
 APP="$APP_DIR/build/DerivedData/Build/Products/Debug-iphonesimulator/MotoManager.app"
 [[ -d "$APP" ]] || { echo "No built app at $APP"; exit 1; }
 
-# --- 2. API + seed -----------------------------------------------------------
-echo "==> Starting scratch API on port $PORT"
-if ! (cd "$API_DIR" && cargo build --quiet); then
-  echo "cargo build failed"; exit 1
-fi
-mkdir -p "$WORK/data" "$WORK/cache"
-DATABASE_URL="sqlite:$WORK/demo.sqlite?mode=rwc" PORT=$PORT \
-  ENABLE_REGISTRATION=true BACKUP_ENABLED=false \
-  DATA_DIR="$WORK/data" CACHE_DIR="$WORK/cache" \
-  "$API_DIR/target/debug/moto-manager-api" >"$WORK/api.log" 2>&1 &
-API_PID=$!
-for i in {1..30}; do
-  curl -sf -m 1 "$SERVER_URL/api/health" >/dev/null && break
-  sleep 0.5
-  [[ $i == 30 ]] && { echo "API did not come up — see $WORK/api.log"; exit 1; }
-done
-python3 "$APP_DIR/scripts/seed-demo-data.py" "$SERVER_URL"
+# --- 2. Demo server reachable? -----------------------------------------------
+echo "==> Checking demo server $SERVER_URL"
+curl -sf -m 10 "$SERVER_URL/api/health" >/dev/null \
+  || { echo "Demo server unreachable — screenshots need live data"; exit 1; }
 
 # --- helpers -----------------------------------------------------------------
 tap()   { "$IDB" ui tap --udid "$UDID" "$1" "$2"; sleep "${3:-1.5}"; }
@@ -113,9 +97,9 @@ DISPLAY_TYPE="APP_IPHONE_67"   # top iPhone slot; takes all 6.9" sizes
 mkdir -p "$OUT/$DISPLAY_TYPE"
 boot_device "$IPHONE_NAME"
 clear_field 380 500; type_ "$SERVER_URL"
-tap 210 558 0.8;     type_ "demo"
-tap 200 625 0.8;     type_ "demo-pass-123"
-tap 210 691 4                      # Anmelden
+tap 210 558 0.8;     type_ "$DEMO_USER"
+tap 200 625 0.8;     type_ "$DEMO_PASSWORD"
+tap 210 691 5                      # Anmelden (live server: allow a beat more)
 tap 126 580 1.5                    # Save Password? -> Not Now (blind)
 tap 74 874                         # normalize: pop Tanken to root
 shot 01-tanken
@@ -134,9 +118,9 @@ DISPLAY_TYPE="APP_IPAD_PRO_3GEN_129"
 mkdir -p "$OUT/$DISPLAY_TYPE"
 boot_device "$IPAD_NAME"
 clear_field 700 969;  type_ "$SERVER_URL"
-clear_field 700 1030; type_ "demo"
-tap 480 1054 0.8;     type_ "demo-pass-123"
-tap 515 1122 4                     # Anmelden
+clear_field 700 1030; type_ "$DEMO_USER"
+tap 480 1054 0.8;     type_ "$DEMO_PASSWORD"
+tap 515 1122 5                     # Anmelden
 tap 440 788 1.5                    # Save Password? -> Not Now (blind)
 tap 381 53                         # normalize: pop Tanken to root
 shot 01-tanken

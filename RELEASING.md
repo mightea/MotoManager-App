@@ -80,10 +80,11 @@ The store listing lives in the repo and is pushed by
 - **Screenshots** — `appstore/screenshots/de-DE/<DISPLAY_TYPE>/*.png`,
   uploaded in filename order, re-uploaded only when checksums change.
   Regenerate them locally with `scripts/make-screenshots.sh`: it builds the
-  app, seeds a throwaway local API with a demo garage
-  (`scripts/seed-demo-data.py`), drives the login and all four tabs on an
-  iPhone Air and iPad Pro 13-inch simulator via `idb`, and writes
-  pixel-exact PNGs (1260×2736 / 2064×2752). Review the images, commit.
+  app, signs in to the live demo server (`moto-api-demo.herrmann.ltd`,
+  `admin-demo` account — override via `DEMO_SERVER_URL`/`DEMO_USER`/
+  `DEMO_PASSWORD`), drives the login and all four tabs on an iPhone Air and
+  iPad Pro 13-inch simulator via `idb`, and writes pixel-exact PNGs
+  (1260×2736 / 2064×2752). Review the images, commit.
 
 Two one-time settings, both in the browser:
 

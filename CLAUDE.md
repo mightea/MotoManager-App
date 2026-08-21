@@ -81,7 +81,7 @@ New `.swift` files under `MotoManager/` are auto-included (Xcode 26 `PBXFileSyst
 
 ## App Store listing
 
-Repo-managed: metadata in `appstore/metadata/de-DE/`, screenshots in `appstore/screenshots/de-DE/<DISPLAY_TYPE>/`, pushed by `.github/workflows/appstore.yml` (`scripts/appstore_assets.py`). Screenshots are regenerated with `scripts/make-screenshots.sh` (seeded scratch API + idb-driven simulators — review the PNGs before committing). See RELEASING.md → "App Store listing".
+Repo-managed: metadata in `appstore/metadata/de-DE/`, screenshots in `appstore/screenshots/de-DE/<DISPLAY_TYPE>/`, pushed by `.github/workflows/appstore.yml` (`scripts/appstore_assets.py`). Screenshots are regenerated with `scripts/make-screenshots.sh` (signs in to the live demo server as `admin-demo` + idb-driven simulators — review the PNGs before committing). See RELEASING.md → "App Store listing".
 
 ## Conventions
 
