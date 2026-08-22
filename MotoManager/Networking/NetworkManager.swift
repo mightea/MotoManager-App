@@ -37,6 +37,14 @@ class NetworkManager {
 
     private static let appUpgradePath = "/api/app-upgrade"
 
+    /// Marketing version and build number reported to the backend on every
+    /// request (X-App-Version / X-App-Build). The backend stores the last
+    /// seen pair per user so admins can tell which app build a user runs.
+    private static let appVersion =
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0"
+    private static let appBuild =
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "0"
+
     private init() {}
 
     // MARK: - Token storage
@@ -81,6 +89,8 @@ class NetworkManager {
 
         var request = URLRequest(url: url)
         request.httpMethod = method
+        request.addValue(Self.appVersion, forHTTPHeaderField: "X-App-Version")
+        request.addValue(Self.appBuild, forHTTPHeaderField: "X-App-Build")
 
         if let jsonBody {
             request.addValue("application/json", forHTTPHeaderField: "Content-Type")
