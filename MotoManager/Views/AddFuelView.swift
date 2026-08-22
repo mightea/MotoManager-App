@@ -510,8 +510,8 @@ struct AddFuelView: View {
         odoValue > 0 && litersValue > 0 && totalValue > 0 && !viewModel.isLoading
     }
 
-    private var previousFuelEntry: MaintenanceRecord? {
-        viewModel.maintenanceRecords.first(where: { $0.recordType.lowercased() == "fuel" })
+    private var previousFuelEntry: SDMaintenanceRecord? {
+        viewModel.fuelRecords.first
     }
 
     private var odoHint: String? {
@@ -536,7 +536,7 @@ struct AddFuelView: View {
     /// the stat strip never show two different "Ø" values.
     private var averageConsumption: Double? {
         let avg = FuelStats.trailingAverageConsumption(
-            FuelStats.fuelRecords(viewModel.maintenanceRecords), count: 10)
+            viewModel.fuelRecords, count: 10)
         return avg > 0 ? avg : nil
     }
 
@@ -775,8 +775,8 @@ struct AddFuelView: View {
     }
 
     private static func defaultCurrency(for viewModel: MotorcycleDetailViewModel) -> String {
-        if let recent = viewModel.maintenanceRecords
-            .first(where: { $0.recordType.lowercased() == "fuel" && ($0.currency?.isEmpty == false) })?
+        if let recent = viewModel.fuelRecords
+            .first(where: { $0.currency?.isEmpty == false })?
             .currency {
             return recent
         }

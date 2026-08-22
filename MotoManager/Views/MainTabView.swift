@@ -19,8 +19,14 @@ struct MainTabView: View {
             if let dVM = detailVM {
                 screenStack(dVM: dVM)
             } else if fleetVM.isLoading {
-                ProgressView("Loading fleet...")
+                ProgressView("Garage wird geladen …")
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if let error = fleetVM.errorMessage {
+                LoadFailureView(
+                    title: "Garage konnte nicht geladen werden",
+                    message: error,
+                    retry: { await fleetVM.loadMotorcycles() }
+                )
             } else {
                 emptyFleetStack
             }
@@ -117,15 +123,28 @@ struct MainTabView: View {
 
     @ViewBuilder
     private func screen(for tab: AppTab, dVM: MotorcycleDetailViewModel) -> some View {
-        switch tab {
-        case .fuel:
-            FuelListView(viewModel: dVM)
-        case .workshop:
-            WorkshopView(viewModel: dVM)
-        case .service:
-            MaintenanceLogsView(viewModel: dVM, partsVM: partsVM)
-        case .parts:
-            PartsView(viewModel: partsVM, detailVM: dVM, motorcycle: dVM.motorcycle)
+        if tab != .parts, let error = dVM.errorMessage, !dVM.hasDisplayData {
+            LoadFailureView(
+                title: "Daten konnten nicht geladen werden",
+                message: error,
+                retry: { await dVM.reconnect() }
+            )
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Einstellungen", systemImage: "gearshape") { showingSettings = true }
+                }
+            }
+        } else {
+            switch tab {
+            case .fuel:
+                FuelListView(viewModel: dVM)
+            case .workshop:
+                WorkshopView(viewModel: dVM)
+            case .service:
+                MaintenanceLogsView(viewModel: dVM, partsVM: partsVM)
+            case .parts:
+                PartsView(viewModel: partsVM, detailVM: dVM, motorcycle: dVM.motorcycle)
+            }
         }
     }
 
@@ -190,10 +209,10 @@ struct EmptyFleetView: View {
             .padding(.top, 40)
 
             VStack(spacing: Theme.Spacing.m) {
-                Text("Your Garage is Empty")
+                Text("Deine Garage ist leer")
                     .scaledFont(28, weight: .bold, design: .rounded)
 
-                Text("Start tracking your fleet by adding your first motorcycle.")
+                Text("Füge dein erstes Motorrad hinzu, um Tankungen, Wartungen und Teile zu verwalten.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
@@ -206,15 +225,15 @@ struct EmptyFleetView: View {
                 Button(action: onAdd) {
                     HStack {
                         Image(systemName: "plus.circle.fill")
-                        Text("Add Your First Motorcycle")
+                        Text("Erstes Motorrad hinzufügen")
                     }
                 }
                 .glassActionButton(.primary, in: .roundedRectangle(radius: Theme.Radius.control))
 
                 HStack(spacing: 20) {
-                    Label("Fuel Logs", systemImage: "fuelpump.fill")
-                    Label("Service", systemImage: "wrench.fill")
-                    Label("Specs", systemImage: "bolt.fill")
+                    Label("Tankungen", systemImage: "fuelpump.fill")
+                    Label("Wartung", systemImage: "wrench.fill")
+                    Label("Daten", systemImage: "bolt.fill")
                 }
                 .scaledFont(10, weight: .bold)
                 .foregroundStyle(.secondary.opacity(0.7))
@@ -225,6 +244,34 @@ struct EmptyFleetView: View {
 
             Spacer()
         }
+    }
+}
+
+private struct LoadFailureView: View {
+    let title: String
+    let message: String
+    let retry: () async -> Void
+    @State private var isRetrying = false
+
+    var body: some View {
+        ContentUnavailableView {
+            Label(title, systemImage: "wifi.exclamationmark")
+        } description: {
+            Text(message)
+        } actions: {
+            Button {
+                isRetrying = true
+                Task {
+                    await retry()
+                    isRetrying = false
+                }
+            } label: {
+                if isRetrying { ProgressView() } else { Text("Erneut versuchen") }
+            }
+            .buttonStyle(.borderedProminent)
+            .disabled(isRetrying)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 

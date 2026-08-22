@@ -17,7 +17,7 @@ final class ConnectivityMonitor: ObservableObject {
     private let queue = DispatchQueue(label: "com.motomanager.connectivity")
 
     private init() {
-        monitor.pathUpdateHandler = { path in
+        monitor.pathUpdateHandler = { [weak self] path in
             let online = path.status == .satisfied
             Task { @MainActor [weak self] in
                 guard let self else { return }

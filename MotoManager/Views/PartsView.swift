@@ -21,6 +21,7 @@ struct PartsView: View {
     @State private var filterBySelectedBike = true
     @State private var showingAddPart = false
     @State private var selectedPart: SDPart?
+    @State private var partPendingDeletion: SDPart?
     @State private var showingScanner = false
     @State private var pendingScan: ScannedLabel?
     @State private var selectedLocation: SDStorageLocation?
@@ -82,6 +83,7 @@ struct PartsView: View {
                 }
             }
         }
+        .adaptiveContentWidth()
         .listStyle(.insetGrouped)
         .scrollContentBackground(.hidden)
         .ignoresSafeArea(edges: .top)
@@ -92,11 +94,6 @@ struct PartsView: View {
         // Collapse the search field into a toolbar button (iOS 26 pattern) —
         // an always-open drawer would float over the full-bleed hero photo.
         .searchToolbarBehavior(.minimize)
-        .onSubmit(of: .search) {
-            if tab == .publicParts {
-                Task { await viewModel.loadPublicParts(query: searchText.isEmpty ? nil : searchText) }
-            }
-        }
         .toolbar {
             // Adding targets whatever the segment shows (part or storage
             // location); the public segment is read-only. The items stay in
@@ -137,6 +134,13 @@ struct PartsView: View {
                 publicLoadedOnce = true
             }
         }
+        .task(id: searchText) {
+            guard tab == .publicParts else { return }
+            try? await Task.sleep(for: .milliseconds(350))
+            guard !Task.isCancelled else { return }
+            await viewModel.loadPublicParts(query: searchText.isEmpty ? nil : searchText)
+            publicLoadedOnce = true
+        }
         // Consume the "Etikett scannen" App Shortcut. `initial: true` covers
         // a cold launch where the intent fired before this view existed.
         .onChange(of: quickActions.pending, initial: true) { _, action in
@@ -173,6 +177,18 @@ struct PartsView: View {
             Button("Anlegen", action: createLocation)
         } message: {
             Text("Untergeordnete Lagerorte lassen sich im Lagerort selbst anlegen.")
+        }
+        .alert("Teil löschen?", isPresented: Binding(
+            get: { partPendingDeletion != nil },
+            set: { if !$0 { partPendingDeletion = nil } }
+        )) {
+            Button("Abbrechen", role: .cancel) { partPendingDeletion = nil }
+            Button("Löschen", role: .destructive) {
+                if let part = partPendingDeletion { _ = viewModel.deletePart(part) }
+                partPendingDeletion = nil
+            }
+        } message: {
+            Text("Bestand und Verbrauch dieses Teils werden ebenfalls entfernt. Diese Aktion kann nicht rückgängig gemacht werden.")
         }
     }
 
@@ -235,9 +251,7 @@ struct PartsView: View {
     /// Purchase value of all stock entries, mirroring the part detail's
     /// `totalStockValue` (normalized to CHF where a conversion exists).
     private var inventoryValue: Double {
-        viewModel.parts
-            .flatMap { viewModel.stocks(for: $0) }
-            .reduce(0) { $0 + ($1.normalizedPrice ?? $1.price ?? 0) }
+        viewModel.inventoryValue
     }
 
     private var statStrip: some View {
@@ -332,7 +346,7 @@ struct PartsView: View {
                 .buttonStyle(.plain)
                 .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                     Button(role: .destructive) {
-                        _ = viewModel.deletePart(part)
+                        partPendingDeletion = part
                     } label: {
                         Label("Löschen", systemImage: "trash")
                     }

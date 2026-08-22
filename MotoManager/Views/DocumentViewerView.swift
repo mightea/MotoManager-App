@@ -78,8 +78,12 @@ struct DocumentViewerView: View {
         .task {
             await load()
         }
-        .onChange(of: searchText) { _, query in
-            performSearch(query)
+        .task(id: searchText) {
+            // Avoid rescanning a long service manual for every intermediate
+            // keystroke while the user is still typing.
+            try? await Task.sleep(for: .milliseconds(250))
+            guard !Task.isCancelled else { return }
+            performSearch(searchText)
         }
     }
 
@@ -211,8 +215,9 @@ struct DocumentViewerView: View {
         }
 
         do {
-            let data = try await NetworkManager.shared.fetchBlob(url: urlString)
-            if let saved = DocumentCache.shared.save(data, for: urlString) {
+            let downloaded = try await NetworkManager.shared.downloadBlob(url: urlString)
+            defer { try? FileManager.default.removeItem(at: downloaded) }
+            if let saved = await DocumentCache.shared.save(downloadedFile: downloaded, for: urlString) {
                 present(saved)
             } else {
                 loadFailed = true

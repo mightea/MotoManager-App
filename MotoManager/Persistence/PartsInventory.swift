@@ -43,8 +43,19 @@ enum PartsInventory {
     /// All live parts with a positive on-hand — the pick list for "Verwendete
     /// Teile" in the maintenance form.
     static func availableParts(in context: ModelContext) -> [SDPart] {
-        ((try? context.fetch(FetchDescriptor<SDPart>())) ?? [])
-            .filter { $0.syncState != .pendingDelete && onHand(for: $0.clientId, in: context) > 0 }
+        let stocks = ((try? context.fetch(FetchDescriptor<SDPartStock>())) ?? [])
+            .filter { $0.syncState != .pendingDelete }
+        let consumptions = ((try? context.fetch(FetchDescriptor<SDPartConsumption>())) ?? [])
+            .filter { $0.syncState != .pendingDelete }
+        let stocked = Dictionary(grouping: stocks, by: \.partClientId)
+            .mapValues { $0.reduce(0) { $0 + $1.quantity } }
+        let consumed = Dictionary(grouping: consumptions, by: \.partClientId)
+            .mapValues { $0.reduce(0) { $0 + $1.quantity } }
+        return ((try? context.fetch(FetchDescriptor<SDPart>())) ?? [])
+            .filter {
+                $0.syncState != .pendingDelete
+                    && stocked[$0.clientId, default: 0] - consumed[$0.clientId, default: 0] > 0
+            }
             .sorted { $0.name < $1.name }
     }
 

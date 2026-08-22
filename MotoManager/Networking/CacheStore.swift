@@ -15,6 +15,10 @@ final class CacheStore {
         let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
         directory = support.appendingPathComponent("MotoCache", isDirectory: true)
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        var values = URLResourceValues()
+        values.isExcludedFromBackup = true
+        var directoryURL = directory
+        try? directoryURL.setResourceValues(values)
     }
 
     private func fileURL(for key: String) -> URL {

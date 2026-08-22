@@ -54,7 +54,7 @@ struct RemoteImageView: View {
         }
 
         // 2. Disk cache — keeps images visible offline.
-        if let data = ImageCache.shared.data(for: key),
+        if let data = await ImageCache.shared.data(for: key),
            let decoded = await Self.decode(data) {
             RemoteImageMemoryCache.shared.set(decoded, forKey: key)
             self.image = decoded
@@ -67,12 +67,12 @@ struct RemoteImageView: View {
             return
         }
         do {
-            let (data, _) = try await URLSession.shared.data(from: requestURL)
+            let data = try await NetworkManager.shared.fetchBlob(url: requestURL.absoluteString)
             guard let decoded = await Self.decode(data) else {
                 loadFailed = true
                 return
             }
-            ImageCache.shared.save(data, for: key)
+            await ImageCache.shared.save(data, for: key)
             RemoteImageMemoryCache.shared.set(decoded, forKey: key)
             self.image = decoded
         } catch {

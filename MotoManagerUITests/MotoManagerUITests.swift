@@ -10,27 +10,31 @@ import XCTest
 final class MotoManagerUITests: XCTestCase {
 
     override func setUpWithError() throws {
-        // Put setup code here. This method is called before the invocation of each test method in the class.
-
-        // In UI tests it is usually best to stop immediately when a failure occurs.
         continueAfterFailure = false
-
-        // In UI tests it’s important to set the initial state - such as interface orientation - required for your tests before they run. The setUp method is a good place to do this.
-    }
-
-    override func tearDownWithError() throws {
-        // Put teardown code here. This method is called after the invocation of each test method in the class.
     }
 
     @MainActor
-    func testExample() throws {
-        // UI tests must launch the application that they test.
+    func testLoginFormValidation() throws {
         let app = XCUIApplication()
+        app.launchArguments = ["--ui-testing-logged-out"]
         app.launch()
 
-        // Use XCTAssert and related functions to verify your tests produce the correct results.
-        // XCUIAutomation Documentation
-        // https://developer.apple.com/documentation/xcuiautomation
+        let server = app.textFields["login.server"]
+        let identifier = app.textFields["login.identifier"]
+        let password = app.secureTextFields["login.password"]
+        let submit = app.buttons["login.submit"]
+
+        XCTAssertTrue(server.waitForExistence(timeout: 5))
+        XCTAssertFalse(submit.isEnabled)
+
+        server.tap()
+        server.typeText("https://moto.example.com")
+        identifier.tap()
+        identifier.typeText("fahrerin")
+        password.tap()
+        password.typeText("sicheres-passwort")
+
+        XCTAssertTrue(submit.isEnabled)
     }
 
     @MainActor

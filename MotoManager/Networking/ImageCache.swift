@@ -14,6 +14,10 @@ final class ImageCache {
         let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
         directory = support.appendingPathComponent("MotoImageCache", isDirectory: true)
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        var values = URLResourceValues()
+        values.isExcludedFromBackup = true
+        var directoryURL = directory
+        try? directoryURL.setResourceValues(values)
     }
 
     private func filename(for url: String) -> String {
@@ -21,13 +25,37 @@ final class ImageCache {
         return digest.map { String(format: "%02x", $0) }.joined()
     }
 
-    func data(for url: String) -> Data? {
-        try? Data(contentsOf: directory.appendingPathComponent(filename(for: url)))
+    func data(for url: String) async -> Data? {
+        let path = directory.appendingPathComponent(filename(for: url))
+        return await Task.detached(priority: .utility) {
+            try? Data(contentsOf: path, options: .mappedIfSafe)
+        }.value
     }
 
-    func save(_ data: Data, for url: String) {
+    func save(_ data: Data, for url: String) async {
         let path = directory.appendingPathComponent(filename(for: url))
-        try? data.write(to: path, options: .atomic)
+        let directory = directory
+        await Task.detached(priority: .utility) {
+            try? data.write(to: path, options: .atomic)
+            Self.prune(directory: directory, limit: 150 * 1_024 * 1_024)
+        }.value
+    }
+
+    /// Keep opportunistic thumbnails out of unbounded Application Support.
+    private nonisolated static func prune(directory: URL, limit: Int) {
+        let keys: Set<URLResourceKey> = [.fileSizeKey, .contentModificationDateKey, .isRegularFileKey]
+        guard let files = try? FileManager.default.contentsOfDirectory(
+            at: directory, includingPropertiesForKeys: Array(keys), options: [.skipsHiddenFiles]
+        ) else { return }
+        let entries = files.compactMap { url -> (URL, Int, Date)? in
+            guard let values = try? url.resourceValues(forKeys: keys), values.isRegularFile == true else { return nil }
+            return (url, values.fileSize ?? 0, values.contentModificationDate ?? .distantPast)
+        }
+        var total = entries.reduce(0) { $0 + $1.1 }
+        guard total > limit else { return }
+        for entry in entries.sorted(by: { $0.2 < $1.2 }) where total > limit {
+            if (try? FileManager.default.removeItem(at: entry.0)) != nil { total -= entry.1 }
+        }
     }
 
     func clearAll() {

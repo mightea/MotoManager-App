@@ -34,11 +34,45 @@ class MotorcycleViewModel: ObservableObject {
         } catch {
             // Only surface an error when we have nothing cached to show.
             if motorcycles.isEmpty {
-                errorMessage = "Failed to load fleet: \(error.localizedDescription)"
+                errorMessage = "Garage konnte nicht geladen werden: \(error.localizedDescription)"
             }
         }
 
         isLoading = false
+    }
+
+    @discardableResult
+    func createMotorcycle(
+        make: String,
+        model: String,
+        fabricationDate: String?,
+        initialOdo: Int,
+        currencyCode: String,
+        isVeteran: Bool
+    ) async -> Bool {
+        isLoading = true
+        errorMessage = nil
+        defer { isLoading = false }
+        do {
+            let created = try await NetworkManager.shared.createMotorcycle(
+                make: make,
+                model: model,
+                fabricationDate: fabricationDate,
+                initialOdo: initialOdo,
+                currencyCode: currencyCode,
+                isVeteran: isVeteran
+            )
+            motorcycles.append(created)
+            motorcycles.sort {
+                "\($0.make) \($0.model)".localizedCaseInsensitiveCompare("\($1.make) \($1.model)") == .orderedAscending
+            }
+            CacheStore.shared.save(motorcycles, key: CacheKey.motorcycles)
+            selectMotorcycle(created)
+            return true
+        } catch {
+            errorMessage = "Motorrad konnte nicht angelegt werden: \(error.localizedDescription)"
+            return false
+        }
     }
 
     func selectMotorcycle(_ motorcycle: Motorcycle) {

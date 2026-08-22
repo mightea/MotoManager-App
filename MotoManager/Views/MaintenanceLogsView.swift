@@ -143,6 +143,7 @@ struct MaintenanceLogsView: View {
                 maintenanceContent
             }
         }
+        .adaptiveContentWidth()
         .listStyle(.insetGrouped)
         .scrollContentBackground(.hidden)
         .ignoresSafeArea(edges: .top)

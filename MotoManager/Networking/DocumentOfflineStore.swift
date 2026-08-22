@@ -62,8 +62,9 @@ final class DocumentOfflineStore: ObservableObject {
         downloading.insert(key)
         Task {
             defer { downloading.remove(key) }
-            guard let data = try? await NetworkManager.shared.fetchBlob(url: url),
-                  DocumentCache.shared.save(data, for: url) != nil else { return }
+            guard let downloaded = try? await NetworkManager.shared.downloadBlob(url: url) else { return }
+            defer { try? FileManager.default.removeItem(at: downloaded) }
+            guard await DocumentCache.shared.save(downloadedFile: downloaded, for: url) != nil else { return }
             addPin(key)
         }
     }

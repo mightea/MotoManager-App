@@ -613,10 +613,14 @@ final class SyncEngine: ObservableObject {
         let cursorKey = SyncCursor.userKey("storageLocations")
         let dtos = try await net.fetchStorageLocations(since: SyncCursor.get(cursorKey))
         let existing = (try? context.fetch(FetchDescriptor<SDStorageLocation>())) ?? []
+        let existingByClient = Dictionary(uniqueKeysWithValues: existing.map { ($0.clientId, $0) })
+        let existingByServer = Dictionary(uniqueKeysWithValues: existing.compactMap { item in
+            item.serverId.map { ($0, item) }
+        })
         // Two passes so a child can resolve its parent's clientId even when both
         // arrive in the same batch: insert/update everything first, link after.
         for dto in dtos {
-            let local = match(dto.clientId, dto.id, in: existing, clientId: \.clientId, serverId: \.serverId)
+            let local = indexedMatch(dto.clientId, dto.id, byClient: existingByClient, byServer: existingByServer)
             if let local {
                 if local.syncState.isPending { continue }
                 if dto.deletedAt != nil { context.delete(local) } else { local.apply(dto) }
@@ -625,9 +629,12 @@ final class SyncEngine: ObservableObject {
             }
         }
         let all = (try? context.fetch(FetchDescriptor<SDStorageLocation>())) ?? []
+        let allByServer = Dictionary(uniqueKeysWithValues: all.compactMap { item in
+            item.serverId.map { ($0, item) }
+        })
         for location in all where !location.syncState.isPending {
             if let psid = location.parentServerId {
-                location.parentClientId = all.first(where: { $0.serverId == psid })?.clientId
+                location.parentClientId = allByServer[psid]?.clientId
             } else {
                 location.parentClientId = nil
             }
@@ -640,8 +647,12 @@ final class SyncEngine: ObservableObject {
         let cursorKey = SyncCursor.userKey("parts")
         let dtos = try await net.fetchParts(since: SyncCursor.get(cursorKey))
         let existing = (try? context.fetch(FetchDescriptor<SDPart>())) ?? []
+        let existingByClient = Dictionary(uniqueKeysWithValues: existing.map { ($0.clientId, $0) })
+        let existingByServer = Dictionary(uniqueKeysWithValues: existing.compactMap { item in
+            item.serverId.map { ($0, item) }
+        })
         for dto in dtos {
-            let local = match(dto.clientId, dto.id, in: existing, clientId: \.clientId, serverId: \.serverId)
+            let local = indexedMatch(dto.clientId, dto.id, byClient: existingByClient, byServer: existingByServer)
             if let local {
                 if local.syncState.isPending { continue }
                 if dto.deletedAt != nil { context.delete(local) } else { local.apply(dto) }
@@ -659,20 +670,30 @@ final class SyncEngine: ObservableObject {
         let existing = (try? context.fetch(FetchDescriptor<SDPartStock>())) ?? []
         let parts = (try? context.fetch(FetchDescriptor<SDPart>())) ?? []
         let locations = (try? context.fetch(FetchDescriptor<SDStorageLocation>())) ?? []
+        let existingByClient = Dictionary(uniqueKeysWithValues: existing.map { ($0.clientId, $0) })
+        let existingByServer = Dictionary(uniqueKeysWithValues: existing.compactMap { item in
+            item.serverId.map { ($0, item) }
+        })
+        let partsByServer = Dictionary(uniqueKeysWithValues: parts.compactMap { item in
+            item.serverId.map { ($0, item) }
+        })
+        let locationsByServer = Dictionary(uniqueKeysWithValues: locations.compactMap { item in
+            item.serverId.map { ($0, item) }
+        })
         for dto in dtos {
-            let local = match(dto.clientId, dto.id, in: existing, clientId: \.clientId, serverId: \.serverId)
+            let local = indexedMatch(dto.clientId, dto.id, byClient: existingByClient, byServer: existingByServer)
             if let local {
                 if local.syncState.isPending { continue }
                 if dto.deletedAt != nil { context.delete(local) } else { local.apply(dto) }
             } else if dto.deletedAt == nil {
                 // Parts pulled first in this run, so the parent should be local;
                 // if it isn't (inconsistent server data), skip rather than crash.
-                guard let partClientId = parts.first(where: { $0.serverId == dto.partId })?.clientId else {
+                guard let partClientId = partsByServer[dto.partId]?.clientId else {
                     AppLog.error("Pulled stock \(dto.id) references unknown part \(dto.partId); skipping")
                     continue
                 }
                 let locationClientId = dto.storageLocationId.flatMap { sid in
-                    locations.first(where: { $0.serverId == sid })?.clientId
+                    locationsByServer[sid]?.clientId
                 }
                 context.insert(SDPartStock.make(
                     from: dto, partClientId: partClientId, storageLocationClientId: locationClientId))
@@ -688,18 +709,28 @@ final class SyncEngine: ObservableObject {
         let existing = (try? context.fetch(FetchDescriptor<SDPartConsumption>())) ?? []
         let parts = (try? context.fetch(FetchDescriptor<SDPart>())) ?? []
         let maintenance = (try? context.fetch(FetchDescriptor<SDMaintenanceRecord>())) ?? []
+        let existingByClient = Dictionary(uniqueKeysWithValues: existing.map { ($0.clientId, $0) })
+        let existingByServer = Dictionary(uniqueKeysWithValues: existing.compactMap { item in
+            item.serverId.map { ($0, item) }
+        })
+        let partsByServer = Dictionary(uniqueKeysWithValues: parts.compactMap { item in
+            item.serverId.map { ($0, item) }
+        })
+        let maintenanceByServer = Dictionary(uniqueKeysWithValues: maintenance.compactMap { item in
+            item.serverId.map { ($0, item) }
+        })
         for dto in dtos {
-            let local = match(dto.clientId, dto.id, in: existing, clientId: \.clientId, serverId: \.serverId)
+            let local = indexedMatch(dto.clientId, dto.id, byClient: existingByClient, byServer: existingByServer)
             if let local {
                 if local.syncState.isPending { continue }
                 if dto.deletedAt != nil { context.delete(local) } else { local.apply(dto) }
             } else if dto.deletedAt == nil {
-                guard let partClientId = parts.first(where: { $0.serverId == dto.partId })?.clientId else {
+                guard let partClientId = partsByServer[dto.partId]?.clientId else {
                     AppLog.error("Pulled consumption \(dto.id) references unknown part \(dto.partId); skipping")
                     continue
                 }
                 let maintenanceClientId = dto.maintenanceRecordId.flatMap { mid in
-                    maintenance.first(where: { $0.serverId == mid })?.clientId
+                    maintenanceByServer[mid]?.clientId
                 }
                 context.insert(SDPartConsumption.make(
                     from: dto, partClientId: partClientId, maintenanceClientId: maintenanceClientId))
@@ -719,6 +750,18 @@ final class SyncEngine: ObservableObject {
             return hit
         }
         return items.first(where: { serverId($0) == dtoServerId })
+    }
+
+    private func indexedMatch<T>(
+        _ dtoClientId: String?,
+        _ dtoServerId: Int,
+        byClient: [UUID: T],
+        byServer: [Int: T]
+    ) -> T? {
+        if let id = dtoClientId.flatMap(UUID.init(uuidString:)), let item = byClient[id] {
+            return item
+        }
+        return byServer[dtoServerId]
     }
 
     // MARK: - Status

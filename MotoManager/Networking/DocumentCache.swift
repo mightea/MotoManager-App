@@ -15,6 +15,10 @@ final class DocumentCache {
         let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
         directory = support.appendingPathComponent("MotoDocCache", isDirectory: true)
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        var values = URLResourceValues()
+        values.isExcludedFromBackup = true
+        var directoryURL = directory
+        try? directoryURL.setResourceValues(values)
     }
 
     private func filename(for url: String) -> String {
@@ -40,6 +44,20 @@ final class DocumentCache {
         } catch {
             return nil
         }
+    }
+
+    /// Moves a streamed download into the cache without loading it into RAM.
+    func save(downloadedFile: URL, for url: String) async -> URL? {
+        let path = directory.appendingPathComponent(filename(for: url))
+        return await Task.detached(priority: .utility) {
+            do {
+                try? FileManager.default.removeItem(at: path)
+                try FileManager.default.moveItem(at: downloadedFile, to: path)
+                return path
+            } catch {
+                return nil
+            }
+        }.value
     }
 
     /// Deletes the cached file for `url`, if present.

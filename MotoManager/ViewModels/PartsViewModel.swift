@@ -19,6 +19,18 @@ class PartsViewModel: ObservableObject {
     @Published var publicError: String?
 
     private var cancellables = Set<AnyCancellable>()
+    private var liveStocks: [SDPartStock] = []
+    private var liveConsumptions: [SDPartConsumption] = []
+    private var stocksByPart: [UUID: [SDPartStock]] = [:]
+    private var consumptionsByPart: [UUID: [SDPartConsumption]] = [:]
+    private var stockQuantitiesByLocation: [UUID: [UUID: Int]] = [:]
+    private var childrenByLocation: [UUID: [SDStorageLocation]] = [:]
+    private var partsByClientId: [UUID: SDPart] = [:]
+    private var partsByServerId: [Int: SDPart] = [:]
+    private var locationsByClientId: [UUID: SDStorageLocation] = [:]
+    private var locationsByServerId: [Int: SDStorageLocation] = [:]
+    private var maintenanceByClientId: [UUID: SDMaintenanceRecord] = [:]
+    private var maintenanceByServerId: [Int: SDMaintenanceRecord] = [:]
 
     init() {
         // Re-publish the local arrays whenever a sync finishes, so remotely
@@ -37,74 +49,104 @@ class PartsViewModel: ObservableObject {
         let allParts = (try? modelContext.fetch(FetchDescriptor<SDPart>(
             sortBy: [SortDescriptor(\.name)]
         ))) ?? []
-        parts = allParts.filter { $0.syncState != .pendingDelete }
+        let visibleParts = allParts.filter { $0.syncState != .pendingDelete }
 
         let allLocations = (try? modelContext.fetch(FetchDescriptor<SDStorageLocation>(
             sortBy: [SortDescriptor(\.name)]
         ))) ?? []
-        storageLocations = allLocations.filter { $0.syncState != .pendingDelete }
+        let visibleLocations = allLocations.filter { $0.syncState != .pendingDelete }
+
+        liveStocks = ((try? modelContext.fetch(FetchDescriptor<SDPartStock>())) ?? [])
+            .filter { $0.syncState != .pendingDelete }
+            .sorted { ($0.purchaseDate ?? "") > ($1.purchaseDate ?? "") }
+        liveConsumptions = ((try? modelContext.fetch(FetchDescriptor<SDPartConsumption>())) ?? [])
+            .filter { $0.syncState != .pendingDelete }
+            .sorted { $0.date > $1.date }
+
+        partsByClientId = Dictionary(uniqueKeysWithValues: visibleParts.map { ($0.clientId, $0) })
+        partsByServerId = Dictionary(uniqueKeysWithValues: visibleParts.compactMap { part in
+            part.serverId.map { ($0, part) }
+        })
+        locationsByClientId = Dictionary(uniqueKeysWithValues: visibleLocations.map { ($0.clientId, $0) })
+        locationsByServerId = Dictionary(uniqueKeysWithValues: visibleLocations.compactMap { location in
+            location.serverId.map { ($0, location) }
+        })
+        stocksByPart = Dictionary(grouping: liveStocks, by: \.partClientId)
+        consumptionsByPart = Dictionary(grouping: liveConsumptions, by: \.partClientId)
+        childrenByLocation = Dictionary(grouping: visibleLocations.compactMap { location in
+            location.parentClientId.map { ($0, location) }
+        }, by: \.0).mapValues { $0.map(\.1) }
+
+        stockQuantitiesByLocation = [:]
+        for stock in liveStocks {
+            let locationId = stock.storageLocationClientId
+                ?? stock.storageLocationServerId.flatMap { locationsByServerId[$0]?.clientId }
+            guard let locationId else { continue }
+            stockQuantitiesByLocation[locationId, default: [:]][stock.partClientId, default: 0] += stock.quantity
+        }
+
+        let maintenance = (try? modelContext.fetch(FetchDescriptor<SDMaintenanceRecord>())) ?? []
+        maintenanceByClientId = Dictionary(uniqueKeysWithValues: maintenance.map { ($0.clientId, $0) })
+        maintenanceByServerId = Dictionary(uniqueKeysWithValues: maintenance.compactMap { record in
+            record.serverId.map { ($0, record) }
+        })
+
+        // Publish after all indexes are ready, so a view recomputation never
+        // observes new rows with stale derived totals.
+        parts = visibleParts
+        storageLocations = visibleLocations
     }
 
     func onHand(for part: SDPart) -> Int {
-        PartsInventory.onHand(for: part.clientId, in: modelContext)
+        let stocked = stocksByPart[part.clientId, default: []].reduce(0) { $0 + $1.quantity }
+        let consumed = consumptionsByPart[part.clientId, default: []].reduce(0) { $0 + $1.quantity }
+        return stocked - consumed
     }
 
     func stocks(for part: SDPart) -> [SDPartStock] {
-        PartsInventory.stocks(for: part.clientId, in: modelContext)
+        stocksByPart[part.clientId, default: []]
     }
 
     func consumptions(for part: SDPart) -> [SDPartConsumption] {
-        PartsInventory.consumptions(for: part.clientId, in: modelContext)
+        consumptionsByPart[part.clientId, default: []]
     }
 
     /// Parts used by a maintenance record ("Verwendete Teile" on its detail page).
     func consumptions(forMaintenance record: SDMaintenanceRecord) -> [SDPartConsumption] {
-        PartsInventory.consumptions(forMaintenance: record, in: modelContext)
+        liveConsumptions.filter { consumption in
+            if consumption.maintenanceClientId == record.clientId { return true }
+            return record.serverId != nil && consumption.maintenanceServerId == record.serverId
+        }
     }
 
     /// Resolve a consumption's part by client id, falling back to server id.
     func part(clientId: UUID?, serverId: Int? = nil) -> SDPart? {
-        if let clientId, let match = parts.first(where: { $0.clientId == clientId }) {
-            return match
-        }
-        if let serverId { return parts.first { $0.serverId == serverId } }
+        if let clientId, let match = partsByClientId[clientId] { return match }
+        if let serverId { return partsByServerId[serverId] }
         return nil
     }
 
     func storageLocation(clientId: UUID?) -> SDStorageLocation? {
         guard let clientId else { return nil }
-        return storageLocations.first { $0.clientId == clientId }
+        return locationsByClientId[clientId]
     }
 
     /// Resolve a scanned part label (the QR encodes the server id).
     func part(serverId: Int) -> SDPart? {
-        parts.first { $0.serverId == serverId }
+        partsByServerId[serverId]
     }
 
     /// Resolve a scanned storage-location label (the QR encodes the server id).
     func storageLocation(serverId: Int) -> SDStorageLocation? {
-        storageLocations.first { $0.serverId == serverId }
+        locationsByServerId[serverId]
     }
 
     /// Parts stocked at a location with their summed stocked quantity there
     /// (stock only — consumptions are not location-scoped), sorted by name.
     func stockedParts(at location: SDStorageLocation) -> [(part: SDPart, quantity: Int)] {
-        let allStocks = ((try? modelContext.fetch(FetchDescriptor<SDPartStock>())) ?? [])
-            .filter { stock in
-                guard stock.syncState != .pendingDelete else { return false }
-                // Pulled stock updates refresh storageLocationServerId but not
-                // the clientId, so match either identity.
-                return stock.storageLocationClientId == location.clientId
-                    || (stock.storageLocationServerId != nil
-                        && stock.storageLocationServerId == location.serverId)
-            }
-        var quantities: [UUID: Int] = [:]
-        for stock in allStocks {
-            quantities[stock.partClientId, default: 0] += stock.quantity
-        }
-        return quantities
+        stockQuantitiesByLocation[location.clientId, default: [:]]
             .compactMap { partClientId, quantity in
-                parts.first { $0.clientId == partClientId }.map { (part: $0, quantity: quantity) }
+                partsByClientId[partClientId].map { (part: $0, quantity: quantity) }
             }
             .sorted { $0.part.name < $1.part.name }
     }
@@ -118,10 +160,8 @@ class PartsViewModel: ObservableObject {
         var visited = Set<UUID>()
         while let current = queue.popLast() {
             guard visited.insert(current.clientId).inserted else { continue }
-            for entry in stockedParts(at: current) {
-                partIds.insert(entry.part.clientId)
-            }
-            queue.append(contentsOf: storageLocations.filter { $0.parentClientId == current.clientId })
+            partIds.formUnion(stockQuantitiesByLocation[current.clientId, default: [:]].keys)
+            queue.append(contentsOf: childrenByLocation[current.clientId, default: []])
         }
         return partIds.count
     }
@@ -142,7 +182,7 @@ class PartsViewModel: ObservableObject {
         var current = location
         for _ in 0..<10 {
             guard let parentId = current.parentClientId,
-                  let parent = storageLocations.first(where: { $0.clientId == parentId })
+                  let parent = locationsByClientId[parentId]
             else { break }
             names.insert(parent.name, at: 0)
             current = parent
@@ -156,14 +196,17 @@ class PartsViewModel: ObservableObject {
 
     /// The repair a consumption is linked to, if it exists locally.
     func maintenanceRecord(for consumption: SDPartConsumption) -> SDMaintenanceRecord? {
-        let all = (try? modelContext.fetch(FetchDescriptor<SDMaintenanceRecord>())) ?? []
         if let mcid = consumption.maintenanceClientId {
-            return all.first { $0.clientId == mcid }
+            return maintenanceByClientId[mcid]
         }
         if let msid = consumption.maintenanceServerId {
-            return all.first { $0.serverId == msid }
+            return maintenanceByServerId[msid]
         }
         return nil
+    }
+
+    var inventoryValue: Double {
+        liveStocks.reduce(0) { $0 + ($1.normalizedPrice ?? $1.price ?? 0) }
     }
 
     // MARK: - Lookups & public browse (network)
@@ -193,6 +236,10 @@ class PartsViewModel: ObservableObject {
         publicError = nil
         do {
             publicParts = try await NetworkManager.shared.fetchPublicParts(query: query, seriesId: seriesId)
+        } catch is CancellationError {
+            // A newer debounced search replaced this one.
+        } catch let error as URLError where error.code == .cancelled {
+            // URLSession reports task cancellation separately.
         } catch {
             publicError = error.localizedDescription
         }

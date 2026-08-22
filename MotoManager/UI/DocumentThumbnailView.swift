@@ -80,8 +80,9 @@ final class DocumentThumbnailer {
     /// On-disk file for `url`, downloading + caching it if we don't have it yet.
     private static func fileURL(for url: String) async -> URL? {
         if let cached = DocumentCache.shared.cachedFileURL(for: url) { return cached }
-        guard let data = try? await NetworkManager.shared.fetchBlob(url: url) else { return nil }
-        return DocumentCache.shared.save(data, for: url)
+        guard let downloaded = try? await NetworkManager.shared.downloadBlob(url: url) else { return nil }
+        defer { try? FileManager.default.removeItem(at: downloaded) }
+        return await DocumentCache.shared.save(downloadedFile: downloaded, for: url)
     }
 
 }

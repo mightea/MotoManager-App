@@ -13,7 +13,9 @@ class AuthViewModel: NSObject, ObservableObject {
     
     override init() {
         super.init()
-        checkAuth()
+        if !ProcessInfo.processInfo.arguments.contains("--ui-testing-logged-out") {
+            checkAuth()
+        }
         setupNotificationObservers()
     }
     
@@ -50,7 +52,7 @@ class AuthViewModel: NSObject, ObservableObject {
             _ = try await NetworkManager.shared.login(credentials: credentials)
             isAuthenticated = true
         } catch {
-            errorMessage = message(for: error, prefix: "Login failed")
+            errorMessage = message(for: error, prefix: "Anmeldung fehlgeschlagen")
             isAuthenticated = false
         }
         
@@ -82,7 +84,7 @@ class AuthViewModel: NSObject, ObservableObject {
             
             // The rest of the flow continues in the delegate methods
         } catch {
-            errorMessage = message(for: error, prefix: "Passkey failed")
+            errorMessage = message(for: error, prefix: "Passkey-Anmeldung fehlgeschlagen")
             isLoading = false
         }
     }
@@ -139,7 +141,7 @@ extension AuthViewModel: ASAuthorizationControllerDelegate {
                     self.isAuthenticated = true
                     self.isLoading = false
                 } catch {
-                    self.errorMessage = self.message(for: error, prefix: "Passkey verification failed")
+                    self.errorMessage = self.message(for: error, prefix: "Passkey-Prüfung fehlgeschlagen")
                     self.isLoading = false
                 }
             }

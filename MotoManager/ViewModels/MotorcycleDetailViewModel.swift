@@ -20,8 +20,6 @@ class MotorcycleDetailViewModel: ObservableObject {
     /// Motorcycle details (Title/Value pairs) backed by SwiftData (offline-first source of truth).
     @Published var details: [SDMotorcycleDetail] = []
 
-    @Published var maintenanceRecords: [MaintenanceRecord] = []
-    @Published var torqueSpecs: [TorqueSpec] = []
     /// Recommended tire pressures (1:1 record, online-first like documents).
     @Published var tirePressure: TirePressure?
     @Published var documents: [Document] = []
@@ -38,6 +36,12 @@ class MotorcycleDetailViewModel: ObservableObject {
     @Published var errorMessage: String?
     /// Non-blocking flag: a refresh failed but cached data is still on screen.
     @Published var refreshFailed = false
+
+    var hasDisplayData: Bool {
+        !fuelRecords.isEmpty || !serviceRecords.isEmpty || !issues.isEmpty
+            || !torque.isEmpty || !details.isEmpty || !documents.isEmpty
+            || !commonDocuments.isEmpty || tirePressure != nil
+    }
     
     private var cancellables = Set<AnyCancellable>()
 
@@ -71,6 +75,18 @@ class MotorcycleDetailViewModel: ObservableObject {
             await loadAllData()
             await SyncEngine.shared.sync(motorcycleIds: [motorcycle.id])
             reloadLocal()
+            if errorMessage != nil {
+                switch SyncEngine.shared.status {
+                case .idle, .pending:
+                    // The authoritative SwiftData pull succeeded. A failed
+                    // auxiliary endpoint (documents/pressure/locations) is
+                    // non-blocking even when this is a brand-new empty bike.
+                    errorMessage = nil
+                    refreshFailed = true
+                case .syncing, .offline, .error:
+                    break
+                }
+            }
         }.value
     }
 
@@ -81,59 +97,56 @@ class MotorcycleDetailViewModel: ObservableObject {
 
         isLoading = true
 
+        async let documentsRequest = NetworkManager.shared.fetchDocuments()
+        async let pressureRequest = NetworkManager.shared.fetchTirePressure(motorcycleId: motorcycle.id)
+        async let locationsRequest = NetworkManager.shared.fetchLocations()
+        var failures: [Error] = []
+
         do {
-            // Run in parallel
-            async let maintenanceTask = NetworkManager.shared.fetchMaintenance(motorcycleId: motorcycle.id)
-            async let torqueTask = NetworkManager.shared.fetchTorqueSpecs(motorcycleId: motorcycle.id)
-            async let documentsTask = NetworkManager.shared.fetchDocuments()
-            async let pressureTask = NetworkManager.shared.fetchTirePressure(motorcycleId: motorcycle.id)
-            async let locationsTask = NetworkManager.shared.fetchLocations()
+            let allDocs = try await documentsRequest
+            documents = allDocs.filter { $0.motorcycleIds?.contains(motorcycle.id) ?? false }
+            commonDocuments = allDocs.filter { ($0.motorcycleIds ?? []).isEmpty }
+        } catch { failures.append(error) }
+        do { tirePressure = try await pressureRequest } catch { failures.append(error) }
+        do { userLocations = try await locationsRequest } catch { failures.append(error) }
 
-            let (maintenance, torque, allDocs, pressure, locations) =
-                try await (maintenanceTask, torqueTask, documentsTask, pressureTask, locationsTask)
-
-            self.maintenanceRecords = maintenance.sorted(by: { $0.date > $1.date })
-            self.torqueSpecs = torque
-            self.tirePressure = pressure
-            self.userLocations = locations
-
-            // Filter documents for this motorcycle
-            self.documents = allDocs.filter { doc in
-                doc.motorcycleIds?.contains(motorcycle.id) ?? false
-            }
-            // Documents not bound to any motorcycle are surfaced under "Allgemein".
-            self.commonDocuments = allDocs.filter { doc in
-                (doc.motorcycleIds ?? []).isEmpty
-            }
+        if failures.isEmpty {
             AppLog.debug("Loaded detail data for motorcycle \(motorcycle.id)")
             errorMessage = nil
             refreshFailed = false
-
-        } catch is CancellationError {
-            // Ignore normal Swift concurrency cancellations (e.g. from refreshable)
-        } catch {
-            AppLog.error("Failed to load detail data: \(error.localizedDescription)")
-            if maintenanceRecords.isEmpty && torqueSpecs.isEmpty && documents.isEmpty {
-                // Nothing cached to show — surface a blocking error.
-                errorMessage = error.localizedDescription
-            } else {
-                // We have cached data on screen; flag the stale refresh non-blockingly.
+        } else if let first = failures.first {
+            AppLog.error("Some detail data failed to load: \(first.localizedDescription)")
+            if hasDisplayData {
                 refreshFailed = true
+            } else {
+                errorMessage = first.localizedDescription
             }
         }
 
         isLoading = false
     }
 
+    /// Upload a document and refresh the shared document list. Documents remain
+    /// online-only, unlike the SwiftData-backed write entities.
+    func uploadDocument(
+        title: String,
+        fileName: String,
+        mimeType: String,
+        data: Data
+    ) async throws {
+        _ = try await NetworkManager.shared.createDocument(
+            title: title,
+            motorcycleIds: [motorcycle.id],
+            fileName: fileName,
+            mimeType: mimeType,
+            data: data
+        )
+        let allDocs = try await NetworkManager.shared.fetchDocuments()
+        documents = allDocs.filter { $0.motorcycleIds?.contains(motorcycle.id) ?? false }
+        commonDocuments = allDocs.filter { ($0.motorcycleIds ?? []).isEmpty }
+    }
+
     private func hydrateFromCache() {
-        if maintenanceRecords.isEmpty,
-           let cached = CacheStore.shared.load([MaintenanceRecord].self, key: CacheKey.maintenance(motorcycleId: motorcycle.id)) {
-            self.maintenanceRecords = cached.sorted(by: { $0.date > $1.date })
-        }
-        if torqueSpecs.isEmpty,
-           let cached = CacheStore.shared.load([TorqueSpec].self, key: CacheKey.torque(motorcycleId: motorcycle.id)) {
-            self.torqueSpecs = cached
-        }
         if documents.isEmpty,
            let cached = CacheStore.shared.load([Document].self, key: CacheKey.documents) {
             self.documents = cached.filter { $0.motorcycleIds?.contains(motorcycle.id) ?? false }
@@ -557,14 +570,6 @@ class MotorcycleDetailViewModel: ObservableObject {
                 r.fuelAmount = 16.0; r.pricePerUnit = 2.39; r.cost = 38.24; r.currency = "EUR"; r.fuelConsumption = 4.8; r.fuelType = "98"
                 return r
             }()
-        ]
-        vm.maintenanceRecords = [
-            MaintenanceRecord(id: 1, date: "2023-10-15", odo: 12000, motorcycleId: 1, cost: 45.50, normalizedCost: 45.5, partsCost: nil, currency: "EUR", description: "Shell V-Power", recordType: "fuel", brand: nil, model: nil, tirePosition: nil, tireSize: nil, dotCode: nil, batteryType: nil, fluidType: nil, viscosity: nil, oilType: nil, inspectionLocation: nil, locationId: nil, fuelType: "98", fuelAmount: 18.5, pricePerUnit: 2.45, latitude: nil, longitude: nil, locationName: "Shell Munich", fuelConsumption: 5.2, tripDistance: 350, fuelAdditiveAdded: false, leadSubstituteAdded: false, summary: "Tankstopp bei Shell", parentId: nil, clientId: nil, updatedAt: nil, deletedAt: nil),
-            MaintenanceRecord(id: 2, date: "2023-09-01", odo: 10000, motorcycleId: 1, cost: 250.00, normalizedCost: 250.0, partsCost: 89.9, currency: "EUR", description: "", recordType: "service", brand: nil, model: nil, tirePosition: nil, tireSize: nil, dotCode: nil, batteryType: nil, fluidType: nil, viscosity: "15W-50", oilType: "Synthetic", inspectionLocation: nil, locationId: nil, fuelType: nil, fuelAmount: nil, pricePerUnit: nil, latitude: nil, longitude: nil, locationName: "BMW Service", fuelConsumption: nil, tripDistance: nil, fuelAdditiveAdded: false, leadSubstituteAdded: false, summary: "Regulärer 10k Service", parentId: nil, clientId: nil, updatedAt: nil, deletedAt: nil)
-        ]
-        vm.torqueSpecs = [
-            TorqueSpec(id: 1, motorcycleId: 1, category: "Engine", name: "Oil Drain Plug", torque: 42, torqueEnd: nil, variation: nil, toolSize: "17mm", description: nil, unverified: nil, createdAt: "2023-01-01", clientId: nil, updatedAt: nil, deletedAt: nil),
-            TorqueSpec(id: 2, motorcycleId: 1, category: "Wheels", name: "Rear Axle Nut", torque: 100, torqueEnd: nil, variation: nil, toolSize: "34mm", description: nil, unverified: nil, createdAt: "2023-01-01", clientId: nil, updatedAt: nil, deletedAt: nil)
         ]
         vm.torque = [
             {

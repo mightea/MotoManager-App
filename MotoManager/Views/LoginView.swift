@@ -20,7 +20,17 @@ struct LoginView: View {
     @State private var showPassword: Bool = false
     @FocusState private var focusedField: Field?
 
-    private enum Field { case server, identifier, password }
+    private enum Field {
+        case server, identifier, password
+
+        var accessibilityIdentifier: String {
+            switch self {
+            case .server: "login.server"
+            case .identifier: "login.identifier"
+            case .password: "login.password"
+            }
+        }
+    }
 
     /// BMW R 80 G/S photo on Wikimedia Commons (CC BY-SA 3.0, Gastair).
     private let heroImageURL = URL(string: "https://upload.wikimedia.org/wikipedia/commons/thumb/2/28/BMW_R80GS_GENUINE_7.JPG/1280px-BMW_R80GS_GENUINE_7.JPG")!
@@ -285,6 +295,7 @@ struct LoginView: View {
                     }
                 }
                 .focused($focusedField, equals: field)
+                .accessibilityIdentifier(field.accessibilityIdentifier)
                 .textContentType(contentType)
                 .keyboardType(keyboard)
                 .textInputAutocapitalization(.never)
@@ -340,6 +351,7 @@ struct LoginView: View {
         }
         .glassActionButton(.primary, in: .roundedRectangle(radius: 14))
         .disabled(!canSubmit)
+        .accessibilityIdentifier("login.submit")
         .animation(.easeOut(duration: 0.18), value: canSubmit)
     }
 
@@ -377,6 +389,7 @@ struct LoginView: View {
         }
         .glassActionButton(.secondary, in: .roundedRectangle(radius: 14))
         .disabled(authVM.isLoading || normalizedServerURL == nil)
+        .accessibilityIdentifier("login.passkey")
     }
 
     /// Persists the entered server URL so the login request (and every call

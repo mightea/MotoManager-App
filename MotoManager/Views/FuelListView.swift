@@ -118,6 +118,7 @@ struct FuelListView: View {
 
             content
         }
+        .adaptiveContentWidth()
         .listStyle(.insetGrouped)
         .scrollContentBackground(.hidden)
         .ignoresSafeArea(edges: .top)

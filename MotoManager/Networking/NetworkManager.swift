@@ -98,12 +98,64 @@ class NetworkManager {
         }
 
         if authorized {
+            if path.hasPrefix("http"),
+               let requestOrigin = Self.origin(of: url),
+               let base = URL(string: baseURL),
+               requestOrigin != Self.origin(of: base) {
+                // Never forward the bearer token to a host supplied through a
+                // document/image URL in an API response.
+                throw APIError.badURL
+            }
             guard let token = getToken() else {
                 throw APIError.notAuthenticated
             }
             request.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         }
 
+        return request
+    }
+
+    private static func origin(of url: URL) -> String? {
+        guard let scheme = url.scheme?.lowercased(), let host = url.host?.lowercased() else { return nil }
+        return "\(scheme)://\(host):\(url.port ?? (scheme == "https" ? 443 : 80))"
+    }
+
+    /// Builds a small multipart/form-data request for the backend's upload
+    /// endpoints. Keeping this here preserves the shared auth/version/error
+    /// handling used by JSON requests.
+    private func makeMultipartRequest(
+        path: String,
+        fields: [(name: String, value: String)],
+        file: (field: String, name: String, mimeType: String, data: Data)? = nil
+    ) throws -> URLRequest {
+        let boundary = "MotoManager-\(UUID().uuidString)"
+        var body = Data()
+
+        func append(_ string: String) {
+            body.append(Data(string.utf8))
+        }
+
+        for field in fields {
+            append("--\(boundary)\r\n")
+            append("Content-Disposition: form-data; name=\"\(field.name)\"\r\n\r\n")
+            append("\(field.value)\r\n")
+        }
+        if let file {
+            let safeName = file.name
+                .replacingOccurrences(of: "\r", with: "-")
+                .replacingOccurrences(of: "\n", with: "-")
+                .replacingOccurrences(of: "\"", with: "'")
+            append("--\(boundary)\r\n")
+            append("Content-Disposition: form-data; name=\"\(file.field)\"; filename=\"\(safeName)\"\r\n")
+            append("Content-Type: \(file.mimeType)\r\n\r\n")
+            body.append(file.data)
+            append("\r\n")
+        }
+        append("--\(boundary)--\r\n")
+
+        var request = try makeRequest(path: path, method: "POST", authorized: true)
+        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+        request.httpBody = body
         return request
     }
 
@@ -218,6 +270,34 @@ class NetworkManager {
         return motorcycles
     }
 
+    func createMotorcycle(
+        make: String,
+        model: String,
+        fabricationDate: String?,
+        initialOdo: Int,
+        currencyCode: String,
+        isVeteran: Bool
+    ) async throws -> Motorcycle {
+        var fields: [(name: String, value: String)] = [
+            ("make", make),
+            ("model", model),
+            ("initialOdo", String(initialOdo)),
+            ("currencyCode", currencyCode),
+            ("isVeteran", String(isVeteran)),
+        ]
+        if let fabricationDate, !fabricationDate.isEmpty {
+            fields.append(("fabricationDate", fabricationDate))
+        }
+        let request = try makeMultipartRequest(path: "/api/motorcycles", fields: fields)
+        let data = try await performRequest(request)
+        var motorcycle = try Self.decode(MotorcycleResponse.self, from: data).motorcycle
+        if let imagePath = motorcycle.image, !imagePath.hasPrefix("http") {
+            let base = baseURL.hasSuffix("/") ? String(baseURL.dropLast()) : baseURL
+            motorcycle.image = base + (imagePath.hasPrefix("/") ? imagePath : "/\(imagePath)")
+        }
+        return motorcycle
+    }
+
     func fetchMaintenance(motorcycleId: Int, since: String? = nil) async throws -> [MaintenanceRecord] {
         let wrapper: MaintenanceListResponse = try await get(syncPath(
             "/api/motorcycles/\(motorcycleId)/maintenance", since: since))
@@ -303,6 +383,27 @@ class NetworkManager {
         return wrapper.docs
     }
 
+    func createDocument(
+        title: String,
+        motorcycleIds: [Int],
+        fileName: String,
+        mimeType: String,
+        data: Data
+    ) async throws -> Document {
+        var fields: [(name: String, value: String)] = [
+            ("title", title),
+            ("isPrivate", "false"),
+        ]
+        fields.append(contentsOf: motorcycleIds.map { ("motorcycleIds", String($0)) })
+        let request = try makeMultipartRequest(
+            path: "/api/documents",
+            fields: fields,
+            file: ("file", fileName, mimeType, data)
+        )
+        let response = try await performRequest(request)
+        return try Self.decode(DocumentResponse.self, from: response).document
+    }
+
     func fetchCurrencies() async throws -> [Currency] {
         let wrapper: CurrencyListResponse = try await get("/api/currencies")
         CacheStore.shared.save(wrapper.currencies, key: CacheKey.currencies)
@@ -313,6 +414,36 @@ class NetworkManager {
     func fetchBlob(url: String) async throws -> Data {
         let request = try makeRequest(path: url, authorized: true)
         return try await performRequest(request)
+    }
+
+    /// Streams a potentially large document to a temporary file instead of
+    /// materializing the entire PDF/manual in memory.
+    func downloadBlob(url: String) async throws -> URL {
+        let request = try makeRequest(path: url, authorized: true)
+        let temporary: URL
+        let response: URLResponse
+        do {
+            (temporary, response) = try await URLSession.shared.download(for: request)
+        } catch let urlError as URLError where Self.isOffline(urlError) {
+            throw APIError.offline
+        }
+        guard let http = response as? HTTPURLResponse else {
+            throw APIError.http(status: -1, message: nil)
+        }
+        if http.statusCode == 401 {
+            NotificationCenter.default.post(name: Self.unauthorizedNotification, object: nil)
+            throw APIError.unauthorized
+        }
+        guard (200...299).contains(http.statusCode) else {
+            throw APIError.http(status: http.statusCode, message: nil)
+        }
+
+        // URLSession owns its download URL; move it to a caller-owned temp URL
+        // before returning so it stays valid while the cache persists it.
+        let owned = FileManager.default.temporaryDirectory
+            .appendingPathComponent("MotoDownload-\(UUID().uuidString)")
+        try FileManager.default.moveItem(at: temporary, to: owned)
+        return owned
     }
 
     func createMaintenance(motorcycleId: Int, record: [String: Any]) async throws {

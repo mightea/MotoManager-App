@@ -10,6 +10,7 @@ import SwiftUI
 /// so it stays honest under the user's iOS 27 glass-intensity setting.
 struct StatStrip: View {
     let tiles: [StatTile]
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     init(_ tiles: [StatTile]) {
         self.tiles = tiles
@@ -19,16 +20,25 @@ struct StatStrip: View {
         // Group the tiles so adjacent glass surfaces blend/merge rather than
         // each drawing its own isolated effect.
         GlassEffectContainer(spacing: Theme.Spacing.s) {
-            HStack(spacing: Theme.Spacing.s) {
-                ForEach(tiles) { tile in
-                    tileView(tile)
-                        .frame(maxWidth: .infinity)
+            if dynamicTypeSize.isAccessibilitySize {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: Theme.Spacing.s) {
+                        ForEach(tiles) { tile in
+                            tileView(tile)
+                                .frame(width: 190)
+                        }
+                    }
                 }
+                .accessibilityHint("Weitere Kennzahlen horizontal verfügbar")
+            } else {
+                HStack(spacing: Theme.Spacing.s) {
+                    ForEach(tiles) { tile in
+                        tileView(tile)
+                            .frame(maxWidth: .infinity)
+                    }
+                }
+                .fixedSize(horizontal: false, vertical: true)
             }
-            // Equal-height tiles: the row takes the tallest tile's ideal
-            // height, and the maxHeight-infinity tiles stretch to fill it —
-            // tiles without a unit line would otherwise render shorter.
-            .fixedSize(horizontal: false, vertical: true)
         }
     }
 
@@ -38,20 +48,20 @@ struct StatStrip: View {
                 .scaledFont(9, weight: .heavy)
                 .tracking(1.2)
                 .foregroundStyle(Theme.Colors.onPhotoSecondary)
-                .lineLimit(1)
+                .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
                 .minimumScaleFactor(0.75)
 
             Text(tile.value)
                 .scaledFont(17, weight: .bold, design: .rounded)
                 .foregroundStyle(tile.accent ?? Theme.Colors.onPhoto)
-                .lineLimit(1)
+                .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
                 .minimumScaleFactor(0.7)
 
             if let unit = tile.unit, !unit.isEmpty {
                 Text(unit)
                     .scaledFont(10, weight: .medium)
                     .foregroundStyle(Theme.Colors.onPhotoSecondary)
-                    .lineLimit(1)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)

@@ -88,3 +88,11 @@ struct StorageLocationResponse: Codable {
 struct ModelSeriesResponse: Codable {
     let modelSeries: ModelSeries
 }
+
+struct MotorcycleResponse: Codable {
+    let motorcycle: Motorcycle
+}
+
+struct DocumentResponse: Codable {
+    let document: Document
+}

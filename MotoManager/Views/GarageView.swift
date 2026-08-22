@@ -11,6 +11,7 @@ struct GarageView: View {
     @EnvironmentObject var fleetVM: MotorcycleViewModel
     @Environment(\.dismiss) var dismiss
     @State private var query: String = ""
+    @State private var showingAddMotorcycle = false
 
     private var sortedFiltered: [Motorcycle] {
         let q = query.trim().lowercased()
@@ -38,7 +39,7 @@ struct GarageView: View {
         NavigationStack {
             Group {
                 if fleetVM.motorcycles.isEmpty && !fleetVM.isLoading {
-                    EmptyFleetView()
+                    EmptyFleetView(onAdd: { showingAddMotorcycle = true })
                 } else {
                     list
                 }
@@ -50,6 +51,13 @@ struct GarageView: View {
                     Button("Fertig") { dismiss() }
                 }
             }
+        }
+        .sheet(isPresented: $showingAddMotorcycle) {
+            AddMotorcycleView(viewModel: fleetVM) {
+                showingAddMotorcycle = false
+                dismiss()
+            }
+            .glassSheet()
         }
     }
 
@@ -65,13 +73,14 @@ struct GarageView: View {
 
             Section {
                 Button {
-                    // Add-motorcycle picker hook — wired when garage create lands.
+                    showingAddMotorcycle = true
                 } label: {
                     Label("Motorrad hinzufügen", systemImage: "plus")
                         .scaledFont(14, weight: .semibold)
                 }
                 .tint(Theme.Colors.primary)
                 .accessibilityLabel("Motorrad hinzufügen")
+                .accessibilityIdentifier("garage.addMotorcycle")
             }
         }
         .scrollContentBackground(.hidden)

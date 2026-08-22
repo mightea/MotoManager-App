@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct WorkshopView: View {
     @ObservedObject var viewModel: MotorcycleDetailViewModel
@@ -11,6 +12,9 @@ struct WorkshopView: View {
     @State private var showingAddDetail = false
     @State private var editingDetail: SDMotorcycleDetail?
     @State private var showingTirePressure = false
+    @State private var showingDocumentImporter = false
+    @State private var isUploadingDocument = false
+    @State private var documentUploadError: String?
 
     enum DocScope: Hashable { case moto, common }
     @State private var docScope: DocScope = .moto
@@ -129,6 +133,7 @@ struct WorkshopView: View {
                 torqueSection
             }
         }
+        .adaptiveContentWidth()
         .listStyle(.insetGrouped)
         .scrollContentBackground(.hidden)
         .ignoresSafeArea(edges: .top)
@@ -165,6 +170,20 @@ struct WorkshopView: View {
         .sheet(isPresented: $showingTirePressure) {
             AddTirePressureView(viewModel: viewModel)
                 .glassSheet(detents: [.medium, .large])
+        }
+        .fileImporter(
+            isPresented: $showingDocumentImporter,
+            allowedContentTypes: [.pdf, .image, .data],
+            allowsMultipleSelection: false,
+            onCompletion: handleDocumentSelection
+        )
+        .alert("Dokument konnte nicht hochgeladen werden", isPresented: Binding(
+            get: { documentUploadError != nil },
+            set: { if !$0 { documentUploadError = nil } }
+        )) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(documentUploadError ?? "Unbekannter Fehler")
         }
     }
 
@@ -263,18 +282,53 @@ struct WorkshopView: View {
             }
 
             Button {
-                // Upload picker hook — wired when document upload lands.
+                showingDocumentImporter = true
             } label: {
-                Label("Dokument hochladen", systemImage: "plus")
-                    .scaledFont(13, weight: .semibold)
+                Group {
+                    if isUploadingDocument {
+                        Label("Dokument wird hochgeladen …", systemImage: "arrow.up.circle")
+                    } else {
+                        Label("Dokument hochladen", systemImage: "plus")
+                    }
+                }
+                .scaledFont(13, weight: .semibold)
             }
             .tint(Theme.Colors.primary)
+            .disabled(isUploadingDocument)
         } header: {
             HStack {
                 Text("Dokumente")
                 Spacer()
                 Text("\(displayedDocuments.count) \(displayedDocuments.count == 1 ? "Eintrag" : "Einträge")")
             }
+        }
+    }
+
+    private func handleDocumentSelection(_ result: Result<[URL], Error>) {
+        do {
+            guard let url = try result.get().first else { return }
+            isUploadingDocument = true
+            Task {
+                defer { isUploadingDocument = false }
+                let hasAccess = url.startAccessingSecurityScopedResource()
+                defer { if hasAccess { url.stopAccessingSecurityScopedResource() } }
+                do {
+                    let data = try await Task.detached(priority: .userInitiated) {
+                        try Data(contentsOf: url, options: .mappedIfSafe)
+                    }.value
+                    let type = UTType(filenameExtension: url.pathExtension)
+                    try await viewModel.uploadDocument(
+                        title: url.deletingPathExtension().lastPathComponent,
+                        fileName: url.lastPathComponent,
+                        mimeType: type?.preferredMIMEType ?? "application/octet-stream",
+                        data: data
+                    )
+                } catch {
+                    documentUploadError = error.localizedDescription
+                }
+            }
+        } catch {
+            documentUploadError = error.localizedDescription
         }
     }
 
