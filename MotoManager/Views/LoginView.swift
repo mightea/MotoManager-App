@@ -3,8 +3,8 @@ import SwiftUI
 /// Hero-photo login screen matching the prototype
 /// (`motomanager-app/project/assets/screens/LoginScreen.jsx`).
 ///
-/// - Full-bleed BMW R 80 G/S Wikimedia photo as background with a darken
-///   gradient and soft brand halos.
+/// - Full-bleed bundled BMW R 80 G/S photo as background with a darken gradient
+///   and soft brand halos.
 /// - Motorsport stripe at top.
 /// - MM wheel brand mark + wordmark + eyebrow.
 /// - "Willkommen zurück." headline + sub-line.
@@ -31,9 +31,6 @@ struct LoginView: View {
             }
         }
     }
-
-    /// BMW R 80 G/S photo on Wikimedia Commons (CC BY-SA 3.0, Gastair).
-    private let heroImageURL = URL(string: "https://upload.wikimedia.org/wikipedia/commons/thumb/2/28/BMW_R80GS_GENUINE_7.JPG/1280px-BMW_R80GS_GENUINE_7.JPG")!
 
     /// The entered server URL, trimmed and without trailing slashes — or nil
     /// when it isn't a usable http(s) URL. Requests append `/api/...` paths,
@@ -86,18 +83,14 @@ struct LoginView: View {
     // MARK: - Background layers
 
     private var heroBackground: some View {
-        AsyncImage(url: heroImageURL) { phase in
-            switch phase {
-            case .success(let image):
-                image.resizable().scaledToFill()
-            default:
-                Theme.Colors.navy900
-            }
-        }
-        .scaleEffect(1.05)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .clipped()
-        .ignoresSafeArea()
+        Image("LoginHero")
+            .resizable()
+            .scaledToFill()
+            .accessibilityHidden(true)
+            .scaleEffect(1.05)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .clipped()
+            .ignoresSafeArea()
     }
 
     private var darkenOverlay: some View {
@@ -383,9 +376,13 @@ struct LoginView: View {
                     .scaledFont(16, weight: .semibold)
                 Text("Mit Passkey anmelden")
                     .scaledFont(15, weight: .bold)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             .frame(maxWidth: .infinity)
             .frame(minHeight: 50)
+            .padding(.vertical, 6)
         }
         .glassActionButton(.secondary, in: .roundedRectangle(radius: 14))
         .disabled(authVM.isLoading || normalizedServerURL == nil)
