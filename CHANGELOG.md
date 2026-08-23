@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.1](https://github.com/mightea/MotoManager-App/compare/v0.7.0...v0.7.1) (2026-08-23)
+
+
+### Bug Fixes
+
+* sign the CI archive manually with the distribution cert ([e1f72e1](https://github.com/mightea/MotoManager-App/commit/e1f72e1f146aadc231ff3bb8424b798578fee480))
+
 ## [0.7.0](https://github.com/mightea/MotoManager-App/compare/v0.6.0...v0.7.0) (2026-08-23)
 
 
