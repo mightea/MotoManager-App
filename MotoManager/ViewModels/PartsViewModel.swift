@@ -430,11 +430,14 @@ class PartsViewModel: ObservableObject {
     // MARK: - Storage location writes
 
     @discardableResult
-    func createStorageLocation(name: String, parent: SDStorageLocation?) -> SDStorageLocation? {
+    func createStorageLocation(
+        name: String, parent: SDStorageLocation?, locationId: Int? = nil
+    ) -> SDStorageLocation? {
         let location = SDStorageLocation(
             name: name,
             parentClientId: parent?.clientId,
             parentServerId: parent?.serverId,
+            locationId: parent == nil ? locationId : nil,
             syncState: .pendingCreate
         )
         modelContext.insert(location)

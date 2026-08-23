@@ -157,6 +157,7 @@ extension SDStorageLocation {
             name: dto.name,
             parentClientId: parentClientId,
             parentServerId: dto.parentId,
+            locationId: dto.locationId,
             syncState: .synced
         )
         l.apply(dto)
@@ -167,6 +168,7 @@ extension SDStorageLocation {
         serverId = dto.id
         name = dto.name
         parentServerId = dto.parentId
+        locationId = dto.locationId
         serverUpdatedAt = dto.updatedAt
         syncState = .synced
     }
@@ -177,6 +179,10 @@ extension SDStorageLocation {
             "name": name,
         ]
         if let parentServerId { p["parentId"] = parentServerId }
+        // A physical place and a storage parent are mutually exclusive. The
+        // server enforces this too, but keeping the payload valid lets offline
+        // records sync without a recoverable validation failure.
+        if parentServerId == nil, let locationId { p["locationId"] = locationId }
         return p
     }
 }

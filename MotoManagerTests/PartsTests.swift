@@ -158,7 +158,7 @@ struct PartsSyncMappingTests {
 
     @Test func storageLocationMakeAdoptsServerClientId() throws {
         let json = """
-        {"id":7,"userId":1,"name":"Regal A","parentId":3,
+        {"id":7,"userId":1,"name":"Regal A","parentId":3,"locationId":null,
          "createdAt":"2026-07-01T10:00:00.000Z",
          "clientId":"22222222-2222-2222-2222-222222222222",
          "updatedAt":"2026-07-01T10:00:00.000Z","deletedAt":null}
@@ -171,6 +171,39 @@ struct PartsSyncMappingTests {
         #expect(model.parentServerId == 3)
         #expect(model.parentClientId == parentClientId)
         #expect(model.syncState == .synced)
+    }
+
+    @Test func rootStorageLocationPayloadCarriesWorkshop() {
+        let location = SDStorageLocation(
+            name: "Teilelager", locationId: 19, syncState: .pendingCreate)
+
+        let payload = location.toPayload(parentServerId: nil)
+
+        #expect(payload["locationId"] as? Int == 19)
+        #expect(payload["parentId"] == nil)
+    }
+
+    @Test func storageLocationMakePreservesWorkshopLink() throws {
+        let json = """
+        {"id":8,"userId":1,"name":"Teilelager","parentId":null,"locationId":19,
+         "createdAt":"2026-07-01T10:00:00.000Z","clientId":null,
+         "updatedAt":"2026-07-01T10:00:00.000Z","deletedAt":null}
+        """
+        let dto = try JSONDecoder().decode(StorageLocation.self, from: Data(json.utf8))
+
+        let model = SDStorageLocation.make(from: dto, parentClientId: nil)
+
+        #expect(model.locationId == 19)
+    }
+
+    @Test func nestedStorageLocationPayloadOmitsWorkshop() {
+        let location = SDStorageLocation(
+            name: "Regal A", locationId: 19, syncState: .pendingCreate)
+
+        let payload = location.toPayload(parentServerId: 7)
+
+        #expect(payload["parentId"] as? Int == 7)
+        #expect(payload["locationId"] == nil)
     }
 }
 

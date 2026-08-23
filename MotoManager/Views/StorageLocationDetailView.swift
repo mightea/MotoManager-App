@@ -6,6 +6,7 @@ import SwiftUI
 struct StorageLocationDetailView: View {
     let location: SDStorageLocation
     @ObservedObject var viewModel: PartsViewModel
+    let placeName: String?
     @Environment(\.dismiss) private var dismiss
 
     @State private var selectedPart: SDPart?
@@ -14,9 +15,10 @@ struct StorageLocationDetailView: View {
     /// Captured at init so the auto-pop guard never reads a deleted model.
     private let locationClientId: UUID
 
-    init(location: SDStorageLocation, viewModel: PartsViewModel) {
+    init(location: SDStorageLocation, viewModel: PartsViewModel, placeName: String? = nil) {
         self.location = location
         self.viewModel = viewModel
+        self.placeName = placeName
         self.locationClientId = location.clientId
     }
 
@@ -83,8 +85,8 @@ struct StorageLocationDetailView: View {
     }
 
     private var pathSubtitle: String? {
-        guard let path = viewModel.locationPath(location), path != location.name else { return nil }
-        return path
+        if let path = viewModel.locationPath(location), path != location.name { return path }
+        return placeName
     }
 
     // MARK: - Stocked parts

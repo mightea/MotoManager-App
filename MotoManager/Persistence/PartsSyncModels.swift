@@ -169,6 +169,8 @@ final class SDStorageLocation {
     var name: String
     var parentClientId: UUID?
     var parentServerId: Int?
+    /// Physical garage/workshop anchor for a root storage location.
+    var locationId: Int?
 
     var syncState: SyncState
     var updatedAtLocal: Date
@@ -183,6 +185,7 @@ final class SDStorageLocation {
         name: String,
         parentClientId: UUID? = nil,
         parentServerId: Int? = nil,
+        locationId: Int? = nil,
         syncState: SyncState = .pendingCreate,
         updatedAtLocal: Date = .init()
     ) {
@@ -191,6 +194,7 @@ final class SDStorageLocation {
         self.name = name
         self.parentClientId = parentClientId
         self.parentServerId = parentServerId
+        self.locationId = locationId
         self.syncState = syncState
         self.updatedAtLocal = updatedAtLocal
     }

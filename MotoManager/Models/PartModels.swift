@@ -72,6 +72,10 @@ nonisolated struct StorageLocation: Codable, Identifiable {
     let userId: Int
     let name: String
     let parentId: Int?
+    /// Physical garage/workshop from the locations endpoint. The backend only
+    /// permits this on root storage locations; children inherit their root's
+    /// place.
+    let locationId: Int?
     let createdAt: String
     // Sync metadata (server-provided; see backend migration 012).
     let clientId: String?

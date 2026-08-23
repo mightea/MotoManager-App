@@ -27,7 +27,6 @@ struct PartsView: View {
     @State private var selectedLocation: SDStorageLocation?
     @State private var showingScanNotFound = false
     @State private var showingAddLocation = false
-    @State private var newLocationName = ""
     /// Whether the public browse has completed at least one load this session —
     /// before that, the segment shows placeholders instead of a flashing
     /// empty state.
@@ -164,19 +163,23 @@ struct PartsView: View {
                 .glassSheet()
         }
         .navigationDestination(item: $selectedLocation) { location in
-            StorageLocationDetailView(location: location, viewModel: viewModel)
+            StorageLocationDetailView(
+                location: location,
+                viewModel: viewModel,
+                placeName: detailVM.location(id: location.locationId)?.name
+            )
         }
         .alert("Etikett nicht gefunden", isPresented: $showingScanNotFound) {
             Button("OK", role: .cancel) {}
         } message: {
             Text("Zu diesem QR-Code gibt es lokal keinen Eintrag. Möglicherweise wurde er noch nicht synchronisiert — zum Aktualisieren nach unten ziehen.")
         }
-        .alert("Neuer Lagerort", isPresented: $showingAddLocation) {
-            TextField("Name, z. B. Regal A", text: $newLocationName)
-            Button("Abbrechen", role: .cancel) { newLocationName = "" }
-            Button("Anlegen", action: createLocation)
-        } message: {
-            Text("Untergeordnete Lagerorte lassen sich im Lagerort selbst anlegen.")
+        .sheet(isPresented: $showingAddLocation) {
+            AddStorageLocationView(
+                viewModel: viewModel,
+                places: detailVM.userLocations
+            )
+            .glassSheet()
         }
         .alert("Teil löschen?", isPresented: Binding(
             get: { partPendingDeletion != nil },
@@ -205,13 +208,6 @@ struct PartsView: View {
         case .locations: showingAddLocation = true
         case .publicParts: break   // button is disabled on the public segment
         }
-    }
-
-    private func createLocation() {
-        let name = newLocationName.trimmingCharacters(in: .whitespaces)
-        newLocationName = ""
-        guard !name.isEmpty else { return }
-        viewModel.createStorageLocation(name: name, parent: nil)
     }
 
     /// Opens the scanned part/location, or the not-found alert for ids that
@@ -391,6 +387,7 @@ struct PartsView: View {
                     StorageLocationCard(
                         location: location,
                         parentPath: viewModel.locationParentPath(location),
+                        placeName: detailVM.location(id: location.locationId)?.name,
                         directCount: viewModel.stockedParts(at: location).count,
                         totalCount: viewModel.totalStockedPartCount(at: location)
                     )
@@ -450,6 +447,7 @@ struct PartsView: View {
 private struct StorageLocationCard: View {
     let location: SDStorageLocation
     let parentPath: String?
+    let placeName: String?
     /// Parts stocked directly at this location.
     let directCount: Int
     /// Parts stocked here or in any nested container — what the big number
@@ -477,6 +475,11 @@ private struct StorageLocationCard: View {
                         .scaledFont(11, weight: .semibold)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
+                } else if let placeName {
+                    Label(placeName, systemImage: "mappin.and.ellipse")
+                        .scaledFont(11, weight: .semibold)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
             Spacer(minLength: 0)
@@ -496,6 +499,122 @@ private struct StorageLocationCard: View {
                 .foregroundStyle(.tertiary)
         }
         .padding(.vertical, 4)
+    }
+}
+
+// MARK: - Storage location creation
+
+/// A new storage record can either live below another storage location or be
+/// anchored directly to a physical garage/workshop. Those are mutually
+/// exclusive relationships in the API, so one placement picker makes the
+/// choice explicit.
+private struct AddStorageLocationView: View {
+    @ObservedObject var viewModel: PartsViewModel
+    let places: [Location]
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var name = ""
+    @State private var placement: Placement = .none
+
+    private enum Placement: Hashable {
+        case none
+        case storageLocation(UUID)
+        case place(Int)
+    }
+
+    private var garages: [Location] {
+        places
+            .filter { $0.type == "storage" }
+            .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+    }
+
+    private var workshops: [Location] {
+        places
+            .filter { $0.type == "maintenanceShop" }
+            .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Lagerort") {
+                    TextField("Name, z. B. Regal A", text: $name)
+                        .textInputAutocapitalization(.sentences)
+                }
+
+                Section {
+                    Picker("Untergebracht in", selection: $placement) {
+                        Text("Kein übergeordneter Ort")
+                            .tag(Placement.none)
+
+                        if !viewModel.storageLocations.isEmpty {
+                            Section("Lagerorte") {
+                                ForEach(viewModel.storageLocations, id: \.clientId) { location in
+                                    Text(viewModel.locationPath(location) ?? location.name)
+                                        .tag(Placement.storageLocation(location.clientId))
+                                }
+                            }
+                        }
+
+                        if !garages.isEmpty {
+                            Section("Garagen & Lager") {
+                                ForEach(garages) { place in
+                                    Text(place.name)
+                                        .tag(Placement.place(place.id))
+                                }
+                            }
+                        }
+
+                        if !workshops.isEmpty {
+                            Section("Werkstätten") {
+                                ForEach(workshops) { workshop in
+                                    Text(workshop.name)
+                                        .tag(Placement.place(workshop.id))
+                                }
+                            }
+                        }
+                    }
+                    .pickerStyle(.navigationLink)
+                } footer: {
+                    Text("Wähle einen bestehenden Lagerort, eine Garage oder eine Werkstatt.")
+                }
+            }
+            .navigationTitle("Neuer Lagerort")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Abbrechen") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Anlegen", action: save)
+                        .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+            }
+        }
+    }
+
+    private func save() {
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedName.isEmpty else { return }
+
+        let created: SDStorageLocation?
+        switch placement {
+        case .none:
+            created = viewModel.createStorageLocation(name: trimmedName, parent: nil)
+        case .storageLocation(let clientId):
+            created = viewModel.createStorageLocation(
+                name: trimmedName,
+                parent: viewModel.storageLocation(clientId: clientId)
+            )
+        case .place(let locationId):
+            created = viewModel.createStorageLocation(
+                name: trimmedName,
+                parent: nil,
+                locationId: locationId
+            )
+        }
+
+        if created != nil { dismiss() }
     }
 }
 
