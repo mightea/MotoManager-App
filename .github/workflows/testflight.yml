@@ -11,10 +11,12 @@
 # Signing model (no Fastlane, no cloud signing): the Apple Distribution
 # certificate (.p12) and the App Store provisioning profile live in GitHub
 # secrets; the cert is imported into a throwaway keychain per run, the
-# profile installed for the export step, and the export signs MANUALLY with
+# profile installed, and BOTH the archive and the export sign MANUALLY with
 # exactly those two. Cloud signing is deliberately avoided — creating
 # cloud-managed distribution certificates requires an Admin API key, which
-# CI should not hold. The export step uploads the archive directly to App
+# CI should not hold, and automatic signing on a fresh runner mints a new
+# Apple Development certificate every run until the account's certificate
+# quota is exhausted. The export step uploads the archive directly to App
 # Store Connect, authenticated with an App Manager API key.
 #
 # Required configuration (Settings → Environments → "testflight"):
@@ -153,23 +155,25 @@ jobs:
 
       - name: Archive
         env:
-          ASC_API_KEY_ID: ${{ secrets.ASC_API_KEY_ID }}
-          ASC_API_ISSUER_ID: ${{ secrets.ASC_API_ISSUER_ID }}
           APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
           DEFAULT_SERVER_URL: ${{ secrets.DEFAULT_SERVER_URL }}
+          PROFILE_NAME: ${{ steps.profile.outputs.name }}
         run: |
           set -euo pipefail
+          # Manual signing with the imported distribution cert + installed
+          # profile. Automatic signing here would mint a fresh Apple
+          # Development certificate on every run (the runner never has an
+          # existing private key) until the account's certificate quota is
+          # exhausted — which is exactly how it once broke.
           xcodebuild archive \
             -project "$PROJECT" \
             -scheme "$SCHEME" \
             -configuration Release \
             -destination 'generic/platform=iOS' \
             -archivePath "$RUNNER_TEMP/MotoManager.xcarchive" \
-            -allowProvisioningUpdates \
-            -authenticationKeyPath "$RUNNER_TEMP/AuthKey_${ASC_API_KEY_ID}.p8" \
-            -authenticationKeyID "$ASC_API_KEY_ID" \
-            -authenticationKeyIssuerID "$ASC_API_ISSUER_ID" \
-            CODE_SIGN_STYLE=Automatic \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY="Apple Distribution" \
+            PROVISIONING_PROFILE_SPECIFIER="$PROFILE_NAME" \
             DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
             CURRENT_PROJECT_VERSION="${{ steps.version.outputs.build_number }}" \
             MM_DEFAULT_BASE_URL="$DEFAULT_SERVER_URL" \
