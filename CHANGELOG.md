@@ -1,5 +1,35 @@
 # Changelog
 
+## [0.7.0](https://github.com/mightea/MotoManager-App/compare/v0.6.0...v0.7.0) (2026-08-23)
+
+
+### Features
+
+* adapt layout for ipad regular width ([ef99710](https://github.com/mightea/MotoManager-App/commit/ef99710f32bbade59c719dca0a06f16d2f6a7a72))
+* automate app store listing metadata and screenshot management ([0a79311](https://github.com/mightea/MotoManager-App/commit/0a79311ad46eac0c23f2488c70c4da0bb7d21d34))
+* bundle login hero image ([6ea65d2](https://github.com/mightea/MotoManager-App/commit/6ea65d231ba8608891e15fda762aa93482006815))
+* honor the backend's soft and hard app upgrade requirements ([6dacd75](https://github.com/mightea/MotoManager-App/commit/6dacd7522b402b05ed96ec5d178500927000e938))
+* improve app performance and core workflows ([4960bec](https://github.com/mightea/MotoManager-App/commit/4960becb9aa487af1334abc5c2e15884384f005b))
+* link storage locations to workshops ([e76ddfd](https://github.com/mightea/MotoManager-App/commit/e76ddfd0cf372721825d3603cb290442cdc86cd5))
+* report marketing version and build number on every request ([d6df917](https://github.com/mightea/MotoManager-App/commit/d6df917bde8e1665f74cdb3c9574c9fe4fe30ae0))
+* shoot app store screenshots against the live demo server ([a352b8a](https://github.com/mightea/MotoManager-App/commit/a352b8aec50034fd7fdbb0b68d0d2fe6d59def9e))
+* side-by-side list and detail on ipad for fuel and service tabs ([e03977f](https://github.com/mightea/MotoManager-App/commit/e03977f4c75f6a3dcf2647d9f47eb7b36f861c4f))
+
+
+### Bug Fixes
+
+* capture iphone screenshots at the accepted 1260x2736 size ([35e242e](https://github.com/mightea/MotoManager-App/commit/35e242e13caba2c24e406749aaa682b4d8c77e7e))
+* keep the dynamic island out of the first iphone screenshot ([2dcf930](https://github.com/mightea/MotoManager-App/commit/2dcf930da6b57c71bdde742a5210bd719d854b49))
+* match screenshot sets by attribute instead of a filter query ([dededae](https://github.com/mightea/MotoManager-App/commit/dededaece8f3de485548b2805f8e758c5dd8d18c))
+* slow down testflight build number growth to run*10 + attempt ([1c8c8e0](https://github.com/mightea/MotoManager-App/commit/1c8c8e03552e934cfa80f6a9afc21872a18d597b))
+* upload 6.9 inch screenshots to the APP_IPHONE_67 display slot ([65ebace](https://github.com/mightea/MotoManager-App/commit/65ebace58bd420952e334400420a5ba2ab401057))
+* use the APP_IPHONE_69 display type for the 6.9 inch screenshot set ([010c48d](https://github.com/mightea/MotoManager-App/commit/010c48d9ba841c13b283315920052147825940e6))
+
+
+### Reverts
+
+* remove ipad layout adaptations from the app screens ([9bd9e24](https://github.com/mightea/MotoManager-App/commit/9bd9e24712bf2adcc4b767c440a47acf2a75b517))
+
 ## [0.6.0](https://github.com/mightea/MotoManager-App/compare/v0.5.0...v0.6.0) (2026-08-18)
 
 
