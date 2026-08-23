@@ -128,7 +128,7 @@ struct MaintenanceLogsView: View {
                 }
 
                 Section {
-                    historyFilterChips
+                    historyFilterControl
                 } header: {
                     HStack {
                         Text("Verlauf")
@@ -254,36 +254,16 @@ struct MaintenanceLogsView: View {
         }
     }
 
-    /// "Wartung / Standort / Alle" chips, mirroring the torque-group chips on
-    /// the Werkstatt page. Standortwechsel are logistics, so they're out of
-    /// the default view but one tap away.
-    private var historyFilterChips: some View {
-        HStack(spacing: 6) {
-            ForEach(HistoryFilter.allCases, id: \.rawValue) { filter in
-                let active = filter == historyFilter
-                Button {
-                    // No withAnimation: a global transaction would animate the
-                    // header pills and everything else driven by the filter.
-                    historyFilter = filter
-                } label: {
-                    Text(filter.rawValue)
-                        .scaledFont(12, weight: .semibold)
-                        .foregroundStyle(active ? AnyShapeStyle(Color.white) : AnyShapeStyle(.primary))
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .glassEffect(
-                            active
-                                ? .regular.tint(Theme.Colors.primary).interactive()
-                                : .regular.interactive(),
-                            in: Capsule()
-                        )
-                }
-                .accessibilityAddTraits(active ? [.isSelected] : [])
-            }
-            Spacer(minLength: 0)
-        }
-        // Scoped like GlassSegmentedControl: only the chips animate.
-        .animation(.easeOut(duration: 0.2), value: historyFilter)
+    /// "Wartung / Standort / Alle" as a full-width GlassSegmentedControl.
+    /// Standortwechsel are logistics, so they're out of the default view but
+    /// one tap away. Not loose chip buttons: multiple non-plain Buttons in one
+    /// List row fire *all* their actions on a row tap, so the last one (Alle)
+    /// always won and the filter appeared stuck.
+    private var historyFilterControl: some View {
+        GlassSegmentedControl(
+            segments: HistoryFilter.allCases.map { .init(value: $0, label: $0.rawValue) },
+            selection: $historyFilter
+        )
     }
 
     @ViewBuilder
