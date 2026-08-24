@@ -205,8 +205,8 @@ private struct GarageRow: View {
         let plate = motorcycle.numberPlate
         let odo = motorcycle.latestOdo ?? motorcycle.initialOdo
         return HStack(spacing: 6) {
-            if let year = motorcycle.modelYear, !year.isEmpty {
-                Text(String(year.prefix(4))).monospaced()
+            if let year = motorcycle.modelYear.flatMap(Formatters.modelYear) {
+                Text(year).monospaced()
                 Text("·").opacity(0.6)
             }
             Text("\(odo) km").monospaced()

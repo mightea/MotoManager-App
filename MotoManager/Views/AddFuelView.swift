@@ -683,15 +683,32 @@ struct AddFuelView: View {
         }
     }
 
+    /// Watchdog against an endless "Tankstelle wird gesucht…" spinner: offline
+    /// (or with a slow GPS fix) the row must degrade to the retryable state
+    /// instead of spinning forever. Cancel once the lookup resolves.
+    private func stationWatchdog(timeout: Duration = .seconds(6)) -> Task<Void, Never> {
+        Task {
+            try? await Task.sleep(for: timeout)
+            guard !Task.isCancelled, stationState == .detecting else { return }
+            stationState = .failed
+        }
+    }
+
     private func detectStation() async {
         guard existingRecord == nil else { return }
         stationState = .detecting
+        let watchdog = stationWatchdog()
+        defer { watchdog.cancel() }
         do {
             let location = try await LocationManager.shared.requestCurrentLocation()
             let coord = location.coordinate
+            // If the watchdog already gave up, a late result must not yank the
+            // row back while the user may be doing something else with it.
+            guard stationState == .detecting else { return }
             stationCoord = coord
             let nearby = try await NetworkManager.shared.fetchNearbyLocations(
                 latitude: coord.latitude, longitude: coord.longitude, radiusMeters: 250)
+            guard stationState == .detecting else { return }
             if let match = nearby.first {
                 locationId = match.id
                 stationName = match.name
@@ -701,12 +718,13 @@ struct AddFuelView: View {
                 stationState = .matched
             } else {
                 stationName = (try? await reverseGeocodedName(coord)) ?? ""
+                guard stationState == .detecting else { return }
                 stationState = .suggestCreate
             }
         } catch LocationManager.LocationError.denied {
             stationState = .denied
         } catch {
-            stationState = .failed
+            if stationState == .detecting { stationState = .failed }
         }
     }
 
@@ -715,6 +733,8 @@ struct AddFuelView: View {
         let name = stationName.trimmingCharacters(in: .whitespaces)
         guard !name.isEmpty else { return }
         stationState = .detecting
+        let watchdog = stationWatchdog()
+        defer { watchdog.cancel() }
         do {
             let created = try await NetworkManager.shared.createLocation(
                 name: name, latitude: coord.latitude, longitude: coord.longitude)
@@ -722,7 +742,7 @@ struct AddFuelView: View {
             stationName = created.name
             stationState = .matched
         } catch {
-            stationState = .suggestCreate
+            if stationState == .detecting { stationState = .suggestCreate }
         }
     }
 

@@ -66,6 +66,17 @@ enum Formatters {
         return dayMonthNameFormatter.string(from: date)
     }
 
+    /// Display year from the backend's model-year field, which may hold a bare
+    /// year ("1990") or a month-qualified first registration ("07/1990").
+    /// Callers used to take `prefix(4)`, which turned "07/1990" into "07/1".
+    nonisolated static func modelYear(_ raw: String) -> String? {
+        let numericRuns = raw.split(whereSeparator: { !$0.isNumber })
+        if let year = numericRuns.first(where: { $0.count == 4 }) {
+            return String(year)
+        }
+        return numericRuns.first.map(String.init)
+    }
+
     // MARK: - Numbers
 
     /// Swiss-style grouping (`134'373`), matching how SwiftUI's localized
