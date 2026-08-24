@@ -83,6 +83,10 @@ struct StatStrip: View {
         .padding(.horizontal, 11)
         .padding(.vertical, 10)
         .glassEffect(.regular, in: RoundedRectangle(cornerRadius: Theme.Radius.chip))
+        // One VoiceOver element per tile — read as eyebrow, value, unit in
+        // that order instead of three unrelated text fragments.
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(tile.accessibilityText)
     }
 }
 
@@ -92,4 +96,11 @@ struct StatTile: Identifiable {
     let value: String
     var unit: String? = nil
     var accent: Color? = nil
+
+    /// Composed VoiceOver text, e.g. "Ø Verbrauch: 5.2, L/100 km · letzte 10".
+    var accessibilityText: String {
+        var parts = ["\(eyebrow): \(value)"]
+        if let unit, !unit.isEmpty { parts.append(unit) }
+        return parts.joined(separator: ", ")
+    }
 }

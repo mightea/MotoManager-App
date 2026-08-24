@@ -14,6 +14,8 @@ struct AddPartView: View {
     @State private var isPublic: Bool
     @State private var selectedSeriesIds: Set<Int>
     @State private var showingSeriesPicker = false
+    /// Trigger for the save-success haptic (flips just before dismissal).
+    @State private var saveSucceeded = false
     @State private var confirmingDelete = false
     @State private var validationError: String?
 
@@ -115,6 +117,9 @@ struct AddPartView: View {
             }
             .navigationTitle(existingPart == nil ? "Teil hinzufügen" : "Teil bearbeiten")
             .navigationBarTitleDisplayMode(.inline)
+            // Success tick when the save lands (HIG: haptic feedback for
+            // user-initiated confirmations).
+            .sensoryFeedback(.success, trigger: saveSucceeded) { _, new in new }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Abbrechen") { dismiss() }
@@ -259,6 +264,7 @@ struct AddPartView: View {
                 purchaseDate: stockPurchaseDate, storageLocation: stockLocation,
                 newLocationName: newLocationName) != nil else { return }
         }
+        saveSucceeded = true
         dismiss()
     }
 }

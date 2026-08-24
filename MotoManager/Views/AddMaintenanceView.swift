@@ -64,6 +64,8 @@ struct AddMaintenanceView: View {
     @State private var date: Date
     @State private var confirmingDelete = false
     @State private var showingOdoScanner = false
+    /// Trigger for the save-success haptic (flips just before dismissal).
+    @State private var saveSucceeded = false
 
     /// Set when editing a record whose stored type isn't canonical; submitted
     /// unchanged unless the user touches a type-determining control.
@@ -186,6 +188,9 @@ struct AddMaintenanceView: View {
             }
             .navigationTitle(existingRecord == nil ? "Wartung erfassen" : "Wartung bearbeiten")
             .navigationBarTitleDisplayMode(.inline)
+            // Success tick when the save lands (HIG: haptic feedback for
+            // user-initiated confirmations).
+            .sensoryFeedback(.success, trigger: saveSucceeded) { _, new in new }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Abbrechen") { dismiss() }
@@ -512,6 +517,7 @@ struct AddMaintenanceView: View {
             guard let record = viewModel.createMaintenance(draft) else { return }
             recordUsedParts(for: record)
         }
+        saveSucceeded = true
         dismiss()
     }
 

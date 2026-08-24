@@ -39,6 +39,10 @@ struct GlassSegmentedControl<Value: Hashable>: View {
         // pills and the page content visibly wobbled on every tab switch.
         // Only the indicator morph should animate.
         .animation(.easeOut(duration: 0.18), value: selection)
+        // Subtle selection tick on segment change (HIG: feedback for
+        // user-initiated state changes) — every control instance app-wide
+        // inherits it from here.
+        .sensoryFeedback(.selection, trigger: selection)
     }
 
     private func segmentButton(_ segment: Segment) -> some View {

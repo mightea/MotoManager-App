@@ -353,6 +353,9 @@ struct AddFuelView: View {
         .padding(.bottom, 14)
         .animation(.easeOut(duration: 0.18), value: canSave)
         .animation(.easeOut(duration: 0.18), value: savedAnim)
+        // Success tick when the save lands (HIG: haptic feedback for
+        // user-initiated confirmations).
+        .sensoryFeedback(.success, trigger: savedAnim) { _, new in new }
     }
 
     // MARK: - Toolbar subcomponents

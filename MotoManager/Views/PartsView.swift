@@ -175,6 +175,9 @@ struct PartsView: View {
             )
             .glassSheet()
         }
+        // Warning tap when the destructive confirmation comes up (HIG:
+        // haptics for consequential moments, used sparingly).
+        .sensoryFeedback(.warning, trigger: partPendingDeletion != nil) { _, new in new }
         .alert("Teil löschen?", isPresented: Binding(
             get: { partPendingDeletion != nil },
             set: { if !$0 { partPendingDeletion = nil } }

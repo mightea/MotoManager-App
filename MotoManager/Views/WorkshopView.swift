@@ -197,20 +197,47 @@ struct WorkshopView: View {
         .padding(.vertical, 4)
     }
 
-    /// Section header with a small trailing add/edit action — the native
-    /// list-header idiom for per-section adds.
+    /// Section header with a trailing add/edit action — the native list-header
+    /// idiom for per-section adds. The frame + contentShape give the small
+    /// glyph the HIG-minimum 44 pt hit target without inflating the header
+    /// visually (the extra area bleeds into the header's surrounding space).
     private func sectionHeader(_ title: String, icon: String, label: String, action: @escaping () -> Void) -> some View {
         HStack {
             Text(title)
             Spacer()
             Button(action: action) {
                 Image(systemName: icon)
-                    .scaledFont(11, weight: .heavy)
+                    .scaledFont(13, weight: .heavy)
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.borderless)
             .tint(Theme.Colors.primary)
             .accessibilityLabel(label)
+            // Keep the header's visual height — only the hit area grows.
+            .frame(height: 20)
+            .offset(x: 12)
         }
+    }
+
+    /// Compact per-section empty state with an explicit action button — the
+    /// old bare "tippen zum Hinzufügen" text line didn't look tappable (HIG:
+    /// empty states offer guidance and a clear action).
+    private func emptySectionRow(
+        _ message: String, icon: String, actionLabel: String, action: @escaping () -> Void
+    ) -> some View {
+        VStack(spacing: 10) {
+            Label(message, systemImage: icon)
+                .scaledFont(12, weight: .medium)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+            Button(actionLabel, action: action)
+                .buttonStyle(.bordered)
+                .tint(Theme.Colors.primary)
+                .scaledFont(13, weight: .semibold)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 10)
     }
 
     // MARK: - Tire pressure
@@ -221,14 +248,11 @@ struct WorkshopView: View {
             if let pressure = viewModel.tirePressure {
                 TirePressureTable(pressure: pressure)
             } else {
-                Button { showingTirePressure = true } label: {
-                    Text("Keine Werte erfasst — tippen zum Hinzufügen.")
-                        .scaledFont(12, weight: .medium)
-                        .foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 8)
-                }
-                .buttonStyle(.plain)
+                emptySectionRow(
+                    "Keine Druckwerte erfasst",
+                    icon: "gauge.with.dots",
+                    actionLabel: "Reifendruck erfassen"
+                ) { showingTirePressure = true }
             }
         } header: {
             sectionHeader(
@@ -366,14 +390,11 @@ struct WorkshopView: View {
     private var torqueSection: some View {
         Section {
             if viewModel.torque.isEmpty {
-                Button { showingAddTorque = true } label: {
-                    Text("Keine Werte erfasst — tippen zum Hinzufügen.")
-                        .scaledFont(12, weight: .medium)
-                        .foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 8)
-                }
-                .buttonStyle(.plain)
+                emptySectionRow(
+                    "Keine Drehmomente erfasst",
+                    icon: "wrench.and.screwdriver",
+                    actionLabel: "Drehmoment hinzufügen"
+                ) { showingAddTorque = true }
             } else {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 6) {
@@ -442,14 +463,11 @@ extension WorkshopView {
     private var detailsSection: some View {
         Section {
             if viewModel.details.isEmpty {
-                Button { showingAddDetail = true } label: {
-                    Text("Keine Details erfasst — tippen zum Hinzufügen.")
-                        .scaledFont(12, weight: .medium)
-                        .foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 8)
-                }
-                .buttonStyle(.plain)
+                emptySectionRow(
+                    "Keine Details erfasst",
+                    icon: "info.circle",
+                    actionLabel: "Detail hinzufügen"
+                ) { showingAddDetail = true }
             } else {
                 ForEach(viewModel.details, id: \.clientId) { detail in
                     Button { editingDetail = detail } label: {

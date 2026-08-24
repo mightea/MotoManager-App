@@ -74,6 +74,9 @@ struct AddIssueView: View {
             }
             .navigationTitle(existingIssue == nil ? "Mangel erfassen" : "Mangel bearbeiten")
             .navigationBarTitleDisplayMode(.inline)
+            // Success tick when the save lands (HIG: haptic feedback for
+            // user-initiated confirmations).
+            .sensoryFeedback(.success, trigger: savedAnim) { _, new in new }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Abbrechen") { dismiss() }
