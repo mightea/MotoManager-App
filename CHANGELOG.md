@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.8.0](https://github.com/mightea/MotoManager-App/compare/v0.7.1...v0.8.0) (2026-08-24)
+
+
+### Features
+
+* interaction-quality pass — tap targets, haptics, empty states, VoiceOver ([640d605](https://github.com/mightea/MotoManager-App/commit/640d6056f4fbc6ab64d85039287662c3338e1952))
+* polish pass — toolbar grouping, banner auto-dismiss, currency glyphs, history search ([14d7cde](https://github.com/mightea/MotoManager-App/commit/14d7cde4da092657524a76a91bb16e53264935bc))
+
+
+### Bug Fixes
+
+* garbled model year and endless fuel-station spinner ([61b5388](https://github.com/mightea/MotoManager-App/commit/61b5388631f0889f3f571ecf0e770b293f2d7bea))
+* history filter stuck on Alle — use GlassSegmentedControl for Verlauf ([f36a224](https://github.com/mightea/MotoManager-App/commit/f36a2244c7fffacad670ed2d7205bcc09d8c2714))
+* keep headers and fuel rows legible at accessibility text sizes ([ed2a080](https://github.com/mightea/MotoManager-App/commit/ed2a080df37634926ccf7933f4afaf8cc040825d))
+
 ## [0.7.1](https://github.com/mightea/MotoManager-App/compare/v0.7.0...v0.7.1) (2026-08-23)
 
 
