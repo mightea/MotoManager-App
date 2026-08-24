@@ -15,6 +15,7 @@ struct MaintenanceLogsView: View {
     }
     @State private var tab: ServiceTab = .maintenance
     @State private var historyFilter: HistoryFilter = .wartung
+    @State private var searchText = ""
     @State private var selectedRecord: SDMaintenanceRecord?
     @State private var showingAddIssue = false
     @State private var editingIssue: SDIssue?
@@ -67,11 +68,24 @@ struct MaintenanceLogsView: View {
         lastEntry?.currency ?? viewModel.motorcycle.currencyCode ?? "EUR"
     }
 
+    /// Free-text filter over the current history slice (summary, notes,
+    /// location) — long histories span years, and "the entry where I changed
+    /// the fork oil" shouldn't require scrolling through them.
+    private var searchedRecords: [SDMaintenanceRecord] {
+        let query = searchText.trimmingCharacters(in: .whitespaces).lowercased()
+        guard !query.isEmpty else { return historyRecords }
+        return historyRecords.filter { record in
+            [record.summary, record.recordDescription, record.locationName]
+                .compactMap { $0?.lowercased() }
+                .contains { $0.contains(query) }
+        }
+    }
+
     /// Composite groups (same date+odo+category merge, children folded in),
     /// bucketed by year for the section headers. Fed from the filtered slice.
     private var groupedByYear: [(year: String, groups: [MaintenanceGroup])] {
         MaintenanceGrouper.byYear(
-            MaintenanceGrouper.group(historyRecords, locations: viewModel.userLocations))
+            MaintenanceGrouper.group(searchedRecords, locations: viewModel.userLocations))
     }
 
     private var groupCount: Int {
@@ -141,6 +155,10 @@ struct MaintenanceLogsView: View {
         .listStyle(.insetGrouped)
         .scrollContentBackground(.hidden)
         .ignoresSafeArea(edges: .top)
+        .searchable(text: $searchText, prompt: "Verlauf durchsuchen …")
+        // Collapsed into a toolbar button (same pattern as the parts list) —
+        // an always-open drawer would float over the full-bleed hero photo.
+        .searchToolbarBehavior(.minimize)
         .refreshable {
             await viewModel.reconnect()
         }
@@ -269,17 +287,21 @@ struct MaintenanceLogsView: View {
                         .redacted(reason: .placeholder)
                 }
             }
-        } else if historyRecords.isEmpty {
+        } else if searchedRecords.isEmpty {
             Section {
-                ContentUnavailableView {
-                    Label(
-                        historyFilter == .standort ? "Keine Standortwechsel" : "Keine Wartung erfasst",
-                        systemImage: historyFilter == .standort ? "mappin.and.ellipse" : "wrench.and.screwdriver.fill"
-                    )
-                } description: {
-                    Text(historyFilter == .standort
-                        ? "Standortwechsel tauchen hier auf."
-                        : "Reparaturen und Wartungen tauchen hier auf.")
+                if !searchText.isEmpty {
+                    ContentUnavailableView.search(text: searchText)
+                } else {
+                    ContentUnavailableView {
+                        Label(
+                            historyFilter == .standort ? "Keine Standortwechsel" : "Keine Wartung erfasst",
+                            systemImage: historyFilter == .standort ? "mappin.and.ellipse" : "wrench.and.screwdriver.fill"
+                        )
+                    } description: {
+                        Text(historyFilter == .standort
+                            ? "Standortwechsel tauchen hier auf."
+                            : "Reparaturen und Wartungen tauchen hier auf.")
+                    }
                 }
             }
             .listRowBackground(Color.clear)

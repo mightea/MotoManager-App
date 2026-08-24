@@ -103,6 +103,18 @@ enum Formatters {
         "\(code) \(String(format: "%.\(fractionDigits)f", value))"
     }
 
+    /// SF Symbols base name for a currency's sign (compose with ".circle" /
+    /// ".circle.fill"). A dollar glyph next to CHF amounts read as wrong.
+    nonisolated static func currencySymbol(for code: String) -> String {
+        switch code.uppercased() {
+        case "CHF": return "francsign"
+        case "EUR": return "eurosign"
+        case "GBP": return "sterlingsign"
+        case "JPY": return "yensign"
+        default: return "dollarsign"
+        }
+    }
+
     /// The minor-unit label for a currency, when it has a conventional one.
     static func minorUnitLabel(for currency: String) -> String? {
         switch currency.uppercased() {

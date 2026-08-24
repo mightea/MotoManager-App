@@ -64,6 +64,16 @@ struct StatusAccessoryBar: View {
             .accessibilityLabel("Hinweis schließen")
         }
         .padding(.horizontal, 12)
+        // Passive information, not an action item: dismiss on its own after a
+        // few seconds instead of covering the last list row until tapped away.
+        // The task dies with the view, so a manual dismiss cancels it.
+        .task {
+            try? await Task.sleep(for: .seconds(6))
+            guard !Task.isCancelled, viewModel.refreshFailed else { return }
+            withAnimation(.spring(duration: 0.3)) {
+                viewModel.refreshFailed = false
+            }
+        }
     }
 
     // MARK: - Sync status

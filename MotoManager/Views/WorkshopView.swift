@@ -135,7 +135,20 @@ struct WorkshopView: View {
             await viewModel.reconnect()
         }
         .toolbar {
-            // Workshop's adds are per-section — the nav bar only carries settings.
+            // Every other tab has a "+" in the bar; Workshop owns four addable
+            // record types, so its "+" is a menu (the per-section actions stay).
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu("Hinzufügen", systemImage: "plus") {
+                    Button(
+                        viewModel.tirePressure == nil ? "Reifendruck" : "Reifendruck bearbeiten",
+                        systemImage: "gauge.with.dots.needle.bottom.50percent"
+                    ) { showingTirePressure = true }
+                    Button("Dokument", systemImage: "doc") { showingDocumentImporter = true }
+                    Button("Detail", systemImage: "info.circle") { showingAddDetail = true }
+                    Button("Drehmoment", systemImage: "wrench.and.screwdriver") { showingAddTorque = true }
+                }
+            }
+            ToolbarSpacer(.fixed, placement: .topBarTrailing)
             ToolbarItem(placement: .topBarTrailing) {
                 Button("Einstellungen", systemImage: "gearshape") {
                     chrome.openSettings()
@@ -250,7 +263,7 @@ struct WorkshopView: View {
             } else {
                 emptySectionRow(
                     "Keine Druckwerte erfasst",
-                    icon: "gauge.with.dots",
+                    icon: "gauge.with.dots.needle.bottom.50percent",
                     actionLabel: "Reifendruck erfassen"
                 ) { showingTirePressure = true }
             }
@@ -444,14 +457,20 @@ struct WorkshopView: View {
                 .scaledFont(12, weight: .semibold)
                 .foregroundStyle(active ? AnyShapeStyle(Color.white) : AnyShapeStyle(.primary))
                 .padding(.horizontal, 12)
-                .padding(.vertical, 6)
+                .padding(.vertical, 8)
                 .glassEffect(
                     active
                         ? .regular.tint(Theme.Colors.primary).interactive()
                         : .regular.interactive(),
                     in: Capsule()
                 )
+                // Invisible bleed toward the 44 pt hit-target minimum — the
+                // capsule stays compact, only the tappable area grows.
+                .padding(.vertical, 4)
+                .contentShape(Rectangle())
         }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(active ? [.isSelected] : [])
         .animation(.easeOut(duration: 0.2), value: selectedTorqueGroup)
     }
 }

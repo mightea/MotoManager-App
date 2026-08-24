@@ -219,7 +219,7 @@ struct AddFuelView: View {
                     unit: "km",
                     value: odo,
                     hint: odoHint,
-                    icon: "gauge.with.dots",
+                    icon: "gauge.with.dots.needle.bottom.50percent",
                     size: .big,
                     derived: false,
                     accent: false,
@@ -257,7 +257,7 @@ struct AddFuelView: View {
                     unit: currency,
                     value: price,
                     hint: nil,
-                    icon: "dollarsign.circle",
+                    icon: "\(Formatters.currencySymbol(for: currency)).circle",
                     size: .compact,
                     derived: coupleSource == .total && !price.isEmpty && !liters.isEmpty,
                     accent: false,
@@ -269,7 +269,7 @@ struct AddFuelView: View {
                     unit: currency,
                     value: total,
                     hint: nil,
-                    icon: "dollarsign.circle.fill",
+                    icon: "\(Formatters.currencySymbol(for: currency)).circle.fill",
                     size: .compact,
                     derived: coupleSource == .perLiter && !total.isEmpty && !liters.isEmpty,
                     accent: true,
@@ -369,7 +369,7 @@ struct AddFuelView: View {
             }
         } label: {
             HStack(spacing: 4) {
-                Image(systemName: "dollarsign.circle")
+                Image(systemName: "\(Formatters.currencySymbol(for: currency)).circle")
                     .scaledFont(11, weight: .semibold)
                 Text(currency)
                     .scaledFont(12, weight: .heavy)
