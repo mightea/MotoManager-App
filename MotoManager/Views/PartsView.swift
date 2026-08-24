@@ -35,19 +35,13 @@ struct PartsView: View {
 
     var body: some View {
         List {
-            // Match the other tabs: photo header with the stat strip
-            // overlapping the extended image.
+            // Match the other tabs: stat strip on the extended photo, below it
+            // at accessibility text sizes.
             Section {
-                ZStack(alignment: .bottom) {
-                    MotorcycleSummaryHeader(
-                        motorcycle: detailVM.motorcycle, type: .parts, viewModel: detailVM,
-                        bottomExtension: 96
-                    )
-
-                    statStrip
-                        .padding(.horizontal, Theme.Spacing.pageH)
-                        .padding(.bottom, 12)
-                }
+                MotorcycleHeaderWithStats(
+                    motorcycle: detailVM.motorcycle, type: .parts, viewModel: detailVM,
+                    tiles: statTiles
+                )
             }
             .listRowInsets(EdgeInsets())
             .listRowBackground(Color.clear)
@@ -250,8 +244,8 @@ struct PartsView: View {
         viewModel.inventoryValue
     }
 
-    private var statStrip: some View {
-        StatStrip([
+    private var statTiles: [StatTile] {
+        [
             StatTile(
                 eyebrow: "Teile",
                 value: "\(viewModel.parts.count)",
@@ -271,7 +265,7 @@ struct PartsView: View {
                     ? Formatters.currency(inventoryValue, code: "CHF", fractionDigits: 0)
                     : "—"
             )
-        ])
+        ]
     }
 
     // MARK: - Mine

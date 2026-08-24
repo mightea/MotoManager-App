@@ -26,6 +26,39 @@ enum HeaderType {
 /// adapt to appearance. The scrim gradient exists for the same reason — it
 /// guarantees text contrast against arbitrary photo content (an HIG-sanctioned
 /// use; it is *not* a tint stacked on system glass).
+/// The header + stat-strip composition every tab opens with. At regular type
+/// sizes the strip overlaps the extended photo (glass pills on the image); at
+/// accessibility sizes the scaled-up tiles would swallow the hero and clip the
+/// bike name, so the strip moves *below* the header into normal flow and
+/// switches to adaptive ink.
+struct MotorcycleHeaderWithStats: View {
+    let motorcycle: Motorcycle
+    let type: HeaderType
+    @ObservedObject var viewModel: MotorcycleDetailViewModel
+    let tiles: [StatTile]
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    var body: some View {
+        if dynamicTypeSize.isAccessibilitySize {
+            VStack(spacing: Theme.Spacing.s) {
+                MotorcycleSummaryHeader(motorcycle: motorcycle, type: type, viewModel: viewModel)
+                StatStrip(tiles, onPhoto: false)
+                    .padding(.horizontal, Theme.Spacing.pageH)
+            }
+        } else {
+            ZStack(alignment: .bottom) {
+                MotorcycleSummaryHeader(
+                    motorcycle: motorcycle, type: type, viewModel: viewModel,
+                    bottomExtension: 96
+                )
+                StatStrip(tiles)
+                    .padding(.horizontal, Theme.Spacing.pageH)
+                    .padding(.bottom, 12)
+            }
+        }
+    }
+}
+
 struct MotorcycleSummaryHeader: View {
     let motorcycle: Motorcycle
     let type: HeaderType
@@ -128,8 +161,8 @@ struct MotorcycleSummaryHeader: View {
 
     private var metaLine: some View {
         HStack(spacing: 6) {
-            if let year = motorcycle.modelYear?.prefix(4), !year.isEmpty {
-                Text(String(year)).monospaced()
+            if let year = motorcycle.modelYear.flatMap(Formatters.modelYear) {
+                Text(year).monospaced()
                 Text("·").opacity(0.6)
             }
             if let plate = motorcycle.numberPlate, !plate.isEmpty {

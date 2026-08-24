@@ -73,17 +73,12 @@ struct FuelListView: View {
 
     var body: some View {
         List {
-            // The header photo extends below its content so the stat strip
-            // overlaps it (glass pills on the image) instead of sitting on a
-            // hard black cut-off.
+            // Header photo with the stat strip overlapping the extended image
+            // (moves below the photo at accessibility text sizes).
             Section {
-                ZStack(alignment: .bottom) {
-                    MotorcycleSummaryHeader(
-                        motorcycle: viewModel.motorcycle, type: .fuel, viewModel: viewModel,
-                        bottomExtension: 96
-                    )
-
-                    StatStrip([
+                MotorcycleHeaderWithStats(
+                    motorcycle: viewModel.motorcycle, type: .fuel, viewModel: viewModel,
+                    tiles: [
                         StatTile(
                             eyebrow: "Ø Verbrauch",
                             value: averageConsumption > 0 ? String(format: "%.1f", averageConsumption) : "—",
@@ -100,10 +95,8 @@ struct FuelListView: View {
                             value: String(format: "%.0f", trailingYearLiters),
                             unit: "letzte 12 Monate"
                         )
-                    ])
-                    .padding(.horizontal, Theme.Spacing.pageH)
-                    .padding(.bottom, 12)
-                }
+                    ]
+                )
             }
             .listRowInsets(EdgeInsets())
             .listRowBackground(Color.clear)
@@ -220,6 +213,7 @@ struct FuelRow: View {
     var averagePrice: Double = 0
     /// The oldest record can't have a consumption — don't badge it as partial.
     var isOldest: Bool = false
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     /// Skeleton stand-in for the loading state (rendered `.redacted`).
     static var placeholder: some View {
@@ -240,11 +234,19 @@ struct FuelRow: View {
     }
 
     var body: some View {
-        HStack(alignment: .center, spacing: 12) {
+        // At accessibility sizes the trailing consumption block no longer fits
+        // beside the fill details — stack the row vertically instead of letting
+        // the texts wrap mid-number.
+        let rowLayout = dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
+            : AnyLayout(HStackLayout(alignment: .center, spacing: 12))
+        rowLayout {
             iconBadge
 
             VStack(alignment: .leading, spacing: 2) {
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    // `.fixedSize()` keeps the amount and its unit glued —
+                    // without it "15.5 L" wraps between the digits.
                     HStack(alignment: .firstTextBaseline, spacing: 2) {
                         Text(String(format: "%.1f", record.fuelAmount ?? 0))
                             .scaledFont(14, weight: .semibold)
@@ -253,6 +255,7 @@ struct FuelRow: View {
                             .scaledFont(11, weight: .medium)
                             .foregroundStyle(.secondary)
                     }
+                    .fixedSize()
                     if let pricePerUnit = record.pricePerUnit, pricePerUnit > 0 {
                         Text("·")
                             .foregroundStyle(.tertiary)
@@ -284,12 +287,14 @@ struct FuelRow: View {
                 .lineLimit(1)
             }
 
-            Spacer(minLength: 0)
+            if !dynamicTypeSize.isAccessibilitySize {
+                Spacer(minLength: 0)
+            }
 
             // Consumption leads on the trailing side — it's the number riders
             // compare between fills; the cost is secondary context. A missing
             // consumption on a non-oldest record means a partial fill.
-            VStack(alignment: .trailing, spacing: 3) {
+            VStack(alignment: dynamicTypeSize.isAccessibilitySize ? .leading : .trailing, spacing: 3) {
                 if let consumption = record.fuelConsumption {
                     HStack(alignment: .firstTextBaseline, spacing: 3) {
                         Text(String(format: "%.1f", consumption))
@@ -300,6 +305,7 @@ struct FuelRow: View {
                             .scaledFont(9, weight: .semibold)
                             .foregroundStyle(.secondary)
                     }
+                    .fixedSize()
                 } else if !isOldest {
                     Text("TEILTANKUNG")
                         .scaledFont(8, weight: .heavy)

@@ -10,10 +10,15 @@ import SwiftUI
 /// so it stays honest under the user's iOS 27 glass-intensity setting.
 struct StatStrip: View {
     let tiles: [StatTile]
+    /// Whether the strip sits on the header photo (always-white ink) or on the
+    /// page background (adaptive ink). At accessibility text sizes the strip
+    /// moves off the photo, where white-only ink would vanish in light mode.
+    let onPhoto: Bool
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
-    init(_ tiles: [StatTile]) {
+    init(_ tiles: [StatTile], onPhoto: Bool = true) {
         self.tiles = tiles
+        self.onPhoto = onPhoto
     }
 
     var body: some View {
@@ -42,25 +47,35 @@ struct StatStrip: View {
         }
     }
 
+    /// Muted ink for eyebrow/unit lines, per surface.
+    private var secondaryInk: AnyShapeStyle {
+        onPhoto ? AnyShapeStyle(Theme.Colors.onPhotoSecondary) : AnyShapeStyle(.secondary)
+    }
+
+    private func valueInk(_ tile: StatTile) -> AnyShapeStyle {
+        if let accent = tile.accent { return AnyShapeStyle(accent) }
+        return onPhoto ? AnyShapeStyle(Theme.Colors.onPhoto) : AnyShapeStyle(.primary)
+    }
+
     private func tileView(_ tile: StatTile) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(tile.eyebrow.uppercased())
                 .scaledFont(9, weight: .heavy)
                 .tracking(1.2)
-                .foregroundStyle(Theme.Colors.onPhotoSecondary)
+                .foregroundStyle(secondaryInk)
                 .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
                 .minimumScaleFactor(0.75)
 
             Text(tile.value)
                 .scaledFont(17, weight: .bold, design: .rounded)
-                .foregroundStyle(tile.accent ?? Theme.Colors.onPhoto)
+                .foregroundStyle(valueInk(tile))
                 .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
                 .minimumScaleFactor(0.7)
 
             if let unit = tile.unit, !unit.isEmpty {
                 Text(unit)
                     .scaledFont(10, weight: .medium)
-                    .foregroundStyle(Theme.Colors.onPhotoSecondary)
+                    .foregroundStyle(secondaryInk)
                     .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
             }
         }

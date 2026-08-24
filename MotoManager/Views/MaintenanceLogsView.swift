@@ -86,19 +86,13 @@ struct MaintenanceLogsView: View {
 
     var body: some View {
         List {
-            // Match the fuel page: the photo extends below the content so
-            // the stat strip overlaps the image instead of a hard cut-off.
+            // Match the fuel page: stat strip on the extended photo, below it
+            // at accessibility text sizes.
             Section {
-                ZStack(alignment: .bottom) {
-                    MotorcycleSummaryHeader(
-                        motorcycle: viewModel.motorcycle, type: .service, viewModel: viewModel,
-                        bottomExtension: 96
-                    )
-
-                    statStrip
-                        .padding(.horizontal, Theme.Spacing.pageH)
-                        .padding(.bottom, 12)
-                }
+                MotorcycleHeaderWithStats(
+                    motorcycle: viewModel.motorcycle, type: .service, viewModel: viewModel,
+                    tiles: statTiles
+                )
             }
             .listRowInsets(EdgeInsets())
             .listRowBackground(Color.clear)
@@ -185,8 +179,8 @@ struct MaintenanceLogsView: View {
         }
     }
 
-    private var statStrip: some View {
-        StatStrip([
+    private var statTiles: [StatTile] {
+        [
             StatTile(
                 eyebrow: "Kosten \(currentYearShort)",
                 value: Formatters.currency(yearCost, code: currency, fractionDigits: 0),
@@ -198,7 +192,7 @@ struct MaintenanceLogsView: View {
                 unit: lastEntry.map { "bei \(Formatters.kilometers($0.odo))" }
             ),
             intervalTile
-        ])
+        ]
     }
 
     /// Interval health at a glance, colored like `ServiceIntervalsCard`:
