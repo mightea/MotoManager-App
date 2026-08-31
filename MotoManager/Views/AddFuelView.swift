@@ -23,6 +23,12 @@ struct AddFuelView: View {
     private enum PriceCouple: String { case perLiter, total }
     /// Fuel-station GPS detection lifecycle (new entries only).
     private enum StationState: Equatable { case idle, detecting, matched, suggestCreate, denied, failed }
+    /// What `prepareOdoIfNeeded` left behind: the kept prefix and the digit
+    /// count of the reading before stripping.
+    private struct OdoPrepContext: Equatable {
+        let prefix: String
+        let originalCount: Int
+    }
 
     // Fields also seeded from `existingRecord` in init must not carry a
     // declaration default: iOS 27's @State macro discards the init value
@@ -41,6 +47,11 @@ struct AddFuelView: View {
     /// so the user only types the delta. New entries only.
     @State private var odoPrepared: Bool
     @State private var pricePrepared: Bool
+    /// Retype detection (see `FuelEntryRetype`): remembers what the fast-entry
+    /// prep stripped, so a re-typed complete value can discard the placeholder.
+    /// One-shot — cleared when it fires or once the placeholder is edited.
+    @State private var odoPrepContext: OdoPrepContext?
+    @State private var pricePrepPrefix: String?
     @State private var showingOdoScanner = false
     @State private var currency: String
     @State private var currencies: [Currency]
@@ -202,7 +213,22 @@ struct AddFuelView: View {
         }
         .onChange(of: odo) { _, newValue in
             let sanitized = newValue.filter { $0.isNumber }
-            if sanitized != newValue { odo = sanitized }
+            if sanitized != newValue {
+                odo = sanitized
+                return
+            }
+            // The user re-typed the complete reading over the stripped
+            // placeholder ("26" + "26650") — drop the placeholder.
+            if let prep = odoPrepContext {
+                if let retyped = FuelEntryRetype.fullOdoRetype(
+                    value: sanitized, prefix: prep.prefix, originalCount: prep.originalCount) {
+                    odoPrepContext = nil
+                    odo = retyped
+                } else if !sanitized.hasPrefix(prep.prefix) {
+                    // Placeholder edited away by hand — stop watching.
+                    odoPrepContext = nil
+                }
+            }
         }
         .onChange(of: liters) { _, newValue in
             let sanitized = sanitizeDecimal(newValue)
@@ -213,6 +239,20 @@ struct AddFuelView: View {
             }
         }
         .onChange(of: price) { _, newValue in
+            // The user re-typed the integer part over the prepped "1."
+            // ("1.1.") — drop the placeholder. Checked on the raw text:
+            // sanitizeDecimal would swallow the second separator.
+            if let prefix = pricePrepPrefix {
+                if let retyped = FuelEntryRetype.retypedPrice(value: newValue, prefix: prefix) {
+                    pricePrepPrefix = nil
+                    price = retyped
+                    return
+                }
+                if !newValue.hasPrefix(prefix) {
+                    // Placeholder edited away by hand — stop watching.
+                    pricePrepPrefix = nil
+                }
+            }
             let sanitized = sanitizeDecimal(newValue)
             if sanitized != newValue {
                 price = sanitized
@@ -616,7 +656,11 @@ struct AddFuelView: View {
     private func prepareOdoIfNeeded() {
         guard existingRecord == nil, !odoPrepared else { return }
         odoPrepared = true
-        if odo.count > 3 { odo = String(odo.dropLast(3)) }
+        if odo.count > 3 {
+            let originalCount = odo.count
+            odo = String(odo.dropLast(3))
+            odoPrepContext = OdoPrepContext(prefix: odo, originalCount: originalCount)
+        }
     }
 
     /// First tap into the pre-filled price/L: drop the decimals (the part that
@@ -626,6 +670,7 @@ struct AddFuelView: View {
         pricePrepared = true
         let intPart = price.prefix { $0.isNumber }
         price = intPart + "."
+        if !intPart.isEmpty { pricePrepPrefix = price }
     }
 
     // MARK: - Date
