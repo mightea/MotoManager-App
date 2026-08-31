@@ -266,16 +266,50 @@ struct MaintenanceLogsView: View {
         }
     }
 
-    /// "Wartung / Standort / Alle" as a full-width GlassSegmentedControl.
+    /// "Wartung / Standort / Alle" as a row of compact filter chips.
     /// Standortwechsel are logistics, so they're out of the default view but
-    /// one tap away. Not loose chip buttons: multiple non-plain Buttons in one
-    /// List row fire *all* their actions on a row tap, so the last one (Alle)
-    /// always won and the filter appeared stuck.
+    /// one tap away. Not a full-width GlassSegmentedControl: that matched the
+    /// page-level Mängel/Wartung switcher in size, so a secondary list filter
+    /// read as a second set of page tabs. `.plain` buttons are load-bearing —
+    /// multiple non-plain Buttons in one List row fire *all* their actions on
+    /// a row tap, so the last one (Alle) always won and the filter stuck.
     private var historyFilterControl: some View {
-        GlassSegmentedControl(
-            segments: HistoryFilter.allCases.map { .init(value: $0, label: $0.rawValue) },
-            selection: $historyFilter
-        )
+        HStack(spacing: 8) {
+            ForEach(HistoryFilter.allCases, id: \.self) { filter in
+                historyFilterChip(filter)
+            }
+            Spacer(minLength: 0)
+        }
+        .animation(.easeOut(duration: 0.18), value: historyFilter)
+        .sensoryFeedback(.selection, trigger: historyFilter)
+    }
+
+    private func historyFilterChip(_ filter: HistoryFilter) -> some View {
+        let isActive = historyFilter == filter
+        return Button {
+            historyFilter = filter
+        } label: {
+            Text(filter.rawValue)
+                .scaledFont(12, weight: .semibold)
+                .lineLimit(1)
+                .foregroundStyle(isActive ? AnyShapeStyle(Theme.Colors.primary) : AnyShapeStyle(.secondary))
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(
+                    Capsule().fill(
+                        isActive
+                            ? AnyShapeStyle(Theme.Colors.primary.opacity(0.14))
+                            : AnyShapeStyle(Color.primary.opacity(0.05))
+                    )
+                )
+                // Keep the ~44pt hit target (HIG) without the visual bulk:
+                // the chip stays 29pt tall, the tappable area doesn't.
+                .frame(minHeight: 40)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(filter.rawValue)
+        .accessibilityAddTraits(isActive ? [.isSelected] : [])
     }
 
     @ViewBuilder
