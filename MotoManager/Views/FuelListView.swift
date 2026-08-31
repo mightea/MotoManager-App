@@ -138,6 +138,14 @@ struct FuelListView: View {
             quickActions.pending = nil
             showingAddFuel = true
         }
+        // Reopen an entry lost to a background process kill: a surviving
+        // new-entry draft means the add-fuel sheet was open when the app died
+        // (normal closes clear it — see FuelEntryDraft).
+        .onAppear {
+            if FuelEntryDraft.load(motorcycleId: viewModel.motorcycle.id, editingClientId: nil) != nil {
+                showingAddFuel = true
+            }
+        }
         .sheet(isPresented: $showingAddFuel) {
             AddFuelView(viewModel: viewModel)
                 .glassSheet()

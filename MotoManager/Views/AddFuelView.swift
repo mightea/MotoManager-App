@@ -20,7 +20,7 @@ struct AddFuelView: View {
     @Environment(\.dismiss) var dismiss
 
     private enum Field: Hashable { case odo, liters, price, total }
-    private enum PriceCouple { case perLiter, total }
+    private enum PriceCouple: String { case perLiter, total }
     /// Fuel-station GPS detection lifecycle (new entries only).
     private enum StationState: Equatable { case idle, detecting, matched, suggestCreate, denied, failed }
 
@@ -32,15 +32,15 @@ struct AddFuelView: View {
     @State private var price: String
     @State private var total: String
     @State private var coupleSource: PriceCouple
-    @State private var fullTank: Bool = true
+    @State private var fullTank: Bool
     @State private var fuelAdditiveAdded: Bool
     @State private var leadSubstituteAdded: Bool
     @State private var savedAnim: Bool = false
     /// One-shot: on the first tap into the pre-filled odo/price fields we strip
     /// the part that usually changes (odo's last 3 digits, the price decimals)
     /// so the user only types the delta. New entries only.
-    @State private var odoPrepared = false
-    @State private var pricePrepared = false
+    @State private var odoPrepared: Bool
+    @State private var pricePrepared: Bool
     @State private var showingOdoScanner = false
     @State private var currency: String
     @State private var currencies: [Currency]
@@ -71,6 +71,7 @@ struct AddFuelView: View {
         _price = State(initialValue: "")
         _total = State(initialValue: "")
         _coupleSource = State(initialValue: .perLiter)
+        _fullTank = State(initialValue: true)
         _fuelAdditiveAdded = State(initialValue: false)
         _leadSubstituteAdded = State(initialValue: false)
         _fuelType = State(initialValue: "98")
@@ -115,6 +116,30 @@ struct AddFuelView: View {
                 _price = State(initialValue: Self.numberString(lastPerL))
             }
         }
+
+        // Restore an interrupted entry: a draft that survived until here means
+        // the process was killed while this sheet was open (ordinary
+        // backgrounding keeps @State alive; a background jettison does not).
+        let draft = FuelEntryDraft.load(
+            motorcycleId: viewModel.motorcycle.id,
+            editingClientId: existingRecord?.clientId
+        )
+        if let draft {
+            _odo = State(initialValue: draft.odo)
+            _liters = State(initialValue: draft.liters)
+            _price = State(initialValue: draft.price)
+            _total = State(initialValue: draft.total)
+            _coupleSource = State(initialValue: PriceCouple(rawValue: draft.coupleSource) ?? .perLiter)
+            _fullTank = State(initialValue: draft.fullTank)
+            _fuelAdditiveAdded = State(initialValue: draft.fuelAdditiveAdded)
+            _leadSubstituteAdded = State(initialValue: draft.leadSubstituteAdded)
+            _currency = State(initialValue: draft.currency)
+            _date = State(initialValue: draft.date)
+        }
+        // Restored text is exactly what the user last saw — don't re-run the
+        // first-tap digit stripping on it.
+        _odoPrepared = State(initialValue: draft != nil)
+        _pricePrepared = State(initialValue: draft != nil)
     }
 
     // MARK: - Body
@@ -205,6 +230,32 @@ struct AddFuelView: View {
                 recomputePriceFromTotal()
             }
         }
+        .onChange(of: draftSnapshot) { _, draft in
+            // Keep an on-disk draft while the sheet is open so a process kill
+            // in the background can't lose a half-typed entry.
+            draft.persist()
+        }
+        .onDisappear {
+            // Every normal close path (saved, cancelled, swiped away) retires
+            // the draft; only a mid-entry process death leaves it for restore.
+            FuelEntryDraft.clear()
+        }
+    }
+
+    /// Everything the crash-safe draft mirrors (see `FuelEntryDraft`).
+    /// `savedAt` stays constant here so `onChange` only fires on real edits.
+    private var draftSnapshot: FuelEntryDraft {
+        FuelEntryDraft(
+            motorcycleId: viewModel.motorcycle.id,
+            editingClientId: existingRecord?.clientId,
+            odo: odo, liters: liters, price: price, total: total,
+            coupleSource: coupleSource.rawValue,
+            fullTank: fullTank,
+            fuelAdditiveAdded: fuelAdditiveAdded,
+            leadSubstituteAdded: leadSubstituteAdded,
+            currency: currency, date: date,
+            savedAt: .distantPast
+        )
     }
 
     // MARK: - Sections
