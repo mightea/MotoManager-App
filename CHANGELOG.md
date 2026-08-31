@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.9.0](https://github.com/mightea/MotoManager-App/compare/v0.8.0...v0.9.0) (2026-08-31)
+
+
+### Features
+
+* discard fuel-entry placeholders when the full value is re-typed ([04f5d46](https://github.com/mightea/MotoManager-App/commit/04f5d4665ff44f196aa21bb8adb11dd25f49f504))
+* shrink the service history filter to compact chips ([1a10fc0](https://github.com/mightea/MotoManager-App/commit/1a10fc0a454936a3bf484577fa7138d22a0b3602))
+* tighten the gap above the service-intervals card ([fbf59ab](https://github.com/mightea/MotoManager-App/commit/fbf59ab8e8dfcc58d9fbf40182a7cabe4153d067))
+* tighten the service-intervals card and add a collapsed overview ([c349f6d](https://github.com/mightea/MotoManager-App/commit/c349f6dc259cc566b84f16a0339350ca3b1b5572))
+
+
+### Bug Fixes
+
+* keep half-typed fuel entries across background process kills ([94974ce](https://github.com/mightea/MotoManager-App/commit/94974ce79d7085d765e0a528878803ce5a8ae60c))
+* restore the standalone scan button on the parts toolbar ([cf96884](https://github.com/mightea/MotoManager-App/commit/cf96884f515a45dfb78d339083d4f9bf440e6a23))
+
 ## [0.8.0](https://github.com/mightea/MotoManager-App/compare/v0.7.1...v0.8.0) (2026-08-24)
 
 
