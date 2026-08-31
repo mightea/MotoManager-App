@@ -135,8 +135,11 @@ struct MaintenanceLogsView: View {
                             // Tighter than the default insetGrouped row
                             // insets — the card is dense, and the default
                             // ~20pt frame read as oversized padding.
-                            .listRowInsets(EdgeInsets(top: 10, leading: 14, bottom: 10, trailing: 14))
+                            .listRowInsets(EdgeInsets(top: 6, leading: 14, bottom: 10, trailing: 14))
                     }
+                    // The default section spacing left a ~50pt hole between
+                    // the segment switcher and the card header.
+                    .listSectionMargins(.top, 0)
                 }
 
                 Section {
