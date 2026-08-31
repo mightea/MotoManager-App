@@ -18,40 +18,86 @@ struct ServiceIntervalsCard: View {
 
     var body: some View {
         if !insights.isEmpty {
-            // Native disclosure row inside the surrounding List section — the
-            // system provides chevron, animation and row chrome.
-            DisclosureGroup(isExpanded: $expanded) {
-                VStack(alignment: .leading, spacing: 14) {
-                    ForEach(MaintenanceInsight.Category.allCases, id: \.rawValue) { category in
-                        let items = insights
-                            .filter { $0.category == category }
-                            .sorted { $0.status < $1.status }
-                        if !items.isEmpty {
-                            categorySection(category, items: items)
+            // Hand-rolled disclosure instead of a native DisclosureGroup: the
+            // native row wraps the label in its own padding and indents the
+            // revealed content by a chevron column — oversized chrome for a
+            // dense card. One row, exact padding, content flush with the
+            // header text.
+            VStack(alignment: .leading, spacing: 0) {
+                Button {
+                    withAnimation(.easeOut(duration: 0.2)) { expanded.toggle() }
+                } label: {
+                    header
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(accessibilitySummary)
+
+                if expanded {
+                    Divider()
+                        .padding(.vertical, 10)
+                    VStack(alignment: .leading, spacing: 12) {
+                        ForEach(MaintenanceInsight.Category.allCases, id: \.rawValue) { category in
+                            let items = insights
+                                .filter { $0.category == category }
+                                .sorted { $0.status < $1.status }
+                            if !items.isEmpty {
+                                categorySection(category, items: items)
+                            }
                         }
                     }
                 }
-                .padding(.top, 8)
-            } label: {
-                header
             }
-            .tint(.secondary)
         }
     }
 
     // MARK: - Header
 
     private var header: some View {
-        HStack(spacing: 8) {
-            Text("SERVICE-INTERVALLE")
-                .scaledFont(11, weight: .heavy)
-                .tracking(2)
-                .foregroundStyle(.secondary)
-            Spacer(minLength: 8)
-            tally
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 8) {
+                Text("SERVICE-INTERVALLE")
+                    .scaledFont(11, weight: .heavy)
+                    .tracking(2)
+                    .foregroundStyle(.secondary)
+                Spacer(minLength: 8)
+                tally
+                Image(systemName: "chevron.right")
+                    .scaledFont(11, weight: .semibold)
+                    .foregroundStyle(.secondary)
+                    .rotationEffect(.degrees(expanded ? 90 : 0))
+            }
+            // Collapsed overview: the card answers "what's most urgent?"
+            // without expanding — the worst bucket's most overdue item plus
+            // how many more share that bucket.
+            if !expanded, let overview = overviewLine {
+                Text(overview.text)
+                    .scaledFont(11, weight: .semibold)
+                    .monospacedDigit()
+                    .lineLimit(1)
+                    .foregroundStyle(overview.color)
+            }
         }
         .contentShape(Rectangle())
-        .accessibilityLabel(accessibilitySummary)
+    }
+
+    private var overviewLine: (text: String, color: Color)? {
+        let now = Date()
+        let overdue = insights.filter { $0.status == .overdue }.sorted { $0.nextDate < $1.nextDate }
+        if let worst = overdue.first {
+            var text = "\(worst.label) überfällig seit \(MaintenanceIntervalsEngine.relativeSpan(from: now, to: worst.nextDate))"
+            if overdue.count > 1 { text += " · +\(overdue.count - 1)" }
+            return (text, color(for: .overdue))
+        }
+        let due = insights.filter { $0.status == .due }.sorted { $0.nextDate < $1.nextDate }
+        if let next = due.first {
+            var text = "\(next.label) fällig in \(MaintenanceIntervalsEngine.relativeSpan(from: now, to: next.nextDate))"
+            if due.count > 1 { text += " · +\(due.count - 1)" }
+            return (text, color(for: .due))
+        }
+        if let next = insights.min(by: { $0.nextDate < $1.nextDate }) {
+            return ("Alles ok · nächste: \(next.label) \(Self.monthYear(next.nextDate))", color(for: .ok))
+        }
+        return nil
     }
 
     private var tally: some View {

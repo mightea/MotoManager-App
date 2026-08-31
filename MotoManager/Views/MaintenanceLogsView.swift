@@ -132,6 +132,10 @@ struct MaintenanceLogsView: View {
                 if !intervalInsights.isEmpty {
                     Section {
                         ServiceIntervalsCard(insights: intervalInsights)
+                            // Tighter than the default insetGrouped row
+                            // insets — the card is dense, and the default
+                            // ~20pt frame read as oversized padding.
+                            .listRowInsets(EdgeInsets(top: 10, leading: 14, bottom: 10, trailing: 14))
                     }
                 }
 
