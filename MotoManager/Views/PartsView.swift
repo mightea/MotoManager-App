@@ -89,20 +89,20 @@ struct PartsView: View {
         .searchToolbarBehavior(.minimize)
         .toolbar {
             // Adding targets whatever the segment shows (part or storage
-            // location); the public segment is read-only. One "+" menu instead
-            // of separate scan/add buttons — five floating controls over the
-            // hero photo was the densest corner of the app (HIG: prioritize,
-            // group secondary toolbar actions). The item stays in the bar and
-            // merely disables on Öffentlich — removing it made the whole
+            // location); the public segment is read-only. Scan is a standalone
+            // button — it is the most frequent action at the shelf and must
+            // not hide behind a menu. The items stay in the bar permanently
+            // and merely disable on Öffentlich — removing them made the whole
             // toolbar re-layout (a visible flash) on every segment switch.
             ToolbarItem(placement: .topBarTrailing) {
-                Menu("Hinzufügen", systemImage: "plus") {
-                    Button(addLabel, systemImage: "plus", action: addAction)
-                    Button("Etikett scannen", systemImage: "qrcode.viewfinder") {
-                        showingScanner = true
-                    }
+                Button("Etikett scannen", systemImage: "qrcode.viewfinder") {
+                    showingScanner = true
                 }
                 .disabled(tab == .publicParts)
+            }
+            ToolbarItem(placement: .topBarTrailing) {
+                Button(addLabel, systemImage: "plus", action: addAction)
+                    .disabled(tab == .publicParts)
             }
             ToolbarSpacer(.fixed, placement: .topBarTrailing)
             ToolbarItem(placement: .topBarTrailing) {
