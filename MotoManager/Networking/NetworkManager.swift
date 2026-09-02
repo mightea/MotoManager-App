@@ -550,6 +550,41 @@ class NetworkManager {
         _ = try await performRequest(request)
     }
 
+    // MARK: - Personal API tokens (MCP)
+
+    /// The MCP endpoint AI clients connect to with a personal API token.
+    var mcpEndpointURL: String {
+        let base = baseURL.hasSuffix("/") ? String(baseURL.dropLast()) : baseURL
+        return base + "/mcp"
+    }
+
+    func fetchApiTokens() async throws -> [ApiToken] {
+        let wrapper: ApiTokenListResponse = try await get("/api/settings/api-tokens")
+        return wrapper.apiTokens
+    }
+
+    /// Creates a token. The returned secret is shown exactly once by the
+    /// backend — the caller must present it immediately.
+    func createApiToken(name: String, scope: ApiTokenScope, expiresInDays: Int?) async throws -> ApiTokenCreated {
+        var payload: [String: Any] = ["name": name, "scope": scope.rawValue]
+        if let expiresInDays { payload["expiresInDays"] = expiresInDays }
+        let body = try JSONSerialization.data(withJSONObject: payload)
+        let request = try makeRequest(path: "/api/settings/api-tokens", method: "POST", authorized: true, jsonBody: body)
+        let data = try await performRequest(request)
+        return try Self.decode(ApiTokenCreated.self, from: data)
+    }
+
+    func revokeApiToken(id: Int) async throws {
+        let request = try makeRequest(path: "/api/settings/api-tokens/\(id)", method: "DELETE", authorized: true)
+        _ = try await performRequest(request)
+    }
+
+    /// Most recent MCP tool calls made with the user's tokens, newest first.
+    func fetchMcpAudit(limit: Int = 50) async throws -> [McpAuditEntry] {
+        let wrapper: McpAuditListResponse = try await get("/api/settings/mcp-audit?limit=\(limit)")
+        return wrapper.entries
+    }
+
     // MARK: - Parts inventory (user-scoped, not motorcycle-scoped)
 
     /// Prefix a server-relative image path ("/images/x.jpg") with the base URL.

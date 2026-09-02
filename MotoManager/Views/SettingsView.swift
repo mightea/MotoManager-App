@@ -24,6 +24,7 @@ struct SettingsView: View {
             List {
                 serverSection
                 syncSection
+                aiAccessSection
                 logoutSection
             }
             .scrollContentBackground(.hidden)
@@ -119,6 +120,20 @@ struct SettingsView: View {
         formatter.locale = Formatters.displayLocale
         formatter.unitsStyle = .short
         return formatter.localizedString(for: date, relativeTo: Date())
+    }
+
+    // MARK: - AI access (MCP)
+
+    private var aiAccessSection: some View {
+        Section {
+            NavigationLink {
+                ApiTokensView()
+            } label: {
+                Label("KI-Zugriff (MCP)", systemImage: "sparkles")
+            }
+        } footer: {
+            Text("Persönliche Zugangs-Tokens für KI-Assistenten wie Claude.")
+        }
     }
 
     // MARK: - Logout

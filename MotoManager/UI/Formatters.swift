@@ -47,6 +47,43 @@ enum Formatters {
         dayParser.date(from: String(iso.prefix(10)))
     }
 
+    /// RFC3339 timestamps as emitted by the backend (`2026-09-02T14:03:11Z`,
+    /// with or without fractional seconds).
+    private static let timestampParser: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime]
+        return f
+    }()
+
+    private static let fractionalTimestampParser: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return f
+    }()
+
+    /// Swiss date+time, e.g. `"02.09.2026, 14:03"`.
+    private static let dateTimeFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "de_CH")
+        f.dateFormat = "dd.MM.yyyy, HH:mm"
+        return f
+    }()
+
+    /// Parses an RFC3339 timestamp; falls back to the bare day for
+    /// date-only strings. Returns nil when nothing matches.
+    static func parseTimestamp(_ rfc3339: String) -> Date? {
+        timestampParser.date(from: rfc3339)
+            ?? fractionalTimestampParser.date(from: rfc3339)
+            ?? parseDay(rfc3339)
+    }
+
+    /// e.g. `"02.09.2026, 14:03"` in the device time zone. Returns the raw
+    /// input if it can't be parsed.
+    static func dateTime(_ rfc3339: String) -> String {
+        guard let date = parseTimestamp(rfc3339) else { return rfc3339 }
+        return dateTimeFormatter.string(from: date)
+    }
+
     /// e.g. `"15. Okt 2023"`. Returns the raw input if it can't be parsed.
     static func mediumDate(_ iso: String) -> String {
         guard let date = parseDay(iso) else { return iso }
