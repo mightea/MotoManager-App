@@ -35,6 +35,37 @@ struct ApiTokenModelTests {
         #expect(second.expiresAt == nil)
     }
 
+    @Test func decodesOauthKindWhenPresent() throws {
+        let json = """
+        {"apiTokens":[
+          {"id":10,"userId":3,"name":"Claude","tokenPrefix":"mm_9c8d7e","scope":"read",
+           "createdAt":"2026-09-02T12:00:00Z","lastUsedAt":null,"expiresAt":"2026-09-02T13:00:00Z",
+           "revokedAt":null,"kind":"oauth"},
+          {"id":11,"userId":3,"name":"CLI","tokenPrefix":"mm_1a2b3c","scope":"write",
+           "createdAt":"2026-09-02T12:00:00Z","lastUsedAt":null,"expiresAt":null,
+           "revokedAt":null,"kind":"personal"}
+        ]}
+        """
+        let response = try JSONDecoder().decode(ApiTokenListResponse.self, from: Data(json.utf8))
+        #expect(response.apiTokens[0].kind == "oauth")
+        #expect(response.apiTokens[0].isOauth == true)
+        #expect(response.apiTokens[1].kind == "personal")
+        #expect(response.apiTokens[1].isOauth == false)
+    }
+
+    /// Backends older than the OAuth release omit `kind`; the app must still decode.
+    @Test func decodesWithoutKindFromOlderBackends() throws {
+        let json = """
+        {"apiTokens":[
+          {"id":12,"userId":3,"name":"Alt","tokenPrefix":"mm_ffeedd","scope":"read",
+           "createdAt":"2026-09-02T12:00:00Z","lastUsedAt":null,"expiresAt":null,"revokedAt":null}
+        ]}
+        """
+        let response = try JSONDecoder().decode(ApiTokenListResponse.self, from: Data(json.utf8))
+        #expect(response.apiTokens[0].kind == nil)
+        #expect(response.apiTokens[0].isOauth == false)
+    }
+
     @Test func decodesCreatedTokenWithSecret() throws {
         let json = """
         {"apiToken":{"id":9,"userId":3,"name":"Neu","tokenPrefix":"mm_0123ab","scope":"read",

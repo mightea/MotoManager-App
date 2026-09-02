@@ -43,8 +43,14 @@ nonisolated struct ApiToken: Codable, Identifiable, Hashable {
     let lastUsedAt: String?
     let expiresAt: String?
     let revokedAt: String?
+    /// `"personal"` for tokens minted in Settings, `"oauth"` for connections
+    /// established through the backend's OAuth consent flow (claude.ai,
+    /// Claude Desktop). Optional: older backends don't send it.
+    let kind: String?
 
     var scopeValue: ApiTokenScope? { ApiTokenScope(rawValue: scope) }
+
+    var isOauth: Bool { kind == "oauth" }
 
     var scopeLabel: String { scopeValue?.label ?? scope }
 

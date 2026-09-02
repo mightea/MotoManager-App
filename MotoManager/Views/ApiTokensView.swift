@@ -213,6 +213,9 @@ private struct ApiTokenRow: View {
                     .font(.headline)
                     .lineLimit(1)
                 Spacer(minLength: Theme.Spacing.s)
+                if token.isOauth {
+                    connectedChip
+                }
                 scopeChip
             }
             Text("\(token.tokenPrefix)…")
@@ -248,6 +251,19 @@ private struct ApiTokenRow: View {
                 Capsule().fill((isWrite ? Theme.Colors.accent : Theme.Colors.primary).opacity(0.14))
             )
             .foregroundStyle(isWrite ? Theme.Colors.accent : Theme.Colors.primary)
+    }
+
+    /// Marks tokens that were issued through the OAuth consent flow rather
+    /// than created by hand in Settings.
+    private var connectedChip: some View {
+        Label("Verbunden", systemImage: "link")
+            .labelStyle(.titleAndIcon)
+            .font(.caption2.weight(.semibold))
+            .padding(.horizontal, Theme.Spacing.s)
+            .padding(.vertical, 3)
+            .background(Capsule().fill(Color.purple.opacity(0.14)))
+            .foregroundStyle(Color.purple)
+            .accessibilityLabel("Über OAuth verbunden")
     }
 
     private func detail(_ label: String, _ value: String, color: Color? = nil) -> some View {

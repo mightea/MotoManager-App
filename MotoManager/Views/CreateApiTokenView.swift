@@ -251,7 +251,8 @@ private struct ApiTokenSecretView: View {
         ApiTokenSecretView(created: ApiTokenCreated(
             apiToken: ApiToken(
                 id: 1, userId: 1, name: "Claude Code", tokenPrefix: "mm_3f9a2b", scope: "write",
-                createdAt: "2026-09-02T12:00:00Z", lastUsedAt: nil, expiresAt: nil, revokedAt: nil
+                createdAt: "2026-09-02T12:00:00Z", lastUsedAt: nil, expiresAt: nil, revokedAt: nil,
+                kind: "personal"
             ),
             token: "mm_3f9a2b1c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4"
         ))
