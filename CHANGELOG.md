@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.10.0](https://github.com/mightea/MotoManager-App/compare/v0.9.0...v0.10.0) (2026-09-03)
+
+
+### Features
+
+* manage MCP API tokens from settings (KI-Zugriff) ([493dcee](https://github.com/mightea/MotoManager-App/commit/493dcee95b6a0efbf8f1888d0e203fd116b8482a))
+* **mcp:** mark OAuth-connected API tokens ([ce6525b](https://github.com/mightea/MotoManager-App/commit/ce6525beb8e55d624510440a1cd439509e1493d8))
+
 ## [0.9.0](https://github.com/mightea/MotoManager-App/compare/v0.8.0...v0.9.0) (2026-08-31)
 
 
