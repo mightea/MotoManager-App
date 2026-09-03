@@ -224,7 +224,7 @@ private struct ApiTokenSecretView: View {
             } header: {
                 Text("Claude Code einrichten")
             } footer: {
-                Text("Im Terminal ausführen. Für Claude Desktop oder die Claude API den MCP-Endpunkt \(mcpURL) mit dem Header „Authorization: Bearer <Token>“ hinterlegen.")
+                Text("Im Terminal ausführen. Die Claude-API nutzt denselben Token als authorization_token für den MCP-Endpunkt \(mcpURL). Claude Desktop, claude.ai und die Claude-App brauchen keinen Token — sie verbinden sich per Connector mit Anmeldung.")
             }
         }
         .scrollContentBackground(.hidden)

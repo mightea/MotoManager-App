@@ -17,6 +17,7 @@ struct ApiTokensView: View {
         List {
             introSection
             endpointSection
+            connectorSection
             tokensSection
             auditSection
         }
@@ -77,6 +78,39 @@ struct ApiTokensView: View {
             }
             .font(.subheadline)
             .padding(.vertical, Theme.Spacing.xs)
+        }
+    }
+
+    // MARK: - Connectors (OAuth)
+
+    /// Claude Desktop, claude.ai and the Claude mobile apps connect through
+    /// a custom connector that signs in via the webapp's consent page — no
+    /// token is pasted. The grant then shows up in the token list below.
+    private var connectorSection: some View {
+        Section {
+            VStack(alignment: .leading, spacing: Theme.Spacing.s) {
+                Text("Kein Token nötig — einmal verbinden, gilt für claude.ai, Claude Desktop und die Claude-App desselben Kontos.")
+                    .foregroundStyle(.secondary)
+                connectorStep(1, "In Claude **Einstellungen → Connectors → Benutzerdefinierten Connector hinzufügen** öffnen.")
+                connectorStep(2, "Name z. B. „MotoManager“, als URL den MCP-Endpunkt einfügen. Client-ID und Secret leer lassen.")
+                connectorStep(3, "**Verbinden** antippen, in der Garage anmelden, Berechtigung wählen und **Zugriff erlauben**.")
+                connectorStep(4, "Den Connector im Chat aktivieren. Die Verbindung erscheint unten als „Verbunden“ und lässt sich dort widerrufen.")
+            }
+            .font(.subheadline)
+            .padding(.vertical, Theme.Spacing.xs)
+        } header: {
+            Text("Claude Desktop, claude.ai & App")
+        } footer: {
+            Text("Claude Code und die Claude-API nutzen weiterhin einen persönlichen Token (unten erstellen).")
+        }
+    }
+
+    private func connectorStep(_ number: Int, _ text: LocalizedStringKey) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: Theme.Spacing.s) {
+            Text("\(number).")
+                .font(.subheadline.monospacedDigit().weight(.semibold))
+                .foregroundStyle(Theme.Colors.primary)
+            Text(text)
         }
     }
 
