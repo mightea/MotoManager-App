@@ -573,15 +573,19 @@ struct AddPartStockView: View {
                 }
             }
             .padding(Theme.Spacing.l)
+            .adaptiveFormWidth()
         }
+        .scrollDismissesKeyboard(.interactively)
         .navigationTitle(existingStock == nil ? "Bestand hinzufügen" : "Bestand bearbeiten")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
                 Button("Abbrechen") { dismiss() }
+                    .keyboardShortcut(.cancelAction)
             }
             ToolbarItem(placement: .confirmationAction) {
                 Button("Speichern", action: save)
+                    .keyboardShortcut("s", modifiers: .command)
             }
         }
         .onAppear {
@@ -703,9 +707,11 @@ struct AddPartConsumptionView: View {
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
                 Button("Abbrechen") { dismiss() }
+                    .keyboardShortcut(.cancelAction)
             }
             ToolbarItem(placement: .confirmationAction) {
                 Button("Speichern", action: save)
+                    .keyboardShortcut("s", modifiers: .command)
             }
         }
         }

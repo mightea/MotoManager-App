@@ -3,7 +3,7 @@ import SwiftUI
 struct MaintenanceLogsView: View {
     @ObservedObject var viewModel: MotorcycleDetailViewModel
     @ObservedObject var partsVM: PartsViewModel
-    @Environment(\.chromeActions) private var chrome
+    @Environment(\.horizontalSizeClass) private var sizeClass
 
     enum ServiceTab: Hashable { case issues, maintenance }
     /// History filter: actual maintenance by default — location moves are
@@ -81,6 +81,14 @@ struct MaintenanceLogsView: View {
         }
     }
 
+    private var searchedIssues: [SDIssue] {
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else { return viewModel.issues }
+        return viewModel.issues.filter {
+            "\($0.title) \($0.recordDescription ?? "")".localizedStandardContains(query)
+        }
+    }
+
     /// Composite groups (same date+odo+category merge, children folded in),
     /// bucketed by year for the section headers. Fed from the filtered slice.
     private var groupedByYear: [(year: String, groups: [MaintenanceGroup])] {
@@ -99,20 +107,46 @@ struct MaintenanceLogsView: View {
     }
 
     var body: some View {
-        List {
-            // Match the fuel page: stat strip on the extended photo, below it
-            // at accessibility text sizes.
-            Section {
-                MotorcycleHeaderWithStats(
-                    motorcycle: viewModel.motorcycle, type: .service, viewModel: viewModel,
-                    tiles: statTiles
-                )
+        MotorcycleWorkspace(motorcycle: viewModel.motorcycle, type: .service) {
+            WorkspaceAction(tab == .issues ? "Mangel erfassen" : "Wartung erfassen", systemImage: "plus") {
+                if tab == .issues { showingAddIssue = true } else { showingAddMaintenance = true }
             }
-            .listRowInsets(EdgeInsets())
-            .listRowBackground(Color.clear)
-            .listRowSeparator(.hidden)
-            .listSectionMargins(.all, 0)
+            .keyboardShortcut("n", modifiers: .command)
+        } content: {
+            RecordBrowser(selection: $selectedRecord, title: "Wartung & Mängel",
+                          emptyTitle: "Wartung auswählen", systemImage: "checklist",
+                          overview: AnyView(attentionOverview)) {
+                serviceList
+            } detail: { record in
+                MaintenanceDetailView(record: record, viewModel: viewModel, partsVM: partsVM)
+            }
+        }
+        .onChange(of: tab) { _, _ in selectedRecord = nil }
+        .onReceive(viewModel.$serviceRecords) { records in
+            if let selectedRecord, !records.contains(where: { $0.clientId == selectedRecord.clientId }) {
+                self.selectedRecord = nil
+            }
+        }
+        .sheet(isPresented: $showingAddIssue) {
+            AddIssueView(viewModel: viewModel)
+                .glassSheet()
+        }
+        .sheet(item: $editingIssue) { issue in
+            AddIssueView(viewModel: viewModel, existingIssue: issue)
+                .glassSheet()
+        }
+        .sheet(isPresented: $showingAddMaintenance) {
+            AddMaintenanceView(viewModel: viewModel)
+                .glassSheet()
+        }
+    }
 
+    private var serviceList: some View {
+        List {
+            WorkspaceListHeader(searchText: $searchText, prompt: tab == .issues ? "Mängel durchsuchen …" : "Verlauf durchsuchen …")
+            if sizeClass != .regular {
+                Section { StatStrip(statTiles).listRowInsets(EdgeInsets()) }
+            }
             Section {
                 GlassSegmentedControl(
                     segments: [
@@ -129,7 +163,7 @@ struct MaintenanceLogsView: View {
             if tab == .issues {
                 issuesContent
             } else {
-                if !intervalInsights.isEmpty {
+                if sizeClass != .regular && !intervalInsights.isEmpty {
                     Section {
                         ServiceIntervalsCard(insights: intervalInsights)
                             // Tighter than the default insetGrouped row
@@ -158,50 +192,46 @@ struct MaintenanceLogsView: View {
                 maintenanceContent
             }
         }
-        .adaptiveContentWidth()
+        .accessibilityIdentifier("service.history")
         .listStyle(.insetGrouped)
         .scrollContentBackground(.hidden)
-        .ignoresSafeArea(edges: .top)
-        .searchable(text: $searchText, prompt: "Verlauf durchsuchen …")
-        // Collapsed into a toolbar button (same pattern as the parts list) —
-        // an always-open drawer would float over the full-bleed hero photo.
-        .searchToolbarBehavior(.minimize)
+        .scrollDismissesKeyboard(.interactively)
+        .background(Theme.Colors.background)
         .refreshable {
             await viewModel.reconnect()
         }
-        .toolbar {
-            // One context-aware add button. Always the app accent — a red
-            // button reads as destructive, and adding a Mangel isn't.
-            ToolbarItem(placement: .topBarTrailing) {
-                Button(
-                    tab == .issues ? "Mangel erfassen" : "Wartung erfassen",
-                    systemImage: "plus"
-                ) {
-                    if tab == .issues { showingAddIssue = true } else { showingAddMaintenance = true }
+    }
+
+    private var attentionOverview: some View {
+        List {
+            Section { StatStrip(statTiles).listRowInsets(EdgeInsets()) }
+            Section("Handlungsbedarf") {
+                if !intervalInsights.isEmpty {
+                    ServiceIntervalsCard(insights: intervalInsights, initiallyExpanded: true)
                 }
-            }
-            ToolbarSpacer(.fixed, placement: .topBarTrailing)
-            ToolbarItem(placement: .topBarTrailing) {
-                Button("Einstellungen", systemImage: "gearshape") {
-                    chrome.openSettings()
+                // The issues segment already shows these records in the list.
+                if tab != .issues {
+                    if openIssuesCount > 0 {
+                        Label("\(openIssuesCount) offene Mängel", systemImage: "exclamationmark.circle")
+                            .foregroundStyle(Theme.Colors.accent)
+                    }
+                    ForEach(viewModel.issues.filter { $0.status.lowercased() != "done" }, id: \.clientId) { issue in
+                        Button { editingIssue = issue } label: { IssueRow(issue: issue) }
+                            .buttonStyle(.plain)
+                            .accessibilityIdentifier("service.issue.\(issue.clientId)")
+                    }
                 }
+                Button("Wartung erfassen", systemImage: "plus") { showingAddMaintenance = true }
+                Button("Mangel erfassen", systemImage: "exclamationmark.bubble") { showingAddIssue = true }
             }
         }
-        .navigationDestination(item: $selectedRecord) { record in
-            MaintenanceDetailView(record: record, viewModel: viewModel, partsVM: partsVM)
-        }
-        .sheet(isPresented: $showingAddIssue) {
-            AddIssueView(viewModel: viewModel)
-                .glassSheet()
-        }
-        .sheet(item: $editingIssue) { issue in
-            AddIssueView(viewModel: viewModel, existingIssue: issue)
-                .glassSheet()
-        }
-        .sheet(isPresented: $showingAddMaintenance) {
-            AddMaintenanceView(viewModel: viewModel)
-                .glassSheet()
-        }
+        .accessibilityIdentifier("service.overview")
+        .listStyle(.insetGrouped)
+        .scrollContentBackground(.hidden)
+        .scrollDismissesKeyboard(.interactively)
+        .background(Theme.Colors.background)
+        .navigationTitle("Wartung im Blick")
+        .navigationBarTitleDisplayMode(.inline)
     }
 
     private var statTiles: [StatTile] {
@@ -249,17 +279,22 @@ struct MaintenanceLogsView: View {
                         .foregroundStyle(.green)
                 } description: {
                     Text("Es sind keine offenen Mängel für \(viewModel.motorcycle.make) \(viewModel.motorcycle.model) erfasst.")
+                } actions: {
+                    Button("Mangel erfassen", systemImage: "plus") { showingAddIssue = true }
                 }
             }
             .listRowBackground(Color.clear)
             .listRowSeparator(.hidden)
+        } else if searchedIssues.isEmpty {
+            Section { ContentUnavailableView.search(text: searchText) }
         } else {
             Section {
-                ForEach(viewModel.issues, id: \.clientId) { issue in
+                ForEach(searchedIssues, id: \.clientId) { issue in
                     Button { editingIssue = issue } label: {
                         IssueRow(issue: issue)
                     }
                     .buttonStyle(.plain)
+                    .accessibilityIdentifier("service.issue.\(issue.clientId)")
                     .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                         Button(role: .destructive) {
                             _ = viewModel.deleteIssue(issue)
@@ -311,7 +346,7 @@ struct MaintenanceLogsView: View {
                 )
                 // Keep the ~44pt hit target (HIG) without the visual bulk:
                 // the chip stays 29pt tall, the tappable area doesn't.
-                .frame(minHeight: 40)
+                .frame(minHeight: 44)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -342,6 +377,8 @@ struct MaintenanceLogsView: View {
                         Text(historyFilter == .standort
                             ? "Standortwechsel tauchen hier auf."
                             : "Reparaturen und Wartungen tauchen hier auf.")
+                    } actions: {
+                        Button("Eintrag erfassen", systemImage: "plus") { showingAddMaintenance = true }
                     }
                 }
             }
@@ -357,6 +394,7 @@ struct MaintenanceLogsView: View {
                             MaintenanceGroupRow(group: group, fallbackCurrency: currency)
                         }
                         .buttonStyle(.plain)
+                        .selectedRecord(selectedRecord?.clientId == group.primary?.clientId)
                     }
                 }
             }

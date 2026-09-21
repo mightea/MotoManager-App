@@ -10,6 +10,11 @@ enum AdaptiveLayout {
 }
 
 extension View {
+    func adaptiveFormWidth() -> some View {
+        frame(maxWidth: AdaptiveLayout.formMaxWidth)
+            .frame(maxWidth: .infinity)
+    }
+
     func adaptiveContentWidth() -> some View {
         frame(maxWidth: AdaptiveLayout.contentMaxWidth)
             .frame(maxWidth: .infinity)

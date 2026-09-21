@@ -4,7 +4,14 @@ import SwiftData
 
 @MainActor
 class MotorcycleDetailViewModel: ObservableObject {
-    let motorcycle: Motorcycle
+    @Published private(set) var motorcycle: Motorcycle
+
+    /// Refresh header/form metadata without rebuilding the workspace or
+    /// losing its selected record and scroll position.
+    func refreshMotorcycle(_ motorcycle: Motorcycle) {
+        guard motorcycle.id == self.motorcycle.id else { return }
+        self.motorcycle = motorcycle
+    }
 
     /// Shared with the SyncEngine so local writes and pulled changes stay consistent.
     private let modelContext = PersistenceController.shared.mainContext

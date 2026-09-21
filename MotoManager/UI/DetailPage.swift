@@ -9,7 +9,7 @@ import SwiftUI
 ///
 /// Designed for push presentation inside a `NavigationStack`: it shows the
 /// system navigation bar (native back button + swipe-back, inline title) and
-/// hides the tab bar so the detail owns the full screen. Page actions
+/// keeps the app tabs accessible in both compact and split layouts. Page actions
 /// (edit/delete/print) belong in the caller's `.toolbar` as standard items.
 ///
 /// `barTitle` overrides the navigation-bar title when it should differ from
@@ -69,9 +69,10 @@ struct DetailPage<HeroBackground: View, HeroContent: View, BodyContent: View>: V
         }
         .listStyle(.insetGrouped)
         .scrollContentBackground(.hidden)
+        .frame(maxWidth: 800)
+        .frame(maxWidth: .infinity)
         .background(Theme.Colors.background.ignoresSafeArea())
         .toolbar(.visible, for: .navigationBar)
-        .toolbar(.hidden, for: .tabBar)
         .navigationTitle(barTitle ?? title)
         .navigationBarTitleDisplayMode(.inline)
     }
@@ -187,27 +188,24 @@ struct HeroStatTile: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(eyebrow.uppercased())
-                .scaledFont(9, weight: .heavy)
-                .tracking(1.2)
+                .font(.caption.weight(.semibold))
                 .foregroundStyle(.secondary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.75)
+                .fixedSize(horizontal: false, vertical: true)
             Text(value)
                 .scaledFont(17, weight: .bold)
                 .monospacedDigit()
                 .foregroundStyle(accent.map(AnyShapeStyle.init) ?? AnyShapeStyle(.primary))
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
+                .fixedSize(horizontal: false, vertical: true)
             if let unit {
                 Text(unit)
-                    .scaledFont(10, weight: .medium)
+                    .font(.caption)
                     .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 11)
         .padding(.vertical, 10)
-        .glassEffect(.regular, in: RoundedRectangle(cornerRadius: Theme.Radius.chip))
+        .background(Theme.Colors.backgroundElevated, in: RoundedRectangle(cornerRadius: Theme.Radius.chip))
     }
 }

@@ -3,7 +3,8 @@ import Charts
 
 struct FuelListView: View {
     @ObservedObject var viewModel: MotorcycleDetailViewModel
-    @Environment(\.chromeActions) private var chrome
+    // Read the workspace width before NavigationSplitView narrows its columns.
+    @Environment(\.horizontalSizeClass) private var sizeClass
     @ObservedObject private var quickActions = QuickActionRouter.shared
     @State private var showingAddFuel = false
     @State private var selectedFuelRecord: SDMaintenanceRecord?
@@ -72,63 +73,16 @@ struct FuelListView: View {
     }
 
     var body: some View {
-        List {
-            // Header photo with the stat strip overlapping the extended image
-            // (moves below the photo at accessibility text sizes).
-            Section {
-                MotorcycleHeaderWithStats(
-                    motorcycle: viewModel.motorcycle, type: .fuel, viewModel: viewModel,
-                    tiles: [
-                        StatTile(
-                            eyebrow: "Ø Verbrauch",
-                            value: averageConsumption > 0 ? String(format: "%.1f", averageConsumption) : "—",
-                            unit: "L/100 km · letzte 10",
-                            accent: Theme.Colors.primary
-                        ),
-                        StatTile(
-                            eyebrow: "Letzte Tankung",
-                            value: lastEntry.map { Formatters.dayMonth($0.date) } ?? "—",
-                            unit: lastEntry?.cost.map { Formatters.currency($0, code: currency, fractionDigits: 0) }
-                        ),
-                        StatTile(
-                            eyebrow: "Liter",
-                            value: String(format: "%.0f", trailingYearLiters),
-                            unit: "letzte 12 Monate"
-                        )
-                    ]
-                )
-            }
-            .listRowInsets(EdgeInsets())
-            .listRowBackground(Color.clear)
-            .listRowSeparator(.hidden)
-            .listSectionMargins(.all, 0)
-
-            if trendValues.count >= 3 {
-                Section {
-                    ConsumptionTrendRow(values: trendValues, average: averageConsumption)
-                }
-            }
-
-            content
-        }
-        .adaptiveContentWidth()
-        .listStyle(.insetGrouped)
-        .scrollContentBackground(.hidden)
-        .ignoresSafeArea(edges: .top)
-        .refreshable {
-            await viewModel.reconnect()
-        }
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button("Neue Tankung erfassen", systemImage: "plus") {
-                    showingAddFuel = true
-                }
-            }
-            ToolbarSpacer(.fixed, placement: .topBarTrailing)
-            ToolbarItem(placement: .topBarTrailing) {
-                Button("Einstellungen", systemImage: "gearshape") {
-                    chrome.openSettings()
-                }
+        MotorcycleWorkspace(motorcycle: viewModel.motorcycle, type: .fuel) {
+            WorkspaceAction("Neue Tankung", systemImage: "plus") { showingAddFuel = true }
+                .keyboardShortcut("n", modifiers: .command)
+        } content: {
+            RecordBrowser(selection: $selectedFuelRecord, title: "Tankverlauf",
+                          emptyTitle: "Tankung auswählen", systemImage: "fuelpump",
+                          overview: AnyView(fuelOverview)) {
+                fuelList
+            } detail: { record in
+                FuelDetailView(record: record, viewModel: viewModel)
             }
         }
         // Consume the "Tankung erfassen" App Shortcut. `initial: true` covers
@@ -150,9 +104,85 @@ struct FuelListView: View {
             AddFuelView(viewModel: viewModel)
                 .glassSheet()
         }
-        .navigationDestination(item: $selectedFuelRecord) { record in
-            FuelDetailView(record: record, viewModel: viewModel)
+        .onReceive(viewModel.$fuelRecords) { records in
+            if let selectedFuelRecord, !records.contains(where: { $0.clientId == selectedFuelRecord.clientId }) {
+                self.selectedFuelRecord = nil
+            }
         }
+    }
+
+    private var fuelList: some View {
+        List {
+            WorkspaceListHeader()
+            // Expanded layouts keep the overview in the detail column, even
+            // when selecting a record temporarily replaces that overview.
+            if sizeClass != .regular {
+                Section {
+                    StatStrip(statTiles)
+                        .listRowInsets(EdgeInsets())
+                }
+                if trendValues.count >= 3 {
+                    Section {
+                        ConsumptionTrendRow(values: trendValues, average: averageConsumption)
+                    }
+                }
+            }
+            content
+        }
+        .accessibilityIdentifier("fuel.history")
+        .listStyle(.insetGrouped)
+        .scrollContentBackground(.hidden)
+        .scrollDismissesKeyboard(.interactively)
+        .background(Theme.Colors.background)
+        .refreshable { await viewModel.reconnect() }
+    }
+
+    private var statTiles: [StatTile] {
+        [
+            StatTile(eyebrow: "Ø Verbrauch",
+                     value: averageConsumption > 0 ? String(format: "%.1f", averageConsumption) : "—",
+                     unit: "L/100 km · letzte 10", accent: Theme.Colors.primary),
+            StatTile(eyebrow: "Letzte Tankung",
+                     value: lastEntry.map { Formatters.dayMonth($0.date) } ?? "—",
+                     unit: lastEntry?.cost.map { Formatters.currency($0, code: currency, fractionDigits: 0) }),
+            StatTile(eyebrow: "Liter", value: String(format: "%.0f", trailingYearLiters),
+                     unit: "letzte 12 Monate")
+        ]
+    }
+
+    private var fuelOverview: some View {
+        List {
+            Section("Übersicht") { StatStrip(statTiles).listRowInsets(EdgeInsets()) }
+            if !trendValues.isEmpty {
+                Section("Verbrauch · letzte \(trendValues.count) Tankungen") {
+                    Chart {
+                        RuleMark(y: .value("Durchschnitt", averageConsumption))
+                            .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 4]))
+                            .foregroundStyle(.secondary)
+                        ForEach(Array(trendValues.enumerated()), id: \.offset) { index, value in
+                            LineMark(x: .value("Tankung", index + 1), y: .value("L/100 km", value))
+                                .foregroundStyle(Theme.Colors.primary)
+                                .symbol(.circle)
+                        }
+                    }
+                    .chartYAxisLabel("L/100 km")
+                    .frame(height: 220)
+                    .padding(.vertical, Theme.Spacing.m)
+                }
+            }
+            Section {
+                Label("Wähle eine Tankung im Verlauf, um Kosten, Strecke und Tankstelle zu sehen.", systemImage: "sidebar.left")
+                    .foregroundStyle(.secondary)
+                Button("Tankung erfassen", systemImage: "plus") { showingAddFuel = true }
+            }
+        }
+        .accessibilityIdentifier("fuel.overview")
+        .listStyle(.insetGrouped)
+        .scrollContentBackground(.hidden)
+        .scrollDismissesKeyboard(.interactively)
+        .background(Theme.Colors.background)
+        .navigationTitle("Verbrauch & Kosten")
+        .navigationBarTitleDisplayMode(.inline)
     }
 
     // MARK: - History
@@ -172,6 +202,9 @@ struct FuelListView: View {
                     Label("Keine Tankungen erfasst", systemImage: "fuelpump.slash")
                 } description: {
                     Text("Erfasse deine erste Tankung – Verbrauch und Kosten werden automatisch berechnet.")
+                } actions: {
+                    Button("Tankung erfassen", systemImage: "plus") { showingAddFuel = true }
+                        .buttonStyle(.borderedProminent)
                 }
             }
             .listRowBackground(Color.clear)
@@ -193,6 +226,8 @@ struct FuelListView: View {
                             )
                         }
                         .buttonStyle(.plain)
+                        .selectedRecord(selectedFuelRecord?.clientId == record.clientId)
+                        .accessibilityIdentifier("fuel.record.\(record.clientId)")
                         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                             Button(role: .destructive) {
                                 _ = viewModel.deleteFuelRecord(record)

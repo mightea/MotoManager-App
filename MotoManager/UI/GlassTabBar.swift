@@ -15,8 +15,8 @@ enum AppTab: String, CaseIterable, Identifiable {
     var label: String {
         switch self {
         case .fuel: return "Tanken"
-        case .workshop: return "Werkstatt"
-        case .service: return "Service"
+        case .workshop: return "Technik"
+        case .service: return "Wartung"
         case .parts: return "Teile"
         }
     }

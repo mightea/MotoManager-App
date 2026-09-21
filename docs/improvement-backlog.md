@@ -80,18 +80,22 @@ be centralized before more screens or languages are added.
 
 ## 3. Design a richer regular-width iPad experience
 
-**Priority:** Deferred
-**Status:** Requires explicit product/design approval
+**Priority:** High
+**Status:** Implemented following the September 2026 UX review and approved photo-header design.
 
-The current implementation constrains primary content to a readable width but
-does not introduce tab-specific grids, dashboards, or two-pane navigation. A
-previous split-view implementation was intentionally reverted because it did
-not fit the visual design. Do not begin this work as a mechanical layout port.
+The current behavior and checks are documented in
+[adaptive-workspace.md](adaptive-workspace.md). The original decision criteria
+below are retained for context.
+
+Before this design review, the app constrained primary content to a readable
+width. An earlier split-view implementation had been reverted because it did
+not fit the visual design; the September photo-header mockup provided the
+approved direction for the new adaptive workspace.
 
 The historical investigation and possible phases are documented in
 [`ipad-optimization-plan.md`](ipad-optimization-plan.md).
 
-### Decision required
+### Original decision criteria
 
 - Approve representative wireframes for Fuel, Workshop, Service, and Parts.
 - Decide whether the goal is centered readable columns, richer dashboards, or

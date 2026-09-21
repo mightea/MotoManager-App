@@ -1,5 +1,16 @@
 # iPad Optimization Plan
 
+## September 2026 design implementation
+
+The mobile/tablet UX review and approved photo-header mockup supersede the
+August layout freeze below. The current implementation uses a persistent
+motorcycle photo header, native adaptive sidebar and list/detail navigation,
+plain content cards, direct technical categories and searches, a maintenance
+attention overview, explicit inventory scope, and native fuel-entry fields.
+See [adaptive-workspace.md](adaptive-workspace.md) for behavior and verification.
+
+The remaining sections document the earlier, reverted exploration.
+
 *Status: **reverted** except the login screen — 2026-08-20. After the split-layout removal (`420ccd6`), the remaining iPad adaptations from `ef99710` (content columns, card grids, workshop dashboard, form sheets, proportional halos) were also removed by decision. What survives: the login form's 560 pt width cap (`AdaptiveLayout.formMaxWidth`). Don't reintroduce iPad-specific layout on the app screens without an explicit go-ahead. The history below is kept for reference.*
 
 ## Implementation status (historical — since reverted)

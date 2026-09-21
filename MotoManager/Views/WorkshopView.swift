@@ -3,8 +3,20 @@ import UniformTypeIdentifiers
 
 struct WorkshopView: View {
     @ObservedObject var viewModel: MotorcycleDetailViewModel
-    @Environment(\.chromeActions) private var chrome
     @State private var presentedDocument: Document?
+    @State private var searchText = ""
+    private enum ReferenceCategory: String, CaseIterable {
+        case pressure = "Reifendruck", torque = "Drehmomente", details = "Details", documents = "Dokumente"
+        var icon: String {
+            switch self {
+            case .pressure: "gauge.with.dots.needle.bottom.50percent"
+            case .torque: "wrench.and.screwdriver"
+            case .details: "info.circle"
+            case .documents: "doc"
+            }
+        }
+    }
+    @State private var category: ReferenceCategory = .torque
     @ObservedObject private var offlineStore = DocumentOfflineStore.shared
     @State private var selectedTorqueGroup: String = "Alle"
     @State private var showingAddTorque = false
@@ -20,10 +32,17 @@ struct WorkshopView: View {
     @State private var docScope: DocScope = .moto
 
     private var displayedDocuments: [Document] {
-        switch docScope {
-        case .moto: return viewModel.documents
-        case .common: return viewModel.commonDocuments
-        }
+        let documents = docScope == .moto ? viewModel.documents : viewModel.commonDocuments
+        return documents.filter { matchesSearch($0.title) }
+    }
+
+    private func matchesSearch(_ text: String) -> Bool {
+        searchText.trimmingCharacters(in: .whitespaces).isEmpty
+            || text.localizedStandardContains(searchText.trimmingCharacters(in: .whitespaces))
+    }
+
+    private var filteredDetails: [SDMotorcycleDetail] {
+        viewModel.details.filter { matchesSearch("\($0.title) \($0.value)") }
     }
 
     private var motoLabel: String {
@@ -44,8 +63,10 @@ struct WorkshopView: View {
     }
 
     private var filteredTorque: [SDTorqueSpec] {
-        if selectedTorqueGroup == "Alle" { return viewModel.torque }
-        return viewModel.torque.filter { $0.category == selectedTorqueGroup }
+        viewModel.torque.filter {
+            (selectedTorqueGroup == "Alle" || $0.category == selectedTorqueGroup)
+                && matchesSearch("\($0.name) \($0.category) \($0.recordDescription ?? "")")
+        }
     }
 
     private var bothEmpty: Bool {
@@ -64,7 +85,11 @@ struct WorkshopView: View {
 
     private var statTiles: [StatTile] {
         [
-            pressureTile,
+            StatTile(
+                eyebrow: "Details",
+                value: "\(viewModel.details.count)",
+                unit: viewModel.details.count == 1 ? "Eintrag" : "Einträge"
+            ),
             StatTile(
                 eyebrow: "Drehmomente",
                 value: "\(viewModel.torque.count)",
@@ -78,85 +103,35 @@ struct WorkshopView: View {
         ]
     }
 
-    /// Front/rear pressure of the first recorded configuration, in the unit
-    /// the user entered them in (mirrors `TirePressureTable`).
-    private var pressureTile: StatTile {
-        guard let pressure = viewModel.tirePressure,
-              let config = pressure.recordedConfigs.first else {
-            return StatTile(eyebrow: "Reifendruck", value: "—", unit: "nicht erfasst")
-        }
-        let values = pressure.values(for: config)
-        let unit = pressure.preferredUnit
-        func text(_ bar: Double?) -> String {
-            bar.map { PressureUnitFormat.fieldText(bar: $0, unit: unit) } ?? "—"
-        }
-        return StatTile(
-            eyebrow: "Reifendruck",
-            value: "\(text(values.front)) / \(text(values.rear))",
-            unit: "\(unit) vorne / hinten",
-            accent: Theme.Colors.primary
-        )
-    }
-
     var body: some View {
-        List {
-            // Match the fuel page: stat strip on the extended photo, below it
-            // at accessibility text sizes.
-            Section {
-                MotorcycleHeaderWithStats(
-                    motorcycle: viewModel.motorcycle, type: .workshop, viewModel: viewModel,
-                    tiles: statTiles
-                )
+        MotorcycleWorkspace(motorcycle: viewModel.motorcycle, type: .workshop) {
+            Menu {
+                Button("Reifendruck", systemImage: "gauge.with.dots.needle.bottom.50percent") { showingTirePressure = true }
+                Button("Dokument hochladen", systemImage: "doc") { showingDocumentImporter = true }
+                Button("Detail hinzufügen", systemImage: "info.circle") { showingAddDetail = true }
+                Button("Drehmoment hinzufügen", systemImage: "wrench.and.screwdriver") { showingAddTorque = true }
+            } label: {
+                Image(systemName: "plus")
+                    .font(.headline)
+                    .foregroundStyle(Theme.Colors.onPhoto)
+                    .frame(width: 44, height: 44)
+                    .glassEffect(.regular.tint(Theme.Colors.navy950.opacity(0.5)), in: Circle())
             }
-            .listRowInsets(EdgeInsets())
-            .listRowBackground(Color.clear)
-            .listRowSeparator(.hidden)
-            .listSectionMargins(.all, 0)
-
-            if viewModel.isLoading && bothEmpty {
-                Section {
-                    ForEach(0..<5, id: \.self) { _ in
-                        loadingPlaceholderRow
-                            .redacted(reason: .placeholder)
-                    }
-                }
-            } else {
-                tirePressureSection
-                documentsSection
-                detailsSection
-                torqueSection
+            .accessibilityLabel("Hinzufügen")
+            .keyboardShortcut("n", modifiers: .command)
+        } content: {
+            RecordBrowser(selection: $presentedDocument, title: "Technische Daten",
+                          emptyTitle: "Dokument auswählen", systemImage: "doc.text",
+                          overview: AnyView(referenceOverview)) {
+                referenceList
+            } detail: { document in
+                DocumentViewerView(document: document)
             }
         }
-        .adaptiveContentWidth()
-        .listStyle(.insetGrouped)
-        .scrollContentBackground(.hidden)
-        .ignoresSafeArea(edges: .top)
-        .refreshable {
-            await viewModel.reconnect()
-        }
-        .toolbar {
-            // Every other tab has a "+" in the bar; Workshop owns four addable
-            // record types, so its "+" is a menu (the per-section actions stay).
-            ToolbarItem(placement: .topBarTrailing) {
-                Menu("Hinzufügen", systemImage: "plus") {
-                    Button(
-                        viewModel.tirePressure == nil ? "Reifendruck" : "Reifendruck bearbeiten",
-                        systemImage: "gauge.with.dots.needle.bottom.50percent"
-                    ) { showingTirePressure = true }
-                    Button("Dokument", systemImage: "doc") { showingDocumentImporter = true }
-                    Button("Detail", systemImage: "info.circle") { showingAddDetail = true }
-                    Button("Drehmoment", systemImage: "wrench.and.screwdriver") { showingAddTorque = true }
-                }
+        .onChange(of: viewModel.documents + viewModel.commonDocuments) { _, documents in
+            if let presentedDocument, !documents.contains(where: { $0.id == presentedDocument.id }) {
+                self.presentedDocument = nil
             }
-            ToolbarSpacer(.fixed, placement: .topBarTrailing)
-            ToolbarItem(placement: .topBarTrailing) {
-                Button("Einstellungen", systemImage: "gearshape") {
-                    chrome.openSettings()
-                }
-            }
-        }
-        .navigationDestination(item: $presentedDocument) { doc in
-            DocumentViewerView(document: doc)
         }
         .sheet(isPresented: $showingAddTorque) {
             AddTorqueView(viewModel: viewModel)
@@ -192,6 +167,82 @@ struct WorkshopView: View {
         } message: {
             Text(documentUploadError ?? "Unbekannter Fehler")
         }
+    }
+
+    private var referenceList: some View {
+        List {
+            WorkspaceListHeader(searchText: $searchText, prompt: "\(category.rawValue) durchsuchen …")
+            Section {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 140))], spacing: Theme.Spacing.s) {
+                    ForEach(ReferenceCategory.allCases, id: \.self) { item in
+                        Button {
+                            category = item
+                            searchText = ""
+                        } label: {
+                            Label(item.rawValue, systemImage: item.icon)
+                                .font(.subheadline.weight(.semibold))
+                                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                                .padding(.horizontal, Theme.Spacing.s)
+                                .background(category == item ? Theme.Colors.primary.opacity(0.14) : Color.clear,
+                                    in: RoundedRectangle(cornerRadius: Theme.Radius.control))
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("workshop.category.\(item)")
+                        .accessibilityAddTraits(category == item ? .isSelected : [])
+                    }
+                }
+            }
+            .listRowInsets(EdgeInsets())
+            .listRowBackground(Color.clear)
+
+            if viewModel.isLoading && bothEmpty {
+                Section {
+                    ForEach(0..<4, id: \.self) { _ in loadingPlaceholderRow.redacted(reason: .placeholder) }
+                }
+            } else {
+                switch category {
+                case .pressure: tirePressureSection
+                case .torque: torqueSection
+                case .details: detailsSection
+                case .documents: documentsSection
+                }
+            }
+        }
+        .accessibilityIdentifier("workshop.references")
+        .listStyle(.insetGrouped)
+        .scrollContentBackground(.hidden)
+        .scrollDismissesKeyboard(.interactively)
+        .background(Theme.Colors.background)
+        .refreshable { await viewModel.reconnect() }
+    }
+
+    private var referenceOverview: some View {
+        List {
+            Section { StatStrip(statTiles).listRowInsets(EdgeInsets()) }
+            // Complement the selected category without repeating its values.
+            if category != .pressure { tirePressureSection }
+            if category != .details {
+                Section("Details") {
+                    ForEach(viewModel.details, id: \.clientId) { detail in
+                        Button { editingDetail = detail } label: { MotorcycleDetailRow(detail: detail) }
+                            .buttonStyle(.plain)
+                            .accessibilityIdentifier("workshop.detail.\(detail.clientId)")
+                    }
+                }
+            }
+            Section {
+                Label("Öffne ein Dokument, um es neben den technischen Daten zu lesen.", systemImage: "doc.text.magnifyingglass")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .accessibilityIdentifier("workshop.overview")
+        .listStyle(.insetGrouped)
+        .scrollContentBackground(.hidden)
+        .scrollDismissesKeyboard(.interactively)
+        .background(Theme.Colors.background)
+        .navigationTitle("Technik im Blick")
+        .navigationBarTitleDisplayMode(.inline)
     }
 
     private var loadingPlaceholderRow: some View {
@@ -260,6 +311,7 @@ struct WorkshopView: View {
         Section {
             if let pressure = viewModel.tirePressure {
                 TirePressureTable(pressure: pressure)
+                    .accessibilityIdentifier("workshop.pressure")
             } else {
                 emptySectionRow(
                     "Keine Druckwerte erfasst",
@@ -296,7 +348,7 @@ struct WorkshopView: View {
                 // Explain what the segment *means* — "Allgemein" being empty
                 // is expected as long as every document is bound to a bike,
                 // but a blank grid doesn't say so.
-                Text(docScope == .common
+                Text(!searchText.isEmpty ? "Keine Dokumente passen zur Suche." : docScope == .common
                     ? "Keine allgemeinen Dokumente — Dokumente ohne Motorrad-Zuordnung erscheinen hier."
                     : "Keine Dokumente für \(motoLabel) erfasst.")
                     .scaledFont(12, weight: .medium)
@@ -365,7 +417,7 @@ struct WorkshopView: View {
 
     private var documentsGrid: some View {
         LazyVGrid(
-            columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)],
+            columns: [GridItem(.adaptive(minimum: 150), spacing: 10)],
             spacing: 10
         ) {
             ForEach(displayedDocuments) { doc in
@@ -422,6 +474,7 @@ struct WorkshopView: View {
                 .listRowBackground(Color.clear)
                 .listRowSeparator(.hidden)
 
+                if filteredTorque.isEmpty { ContentUnavailableView.search(text: searchText) }
                 ForEach(filteredTorque, id: \.clientId) { spec in
                     Button { editingTorque = spec } label: {
                         TorqueRow(spec: spec, showGroup: selectedTorqueGroup == "Alle")
@@ -487,12 +540,15 @@ extension WorkshopView {
                     icon: "info.circle",
                     actionLabel: "Detail hinzufügen"
                 ) { showingAddDetail = true }
+            } else if filteredDetails.isEmpty {
+                ContentUnavailableView.search(text: searchText)
             } else {
-                ForEach(viewModel.details, id: \.clientId) { detail in
+                ForEach(filteredDetails, id: \.clientId) { detail in
                     Button { editingDetail = detail } label: {
                         MotorcycleDetailRow(detail: detail)
                     }
                     .buttonStyle(.plain)
+                    .accessibilityIdentifier("workshop.detail.\(detail.clientId)")
                     .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                         Button(role: .destructive) {
                             _ = viewModel.deleteDetail(detail)

@@ -52,14 +52,18 @@ struct AddMotorcycleView: View {
                     }
                 }
             }
+            .adaptiveFormWidth()
+            .scrollDismissesKeyboard(.interactively)
             .navigationTitle("Motorrad hinzufügen")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Abbrechen") { dismiss() }
+                        .keyboardShortcut(.cancelAction)
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Anlegen", action: save)
+                        .keyboardShortcut("s", modifiers: .command)
                         .disabled(!canSave)
                 }
             }

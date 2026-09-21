@@ -78,7 +78,9 @@ struct AddTorqueView: View {
                     if existingSpec != nil { deleteButton }
                 }
                 .padding(Theme.Spacing.l)
+                .adaptiveFormWidth()
             }
+            .scrollDismissesKeyboard(.interactively)
             .navigationTitle(existingSpec == nil ? "Drehmoment hinzufügen" : "Drehmoment bearbeiten")
             .navigationBarTitleDisplayMode(.inline)
             // Success tick when the save lands (HIG: haptic feedback for
@@ -87,9 +89,11 @@ struct AddTorqueView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Abbrechen") { dismiss() }
+                        .keyboardShortcut(.cancelAction)
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Speichern") { save() }
+                        .keyboardShortcut("s", modifiers: .command)
                         .disabled(!canSave)
                 }
             }

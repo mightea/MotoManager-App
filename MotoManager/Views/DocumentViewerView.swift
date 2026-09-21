@@ -51,7 +51,6 @@ struct DocumentViewerView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Theme.Colors.background.ignoresSafeArea())
         .toolbar(.visible, for: .navigationBar)
-        .toolbar(.hidden, for: .tabBar)
         .navigationTitle(document.title)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {

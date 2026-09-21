@@ -71,7 +71,9 @@ struct AddIssueView: View {
                     }
                 }
                 .padding(Theme.Spacing.l)
+                .adaptiveFormWidth()
             }
+            .scrollDismissesKeyboard(.interactively)
             .navigationTitle(existingIssue == nil ? "Mangel erfassen" : "Mangel bearbeiten")
             .navigationBarTitleDisplayMode(.inline)
             // Success tick when the save lands (HIG: haptic feedback for
@@ -80,9 +82,11 @@ struct AddIssueView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Abbrechen") { dismiss() }
+                        .keyboardShortcut(.cancelAction)
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Speichern") { save() }
+                        .keyboardShortcut("s", modifiers: .command)
                         .disabled(title.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
             }

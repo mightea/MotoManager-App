@@ -15,9 +15,11 @@ struct GlassSegmentedControl<Value: Hashable>: View {
     let segments: [Segment]
     @Binding var selection: Value
     @Namespace private var glassNamespace
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     struct Segment: Identifiable {
-        let id = UUID()
+        var id: Value { value }
         let value: Value
         let label: String
         var count: Int? = nil
@@ -25,7 +27,10 @@ struct GlassSegmentedControl<Value: Hashable>: View {
 
     var body: some View {
         GlassEffectContainer(spacing: 3) {
-            HStack(spacing: 0) {
+            let layout = dynamicTypeSize.isAccessibilitySize
+                ? AnyLayout(VStackLayout(spacing: 0))
+                : AnyLayout(HStackLayout(spacing: 0))
+            layout {
                 ForEach(segments) { segment in
                     segmentButton(segment)
                 }
@@ -38,7 +43,7 @@ struct GlassSegmentedControl<Value: Hashable>: View {
         // animate *everything* driven by the selection — the header's stat
         // pills and the page content visibly wobbled on every tab switch.
         // Only the indicator morph should animate.
-        .animation(.easeOut(duration: 0.18), value: selection)
+        .animation(reduceMotion ? nil : .easeOut(duration: 0.18), value: selection)
         // Subtle selection tick on segment change (HIG: feedback for
         // user-initiated state changes) — every control instance app-wide
         // inherits it from here.
@@ -53,7 +58,7 @@ struct GlassSegmentedControl<Value: Hashable>: View {
             HStack(spacing: 6) {
                 Text(segment.label)
                     .scaledFont(13, weight: .semibold)
-                    .lineLimit(1)
+                    .fixedSize(horizontal: false, vertical: true)
                 if let count = segment.count {
                     Text("\(count)")
                         .scaledFont(11, weight: .heavy)
@@ -71,8 +76,8 @@ struct GlassSegmentedControl<Value: Hashable>: View {
                 }
             }
             .foregroundStyle(isActive ? AnyShapeStyle(.primary) : AnyShapeStyle(.secondary))
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 10)
+            .frame(maxWidth: .infinity, minHeight: 44)
+            .padding(.vertical, 4)
             .background {
                 // Only the active segment renders the glass indicator; the shared
                 // glassEffectID lets it morph to whichever segment becomes active.
@@ -90,6 +95,7 @@ struct GlassSegmentedControl<Value: Hashable>: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel(segment.label)
+        .accessibilityValue(segment.count.map { "\($0) Einträge" } ?? "")
         .accessibilityAddTraits(isActive ? [.isSelected] : [])
     }
 }

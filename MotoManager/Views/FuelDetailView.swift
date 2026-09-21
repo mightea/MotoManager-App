@@ -11,6 +11,7 @@ struct FuelDetailView: View {
     let record: SDMaintenanceRecord
     @ObservedObject var viewModel: MotorcycleDetailViewModel
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var showingEdit = false
     @State private var confirmingDelete = false
     @State private var didAutoDismiss = false
@@ -142,7 +143,10 @@ struct FuelDetailView: View {
 
     @ViewBuilder
     private var heroStats: some View {
-        HStack(spacing: 8) {
+        let layout = dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(spacing: Theme.Spacing.s))
+            : AnyLayout(HStackLayout(spacing: Theme.Spacing.s))
+        layout {
             HeroStatTile(
                 eyebrow: "Gesamtpreis",
                 value: Formatters.currency(record.cost ?? 0, code: currency),

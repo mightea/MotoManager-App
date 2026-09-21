@@ -5,206 +5,163 @@ enum HeaderType {
 
     var title: String {
         switch self {
-        case .fuel: return "Tanken"
-        case .service: return "Service"
-        case .workshop: return "Werkstatt"
-        case .parts: return "Teile"
+        case .fuel: "Tanken"
+        case .service: "Wartung"
+        case .workshop: "Technik"
+        case .parts: "Teile"
         }
     }
 }
 
-/// Immersive header used at the top of every screen — pure *content* below the
-/// system navigation bar (which owns settings/add as toolbar items and applies
-/// its own scroll-edge treatment).
-///
-/// The bike name stays fully visible at 24 pt (2-line clamp for long names like
-/// "BMW R 1250 GS Adventure"), the meta line shows year · plate · km, and a
-/// dedicated glass "Wechseln" pill button to the right opens the searchable
-/// picker.
-///
-/// Ink is `onPhoto` (always white): the background is a photo, which doesn't
-/// adapt to appearance. The scrim gradient exists for the same reason — it
-/// guarantees text contrast against arbitrary photo content (an HIG-sanctioned
-/// use; it is *not* a tint stacked on system glass).
-/// The header + stat-strip composition every tab opens with. At regular type
-/// sizes the strip overlaps the extended photo (glass pills on the image); at
-/// accessibility sizes the scaled-up tiles would swallow the hero and clip the
-/// bike name, so the strip moves *below* the header into normal flow and
-/// switches to adaptive ink.
-struct MotorcycleHeaderWithStats: View {
+/// Persistent photo identity, including while reading a record. Statistics
+/// are ordinary content and scroll independently below this header.
+struct MotorcycleSummaryHeader<Actions: View>: View {
     let motorcycle: Motorcycle
     let type: HeaderType
-    @ObservedObject var viewModel: MotorcycleDetailViewModel
-    let tiles: [StatTile]
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-
-    var body: some View {
-        if dynamicTypeSize.isAccessibilitySize {
-            VStack(spacing: Theme.Spacing.s) {
-                MotorcycleSummaryHeader(motorcycle: motorcycle, type: type, viewModel: viewModel)
-                StatStrip(tiles, onPhoto: false)
-                    .padding(.horizontal, Theme.Spacing.pageH)
-            }
-        } else {
-            ZStack(alignment: .bottom) {
-                MotorcycleSummaryHeader(
-                    motorcycle: motorcycle, type: type, viewModel: viewModel,
-                    bottomExtension: 96
-                )
-                StatStrip(tiles)
-                    .padding(.horizontal, Theme.Spacing.pageH)
-                    .padding(.bottom, 12)
-            }
-        }
-    }
-}
-
-struct MotorcycleSummaryHeader: View {
-    let motorcycle: Motorcycle
-    let type: HeaderType
-    @ObservedObject var viewModel: MotorcycleDetailViewModel
-    /// Extra image height added *below* the header content. The bike block stays
-    /// anchored to the top `contentHeight` region while the photo continues down,
-    /// so an overlapping element (e.g. the stat strip) sits on the image instead
-    /// of a hard black cut-off.
-    var bottomExtension: CGFloat = 0
-
+    var isCondensed = false
+    @ViewBuilder var actions: () -> Actions
     @Environment(\.chromeActions) private var chrome
-
-    /// Scales with Dynamic Type so the two-line name + meta line never get
-    /// clipped out of a fixed box at accessibility sizes.
-    @ScaledMetric(relativeTo: .title) private var contentHeight: CGFloat = 180
-    private var totalHeight: CGFloat { contentHeight + bottomExtension }
+    @Environment(\.horizontalSizeClass) private var sizeClass
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @ScaledMetric(relativeTo: .title2) private var minimumHeight: CGFloat = 180
+    @ScaledMetric(relativeTo: .headline) private var condensedHeight: CGFloat = 96
 
     var body: some View {
-        ZStack(alignment: .topLeading) {
-            backgroundImage
-            darkeningOverlay
-
-            VStack(alignment: .leading, spacing: 0) {
-                Spacer(minLength: 0)
-                bikeBlock
+        Group {
+            if isCondensed && !dynamicTypeSize.isAccessibilitySize {
+                ViewThatFits(in: .horizontal) {
+                    condensedHeader
+                    expandedHeader
+                }
+            } else {
+                expandedHeader
             }
-            .padding(.horizontal, 14)
-            .padding(.top, 54)
-            .padding(.bottom, 14)
-            // Keep the content in the top region; the extension below is pure image.
-            .frame(height: contentHeight, alignment: .bottom)
         }
-        .frame(height: totalHeight)
-        .clipped()
-    }
-
-    // MARK: - Background
-
-    @ViewBuilder
-    private var backgroundImage: some View {
-        if let url = motorcycle.image {
-            RemoteImageView(url: url, maxPixelWidth: 1200)
-                .aspectRatio(contentMode: .fill)
-                .frame(height: totalHeight)
-                .clipped()
-        } else {
-            Theme.Colors.primary.opacity(0.8)
-                .frame(height: totalHeight)
-        }
-    }
-
-    private var darkeningOverlay: some View {
-        // Compress the original 3-stop gradient into the content region so the
-        // bike block keeps its exact look; when there's an extension, add a
-        // lighter tail below it so the photo shows through behind the stat strip.
-        let boundary = contentHeight / totalHeight   // 1.0 when bottomExtension == 0
-        var stops: [Gradient.Stop] = [
-            .init(color: .black.opacity(0.40), location: 0.0),
-            .init(color: .black.opacity(0.10), location: 0.38 * boundary),
-            .init(color: .black.opacity(0.78), location: boundary)
-        ]
-        if bottomExtension > 0 {
-            stops.append(.init(color: .black.opacity(0.45), location: 1.0))
-        }
-        return LinearGradient(stops: stops, startPoint: .top, endPoint: .bottom)
-    }
-
-    // MARK: - Bike block
-
-    private var bikeBlock: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            // Eyebrow + VETERAN badge
-            HStack(spacing: 6) {
-                Text(type.title.uppercased())
-                    .scaledFont(10, weight: .heavy)
-                    .tracking(2)
-                    .foregroundStyle(Theme.Colors.onPhotoSecondary)
-                if motorcycle.isVeteran {
-                    veteranBadge
+        .foregroundStyle(Theme.Colors.onPhoto)
+        .padding(Theme.Spacing.m)
+        .frame(maxWidth: .infinity,
+               minHeight: dynamicTypeSize.isAccessibilitySize ? 0
+                   : isCondensed ? condensedHeight : minimumHeight + (sizeClass == .compact ? 20 : 0),
+               alignment: .bottomLeading)
+        .fixedSize(horizontal: false, vertical: true)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("workspace.header")
+        .background {
+            GeometryReader { proxy in
+                let wide = proxy.size.width > 700
+                let height = max(0, proxy.size.height)
+                let photoWidth = max(0, wide ? min(proxy.size.width * 0.6, height * 2) : proxy.size.width)
+                ZStack(alignment: .trailing) {
+                    Theme.Colors.navy950
+                    if let url = motorcycle.image {
+                        RemoteImageView(url: url, maxPixelWidth: 1800)
+                            .aspectRatio(contentMode: .fill)
+                            .frame(width: photoWidth, height: height, alignment: .bottom)
+                            .clipped()
+                            .mask {
+                                if wide {
+                                    LinearGradient(stops: [.init(color: .clear, location: 0),
+                                        .init(color: .black, location: 0.2)],
+                                        startPoint: .leading, endPoint: .trailing)
+                                } else { Rectangle() }
+                            }
+                    }
+                    LinearGradient(
+                        colors: wide
+                            ? [.black.opacity(0.15), .black.opacity(0.05), .black.opacity(0.4)]
+                            : [.black.opacity(0.6), .black.opacity(0.45), .black.opacity(0.85)],
+                        startPoint: .top, endPoint: .bottom
+                    )
+                    if wide {
+                        LinearGradient(colors: [Theme.Colors.navy950.opacity(0.85), .clear],
+                            startPoint: .leading, endPoint: .trailing)
+                    }
                 }
             }
+            .ignoresSafeArea(.container, edges: .top)
+            .accessibilityHidden(true)
+        }
 
-            HStack(alignment: .bottom, spacing: 10) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("\(motorcycle.make) \(motorcycle.model)")
-                        .scaledFont(24, weight: .heavy)
-                        .foregroundStyle(Theme.Colors.onPhoto)
-                        .lineLimit(2)
-                        .multilineTextAlignment(.leading)
+    }
+
+    private var expandedHeader: some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.s) {
+            HStack(alignment: .top, spacing: Theme.Spacing.s) {
+                if !dynamicTypeSize.isAccessibilitySize {
+                    Text(type.title)
+                        .font(.headline)
                         .fixedSize(horizontal: false, vertical: true)
-
-                    metaLine
+                        .padding(.top, Theme.Spacing.s)
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-
-                wechselnButton
+                Spacer(minLength: 0)
+                actions()
+            }
+            Spacer(minLength: dynamicTypeSize.isAccessibilitySize ? Theme.Spacing.xs : Theme.Spacing.l)
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .bottom, spacing: Theme.Spacing.m) {
+                    identity
+                    Spacer(minLength: Theme.Spacing.s)
+                    switchButton
+                }
+                VStack(alignment: .leading, spacing: Theme.Spacing.s) {
+                    identity
+                    switchButton
+                }
             }
         }
     }
 
-    private var metaLine: some View {
-        HStack(spacing: 6) {
-            if let year = motorcycle.modelYear.flatMap(Formatters.modelYear) {
-                Text(year).monospaced()
-                Text("·").opacity(0.6)
+    private var condensedHeader: some View {
+        HStack(spacing: Theme.Spacing.m) {
+            VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
+                Text(type.title)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Theme.Colors.onPhotoSecondary)
+                identity
             }
-            if let plate = motorcycle.numberPlate, !plate.isEmpty {
-                Text(plate).monospaced()
-                Text("·").opacity(0.6)
-            }
-            Text("\(motorcycle.latestOdo ?? motorcycle.initialOdo) km")
-                .monospaced()
+            Spacer(minLength: Theme.Spacing.s)
+            actions()
+            switchButton
         }
-        .scaledFont(11, weight: .semibold)
-        .foregroundStyle(Theme.Colors.onPhotoSecondary)
-        .lineLimit(1)
     }
 
-    private var wechselnButton: some View {
+    private var identity: some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
+            Text("\(motorcycle.make) \(motorcycle.model)")
+                .font((dynamicTypeSize.isAccessibilitySize || isCondensed) ? .headline : .title2.weight(.bold))
+                .fixedSize(horizontal: false, vertical: true)
+            Text(metadata)
+                .font(dynamicTypeSize.isAccessibilitySize ? .caption : .footnote)
+                .monospacedDigit()
+                .foregroundStyle(Theme.Colors.onPhotoSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("workspace.motorcycleIdentity")
+    }
+
+    private var metadata: String {
+        var items: [String] = []
+        if !dynamicTypeSize.isAccessibilitySize,
+           let year = motorcycle.modelYear.flatMap(Formatters.modelYear) { items.append(year) }
+        if let plate = motorcycle.numberPlate, !plate.isEmpty { items.append(plate) }
+        items.append(Formatters.kilometers(motorcycle.latestOdo ?? motorcycle.initialOdo))
+        return items.joined(separator: " · ")
+    }
+
+    private var switchButton: some View {
         Button(action: chrome.openGarage) {
-            HStack(spacing: 6) {
-                Image(systemName: "arrow.up.arrow.down")
-                    .scaledFont(11, weight: .heavy)
-                Text("Wechseln")
-                    .scaledFont(12, weight: .heavy)
+            Group {
+                if dynamicTypeSize.isAccessibilitySize { Image(systemName: "chevron.down") }
+                else { Label("Wechseln", systemImage: "chevron.down") }
             }
-            .foregroundStyle(Theme.Colors.onPhoto)
-            .padding(.leading, 10)
-            .padding(.trailing, 12)
-            .padding(.vertical, 8)
-            .glassEffect(.regular, in: Capsule())
+                .font(.subheadline.weight(.semibold))
+                .padding(.horizontal, dynamicTypeSize.isAccessibilitySize ? Theme.Spacing.s : Theme.Spacing.m)
+                .frame(minWidth: 44, minHeight: 44)
+                .glassEffect(.regular.tint(Theme.Colors.navy950.opacity(0.5)), in: Capsule())
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Motorrad wechseln")
-    }
-
-    private var veteranBadge: some View {
-        Text("VETERAN")
-            .scaledFont(9, weight: .black)
-            .foregroundStyle(Theme.Colors.onPhoto)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 2)
-            .background(
-                Capsule()
-                    .fill(Theme.Colors.accent.opacity(0.92))
-                    .overlay(Capsule().stroke(Color.white.opacity(0.25), lineWidth: 0.5))
-            )
+        .accessibilityIdentifier("workspace.switchMotorcycle")
     }
 }

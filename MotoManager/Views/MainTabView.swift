@@ -54,10 +54,16 @@ struct MainTabView: View {
         // exactly once per switch (previously onAppear + onChange + an inline
         // .task all fired, causing duplicate fetch storms).
         .task(id: fleetVM.selectedMotorcycle?.id) {
-            guard let selected = fleetVM.selectedMotorcycle else { return }
+            guard let selected = fleetVM.selectedMotorcycle else {
+                detailVM = nil
+                return
+            }
             let dVM = MotorcycleDetailViewModel(motorcycle: selected)
             self.detailVM = dVM
             await dVM.reconnect()
+        }
+        .onReceive(fleetVM.$selectedMotorcycle) { motorcycle in
+            if let motorcycle { detailVM?.refreshMotorcycle(motorcycle) }
         }
         .alert(item: $persistenceMonitor.issue) { issue in
             Alert(
@@ -83,21 +89,26 @@ struct MainTabView: View {
 
     @ViewBuilder
     private func screenStack(dVM: MotorcycleDetailViewModel) -> some View {
-        // Native iOS 26 TabView with the Liquid Glass tab bar. Each screen owns
-        // the system navigation bar (settings/add as toolbar items); transient
-        // sync/refresh status lives in the system bottom accessory, which
-        // morphs into the minimized tab bar on scroll.
+        // The native tabs become a collapsible sidebar on iPad. Each tab owns
+        // a persistent motorcycle header and adaptive list/detail navigation.
+        // Offline and sync status remain in the system bottom accessory.
         let showAccessory = StatusAccessoryBar.isActive(engine: syncEngine, viewModel: dVM)
         let tabs = TabView(selection: $activeTab) {
             ForEach(AppTab.allCases) { tab in
                 Tab(tab.label, systemImage: tab.systemImage, value: tab) {
-                    NavigationStack {
-                        screen(for: tab, dVM: dVM)
-                    }
+                    screen(for: tab, dVM: dVM)
                 }
             }
         }
-        .tabBarMinimizeBehavior(.onScrollDown)
+        .tabViewStyle(.sidebarAdaptable)
+        .tabViewSidebarHeader {
+            Button { showingGarage = true } label: {
+                Label("\(dVM.motorcycle.make) \(dVM.motorcycle.model)", systemImage: "motorcycle")
+                    .font(.headline)
+            }
+            .padding(.vertical, Theme.Spacing.s)
+        }
+        .tabBarMinimizeBehavior(.never)
 
         Group {
             if #available(iOS 26.1, *) {
@@ -124,14 +135,16 @@ struct MainTabView: View {
     @ViewBuilder
     private func screen(for tab: AppTab, dVM: MotorcycleDetailViewModel) -> some View {
         if tab != .parts, let error = dVM.errorMessage, !dVM.hasDisplayData {
-            LoadFailureView(
-                title: "Daten konnten nicht geladen werden",
-                message: error,
-                retry: { await dVM.reconnect() }
-            )
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Einstellungen", systemImage: "gearshape") { showingSettings = true }
+            NavigationStack {
+                LoadFailureView(
+                    title: "Daten konnten nicht geladen werden",
+                    message: error,
+                    retry: { await dVM.reconnect() }
+                )
+                .toolbar {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button("Einstellungen", systemImage: "gearshape") { showingSettings = true }
+                    }
                 }
             }
         } else {
@@ -143,7 +156,7 @@ struct MainTabView: View {
             case .service:
                 MaintenanceLogsView(viewModel: dVM, partsVM: partsVM)
             case .parts:
-                PartsView(viewModel: partsVM, detailVM: dVM, motorcycle: dVM.motorcycle)
+                PartsView(viewModel: partsVM, detailVM: dVM)
             }
         }
     }

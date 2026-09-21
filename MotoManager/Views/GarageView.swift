@@ -134,6 +134,7 @@ struct GarageView: View {
                         GarageRow(motorcycle: motorcycle, isActive: isActive)
                     }
                     .buttonStyle(.plain)
+                    .accessibilityIdentifier("garage.motorcycle.\(motorcycle.id)")
                     .listRowBackground(isActive ? Theme.Colors.primary.opacity(0.14) : nil)
                 }
             }

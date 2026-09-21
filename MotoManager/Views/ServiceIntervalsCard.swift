@@ -5,7 +5,12 @@ import SwiftUI
 /// into Reifen / Batterie / Flüssigkeiten / Wartung, with a tally header.
 struct ServiceIntervalsCard: View {
     let insights: [MaintenanceInsight]
-    @State private var expanded = false
+    @State private var expanded: Bool
+
+    init(insights: [MaintenanceInsight], initiallyExpanded: Bool = false) {
+        self.insights = insights
+        _expanded = State(initialValue: initiallyExpanded)
+    }
 
     private var overdueCount: Int { insights.count { $0.status == .overdue } }
     private var dueCount: Int { insights.count { $0.status == .due } }

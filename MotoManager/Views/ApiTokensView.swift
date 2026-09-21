@@ -257,7 +257,7 @@ private struct ApiTokenRow: View {
                 .foregroundStyle(.secondary)
             VStack(alignment: .leading, spacing: 2) {
                 detail("Erstellt am", Formatters.mediumDate(token.createdAt))
-                detail("Zuletzt verwendet", token.lastUsedAt.map(Formatters.dateTime) ?? "Nie")
+                detail("Zuletzt verwendet", token.lastUsedAt.map { Formatters.dateTime($0) } ?? "Nie")
                 if token.isRevoked {
                     detail("Status", "Widerrufen", color: .orange)
                 } else if let expiresAt = token.expiresAt {

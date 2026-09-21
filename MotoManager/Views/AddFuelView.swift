@@ -4,11 +4,10 @@ import SwiftUI
 
 /// Glass bottom-sheet fuel-entry flow.
 ///
-/// Recreates the prototype in `motomanager-app/project/assets/screens/FuelEntrySheet.jsx`:
-/// four fields (km, liters, price/L, total) where price/L and total are
+/// Native fields preserve complete values on focus. Price/L and total are
 /// auto-coupled — typing into one derives the other from the entered liters.
-/// Currency is picked via a small pill in the header; the system .decimalPad
-/// drives all four fields.
+/// Currency is picked above the fields; keyboard controls move
+/// between the odometer, liters, per-liter price and total.
 ///
 /// Location, notes, and fuelType are intentionally not shown in this sheet
 /// (per design); when editing an existing record they are preserved from the
@@ -18,18 +17,13 @@ struct AddFuelView: View {
     @ObservedObject var viewModel: MotorcycleDetailViewModel
     let existingRecord: SDMaintenanceRecord?
     @Environment(\.dismiss) var dismiss
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.horizontalSizeClass) private var sizeClass
 
     private enum Field: Hashable { case odo, liters, price, total }
     private enum PriceCouple: String { case perLiter, total }
     /// Fuel-station GPS detection lifecycle (new entries only).
     private enum StationState: Equatable { case idle, detecting, matched, suggestCreate, denied, failed }
-    /// What `prepareOdoIfNeeded` left behind: the kept prefix and the digit
-    /// count of the reading before stripping.
-    private struct OdoPrepContext: Equatable {
-        let prefix: String
-        let originalCount: Int
-    }
-
     // Fields also seeded from `existingRecord` in init must not carry a
     // declaration default: iOS 27's @State macro discards the init value
     // when both are set.
@@ -42,16 +36,6 @@ struct AddFuelView: View {
     @State private var fuelAdditiveAdded: Bool
     @State private var leadSubstituteAdded: Bool
     @State private var savedAnim: Bool = false
-    /// One-shot: on the first tap into the pre-filled odo/price fields we strip
-    /// the part that usually changes (odo's last 3 digits, the price decimals)
-    /// so the user only types the delta. New entries only.
-    @State private var odoPrepared: Bool
-    @State private var pricePrepared: Bool
-    /// Retype detection (see `FuelEntryRetype`): remembers what the fast-entry
-    /// prep stripped, so a re-typed complete value can discard the placeholder.
-    /// One-shot — cleared when it fires or once the placeholder is edited.
-    @State private var odoPrepContext: OdoPrepContext?
-    @State private var pricePrepPrefix: String?
     @State private var showingOdoScanner = false
     @State private var currency: String
     @State private var currencies: [Currency]
@@ -147,10 +131,7 @@ struct AddFuelView: View {
             _currency = State(initialValue: draft.currency)
             _date = State(initialValue: draft.date)
         }
-        // Restored text is exactly what the user last saw — don't re-run the
-        // first-tap digit stripping on it.
-        _odoPrepared = State(initialValue: draft != nil)
-        _pricePrepared = State(initialValue: draft != nil)
+
     }
 
     // MARK: - Body
@@ -162,6 +143,12 @@ struct AddFuelView: View {
 
                 ScrollView {
                     VStack(spacing: 0) {
+                        HStack {
+                            Text("Währung").font(.subheadline).foregroundStyle(.secondary)
+                            Spacer()
+                            currencyMenu.frame(minHeight: 44)
+                        }
+                        .padding(.horizontal, Theme.Spacing.m)
                         fieldStack
                         dateRow
                         if existingRecord == nil {
@@ -172,25 +159,42 @@ struct AddFuelView: View {
                         saveButton
                     }
                     .padding(.top, 10)
+                    .adaptiveFormWidth()
                 }
-                hiddenTextFields
+                .scrollDismissesKeyboard(.interactively)
             }
             .navigationTitle(isEditing ? "Tankung bearbeiten" : "Neue Tankung")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Abbrechen") { dismiss() }
+                        .keyboardShortcut(.cancelAction)
                 }
-                ToolbarItem(placement: .topBarTrailing) {
-                    currencyMenu
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(action: save) {
+                        if sizeClass == .regular { Text("Speichern") }
+                        else { Image(systemName: "checkmark") }
+                    }
+                        .disabled(!canSave || savedAnim)
+                        .keyboardShortcut("s", modifiers: .command)
+                        .accessibilityLabel("Speichern")
+                        .accessibilityIdentifier("fuel.save")
+                }
+                ToolbarItemGroup(placement: .keyboard) {
+                    Button("Vorheriges Feld", systemImage: "chevron.up") { moveFocus(by: -1) }
+                        .labelStyle(.iconOnly)
+                        .disabled(focused == .odo)
+                    Button("Nächstes Feld", systemImage: "chevron.down") { moveFocus(by: 1) }
+                        .labelStyle(.iconOnly)
+                        .disabled(focused == .total)
+                    Spacer()
+                    Button("Fertig") { focused = nil }
                 }
             }
         }
         .sheet(isPresented: $showingOdoScanner) {
             OdometerScanSheet(onResult: { value in
                 odo = "\(value)"
-                // Keep the full scanned value on the next tap (don't strip digits).
-                odoPrepared = true
             })
             .glassSheet()
         }
@@ -217,18 +221,6 @@ struct AddFuelView: View {
                 odo = sanitized
                 return
             }
-            // The user re-typed the complete reading over the stripped
-            // placeholder ("26" + "26650") — drop the placeholder.
-            if let prep = odoPrepContext {
-                if let retyped = FuelEntryRetype.fullOdoRetype(
-                    value: sanitized, prefix: prep.prefix, originalCount: prep.originalCount) {
-                    odoPrepContext = nil
-                    odo = retyped
-                } else if !sanitized.hasPrefix(prep.prefix) {
-                    // Placeholder edited away by hand — stop watching.
-                    odoPrepContext = nil
-                }
-            }
         }
         .onChange(of: liters) { _, newValue in
             let sanitized = sanitizeDecimal(newValue)
@@ -239,20 +231,6 @@ struct AddFuelView: View {
             }
         }
         .onChange(of: price) { _, newValue in
-            // The user re-typed the integer part over the prepped "1."
-            // ("1.1.") — drop the placeholder. Checked on the raw text:
-            // sanitizeDecimal would swallow the second separator.
-            if let prefix = pricePrepPrefix {
-                if let retyped = FuelEntryRetype.retypedPrice(value: newValue, prefix: prefix) {
-                    pricePrepPrefix = nil
-                    price = retyped
-                    return
-                }
-                if !newValue.hasPrefix(prefix) {
-                    // Placeholder edited away by hand — stop watching.
-                    pricePrepPrefix = nil
-                }
-            }
             let sanitized = sanitizeDecimal(newValue)
             if sanitized != newValue {
                 price = sanitized
@@ -301,99 +279,77 @@ struct AddFuelView: View {
     // MARK: - Sections
 
     private var fieldStack: some View {
-        VStack(spacing: 8) {
-            // Odometer row carries a camera button to scan the reading from the
-            // dashboard instead of typing it.
-            ZStack(alignment: .topTrailing) {
-                GlassFieldRow(
-                    eyebrow: "KILOMETERSTAND",
-                    unit: "km",
-                    value: odo,
-                    hint: odoHint,
-                    icon: "gauge.with.dots.needle.bottom.50percent",
-                    size: .big,
-                    derived: false,
-                    accent: false,
-                    isActive: focused == .odo,
-                    onTap: { prepareOdoIfNeeded(); focused = .odo }
-                )
+        VStack(spacing: Theme.Spacing.s) {
+            HStack(alignment: .center, spacing: Theme.Spacing.s) {
+                numericField("Kilometerstand", unit: "km", text: $odo, field: .odo, hint: odoHint)
                 Button {
                     focused = nil
                     showingOdoScanner = true
                 } label: {
                     Image(systemName: "camera.viewfinder")
-                        .scaledFont(26, weight: .semibold)
-                        .foregroundStyle(Theme.Colors.primary)
-                        .frame(width: 60, height: 60)
-                        .contentShape(Rectangle())
+                        .font(.title2)
+                        .frame(width: 52, height: 52)
                 }
-                .buttonStyle(.plain)
                 .accessibilityLabel("Kilometerstand scannen")
             }
-            GlassFieldRow(
-                eyebrow: "TANKMENGE",
-                unit: "L",
-                value: liters,
-                hint: litersHint,
-                icon: "drop.fill",
-                size: .big,
-                derived: false,
-                accent: false,
-                isActive: focused == .liters,
-                onTap: { focused = .liters }
-            )
-            HStack(spacing: 8) {
-                GlassFieldRow(
-                    eyebrow: "PREIS / LITER",
-                    unit: currency,
-                    value: price,
-                    hint: nil,
-                    icon: "\(Formatters.currencySymbol(for: currency)).circle",
-                    size: .compact,
-                    derived: coupleSource == .total && !price.isEmpty && !liters.isEmpty,
-                    accent: false,
-                    isActive: focused == .price,
-                    onTap: { preparePriceIfNeeded(); focused = .price }
-                )
-                GlassFieldRow(
-                    eyebrow: "GESAMTPREIS",
-                    unit: currency,
-                    value: total,
-                    hint: nil,
-                    icon: "\(Formatters.currencySymbol(for: currency)).circle.fill",
-                    size: .compact,
-                    derived: coupleSource == .perLiter && !total.isEmpty && !liters.isEmpty,
-                    accent: true,
-                    isActive: focused == .total,
-                    onTap: { focused = .total }
-                )
+            numericField("Tankmenge", unit: "L", text: $liters, field: .liters, hint: litersHint)
+            let priceLayout = dynamicTypeSize.isAccessibilitySize
+                ? AnyLayout(VStackLayout(spacing: Theme.Spacing.s))
+                : AnyLayout(HStackLayout(spacing: Theme.Spacing.s))
+            priceLayout {
+                priceField
+                totalField
             }
         }
-        .padding(.horizontal, 14)
+        .padding(.horizontal, Theme.Spacing.m)
     }
 
-    private var hiddenTextFields: some View {
-        // Hidden inputs that drive the system .decimalPad keyboard. They share
-        // the @FocusState enum so taps on a `GlassFieldRow` route input to the
-        // right state binding. Using .numberPad on `odo` because we only want
-        // integers there.
-        ZStack {
-            TextField("", text: $odo)
-                .keyboardType(.numberPad)
-                .focused($focused, equals: .odo)
-            TextField("", text: $liters)
-                .keyboardType(.decimalPad)
-                .focused($focused, equals: .liters)
-            TextField("", text: $price)
-                .keyboardType(.decimalPad)
-                .focused($focused, equals: .price)
-            TextField("", text: $total)
-                .keyboardType(.decimalPad)
-                .focused($focused, equals: .total)
+    private var priceField: some View {
+        numericField("Preis / Liter", unit: currency, text: $price, field: .price,
+            hint: coupleSource == .total && !price.isEmpty ? "Berechnet" : nil)
+    }
+
+    private var totalField: some View {
+        numericField("Gesamtpreis", unit: currency, text: $total, field: .total,
+            hint: coupleSource == .perLiter && !total.isEmpty ? "Berechnet" : nil)
+    }
+
+    private func numericField(_ title: String, unit: String, text: Binding<String>, field: Field, hint: String? = nil) -> some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
+            Text(title).font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+            HStack(alignment: .firstTextBaseline) {
+                TextField(title, text: text, prompt: Text("0"))
+                    .font(.title2.weight(.semibold))
+                    .monospacedDigit()
+                    .keyboardType(field == .odo ? .numberPad : .decimalPad)
+                    .focused($focused, equals: field)
+                    .submitLabel(field == .total ? .done : .next)
+                    .onSubmit { moveFocus(by: 1) }
+                    .accessibilityLabel(title)
+                    .accessibilityIdentifier("fuel.\(field)")
+                Text(unit).font(.footnote).foregroundStyle(.secondary)
+            }
+            if let hint, !hint.isEmpty {
+                Text(hint).font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
-        .frame(width: 0, height: 0)
-        .opacity(0)
-        .allowsHitTesting(false)
+        .padding(Theme.Spacing.m)
+        .background(Theme.Colors.backgroundElevated, in: RoundedRectangle(cornerRadius: Theme.Radius.field))
+        .overlay {
+            RoundedRectangle(cornerRadius: Theme.Radius.field)
+                .stroke(focused == field ? Theme.Colors.primary : Theme.Glass.border, lineWidth: 1)
+        }
+    }
+
+    private func moveFocus(by offset: Int) {
+        let fields: [Field] = [.odo, .liters, .price, .total]
+        guard let focused, let index = fields.firstIndex(of: focused) else {
+            focused = .odo
+            return
+        }
+        let next = index + offset
+        self.focused = fields.indices.contains(next) ? fields[next] : nil
     }
 
     private var metaRow: some View {
@@ -647,30 +603,6 @@ struct AddFuelView: View {
             return currencies.map { $0.code }
         }
         return ["CHF", "EUR", "USD", "GBP", "AUD"]
-    }
-
-    // MARK: - Fast-entry prep
-
-    /// First tap into the pre-filled odometer: drop the last three digits so the
-    /// user just types the change since the last fill (e.g. 134'373 → 134___).
-    private func prepareOdoIfNeeded() {
-        guard existingRecord == nil, !odoPrepared else { return }
-        odoPrepared = true
-        if odo.count > 3 {
-            let originalCount = odo.count
-            odo = String(odo.dropLast(3))
-            odoPrepContext = OdoPrepContext(prefix: odo, originalCount: originalCount)
-        }
-    }
-
-    /// First tap into the pre-filled price/L: drop the decimals (the part that
-    /// usually changes), keeping the integer + separator (e.g. 1.66 → 1.).
-    private func preparePriceIfNeeded() {
-        guard existingRecord == nil, !pricePrepared, !price.isEmpty else { return }
-        pricePrepared = true
-        let intPart = price.prefix { $0.isNumber }
-        price = intPart + "."
-        if !intPart.isEmpty { pricePrepPrefix = price }
     }
 
     // MARK: - Date
@@ -932,6 +864,7 @@ struct AddFuelView: View {
     // MARK: - Save
 
     private func save() {
+        guard canSave, !savedAnim else { return }
         let pricePerLiter = priceValue
         let totalCost = totalValue
 

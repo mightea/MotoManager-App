@@ -10,26 +10,29 @@ class MotorcycleViewModel: ObservableObject {
 
     private let lastSelectedIdKey = "com.motomanager.lastSelectedId"
     private let recentIdsKey = "com.motomanager.recentBikeIds"
+    private let defaults: UserDefaults
+
+    init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
+    }
     /// Recent motorcycle IDs in MRU order (most-recently-used first), excluding the
     /// currently-selected bike. Capped to 5. Used by the picker's "Zuletzt verwendet".
     var recentMotorcycleIds: [Int] {
-        UserDefaults.standard.array(forKey: recentIdsKey) as? [Int] ?? []
+        defaults.array(forKey: recentIdsKey) as? [Int] ?? []
     }
 
     func loadMotorcycles() async {
         // Hydrate from cache instantly so the UI is usable offline / before the network responds.
         if motorcycles.isEmpty,
            let cached = CacheStore.shared.load([Motorcycle].self, key: CacheKey.motorcycles) {
-            self.motorcycles = cached
-            restoreSelection()
+            applyFleet(cached)
         }
 
         isLoading = true
 
         do {
             let fetched = try await NetworkManager.shared.fetchMotorcycles()
-            self.motorcycles = fetched
-            restoreSelection()
+            applyFleet(fetched)
             errorMessage = nil
         } catch {
             // Only surface an error when we have nothing cached to show.
@@ -78,14 +81,14 @@ class MotorcycleViewModel: ObservableObject {
     func selectMotorcycle(_ motorcycle: Motorcycle) {
         let previousId = selectedMotorcycle?.id
         selectedMotorcycle = motorcycle
-        UserDefaults.standard.set(motorcycle.id, forKey: lastSelectedIdKey)
+        defaults.set(motorcycle.id, forKey: lastSelectedIdKey)
 
         // Push the previously-selected bike to the front of the recents list
         // (the new active bike doesn't belong in "recently used").
         if let prev = previousId, prev != motorcycle.id {
             var recents = recentMotorcycleIds.filter { $0 != prev && $0 != motorcycle.id }
             recents.insert(prev, at: 0)
-            UserDefaults.standard.set(Array(recents.prefix(5)), forKey: recentIdsKey)
+            defaults.set(Array(recents.prefix(5)), forKey: recentIdsKey)
         }
     }
 
@@ -96,16 +99,16 @@ class MotorcycleViewModel: ObservableObject {
         motorcycles = []
         selectedMotorcycle = nil
         errorMessage = nil
-        UserDefaults.standard.removeObject(forKey: lastSelectedIdKey)
-        UserDefaults.standard.removeObject(forKey: recentIdsKey)
+        defaults.removeObject(forKey: lastSelectedIdKey)
+        defaults.removeObject(forKey: recentIdsKey)
     }
 
-    private func restoreSelection() {
-        let lastId = UserDefaults.standard.integer(forKey: lastSelectedIdKey)
-        if let lastMoto = motorcycles.first(where: { $0.id == lastId }) {
-            self.selectedMotorcycle = lastMoto
-        } else if selectedMotorcycle == nil, let first = motorcycles.first {
-            self.selectedMotorcycle = first
-        }
+    /// Resolve identity against each new snapshot, even when the ID is unchanged.
+    /// A cached object may contain an old name, photo or mileage; a removed
+    /// motorcycle must not remain selected after a successful fleet refresh.
+    func applyFleet(_ motorcycles: [Motorcycle]) {
+        self.motorcycles = motorcycles
+        let selectedId = selectedMotorcycle?.id ?? defaults.integer(forKey: lastSelectedIdKey)
+        selectedMotorcycle = motorcycles.first(where: { $0.id == selectedId }) ?? motorcycles.first
     }
 }

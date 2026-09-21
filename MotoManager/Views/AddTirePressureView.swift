@@ -85,7 +85,9 @@ struct AddTirePressureView: View {
                     if isEditing && state(of: config) != .empty { deleteButton }
                 }
                 .padding(Theme.Spacing.l)
+                .adaptiveFormWidth()
             }
+            .scrollDismissesKeyboard(.interactively)
             .navigationTitle(isEditing ? "Reifendruck bearbeiten" : "Reifendruck erfassen")
             .navigationBarTitleDisplayMode(.inline)
             // Success tick when the save lands (HIG: haptic feedback for
@@ -94,9 +96,11 @@ struct AddTirePressureView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Abbrechen") { dismiss() }
+                        .keyboardShortcut(.cancelAction)
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Speichern") { save() }
+                        .keyboardShortcut("s", modifiers: .command)
                         .disabled(!canSave || isSaving)
                 }
             }

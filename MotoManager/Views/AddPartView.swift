@@ -114,7 +114,9 @@ struct AddPartView: View {
                     if existingPart != nil { deleteButton }
                 }
                 .padding(Theme.Spacing.l)
+                .adaptiveFormWidth()
             }
+            .scrollDismissesKeyboard(.interactively)
             .navigationTitle(existingPart == nil ? "Teil hinzufügen" : "Teil bearbeiten")
             .navigationBarTitleDisplayMode(.inline)
             // Success tick when the save lands (HIG: haptic feedback for
@@ -123,9 +125,11 @@ struct AddPartView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Abbrechen") { dismiss() }
+                        .keyboardShortcut(.cancelAction)
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Speichern", action: save)
+                        .keyboardShortcut("s", modifiers: .command)
                 }
             }
             .sheet(isPresented: $showingSeriesPicker) {

@@ -60,6 +60,7 @@ struct LoginView: View {
                     Spacer(minLength: 40)
                     brandBlock
                     form
+                    Spacer(minLength: 40)
                 }
                 // Readable form column on iPad — the hero photo stays
                 // full-bleed, only brand block + form are capped.

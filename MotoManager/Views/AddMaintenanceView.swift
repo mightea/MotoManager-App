@@ -185,7 +185,9 @@ struct AddMaintenanceView: View {
                     if existingRecord != nil { deleteButton }
                 }
                 .padding(Theme.Spacing.l)
+                .adaptiveFormWidth()
             }
+            .scrollDismissesKeyboard(.interactively)
             .navigationTitle(existingRecord == nil ? "Wartung erfassen" : "Wartung bearbeiten")
             .navigationBarTitleDisplayMode(.inline)
             // Success tick when the save lands (HIG: haptic feedback for
@@ -194,9 +196,11 @@ struct AddMaintenanceView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Abbrechen") { dismiss() }
+                        .keyboardShortcut(.cancelAction)
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Speichern", action: save)
+                        .keyboardShortcut("s", modifiers: .command)
                 }
             }
             .onChange(of: formType) { typeDirty = true }

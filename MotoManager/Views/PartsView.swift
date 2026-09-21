@@ -7,8 +7,7 @@ struct PartsView: View {
     /// The bike detail VM — drives the shared header and status accessory.
     @ObservedObject var detailVM: MotorcycleDetailViewModel
     /// The currently selected bike, used for the "Passend für …" filter chip.
-    let motorcycle: Motorcycle?
-    @Environment(\.chromeActions) private var chrome
+    private var motorcycle: Motorcycle? { detailVM.motorcycle }
     @ObservedObject private var quickActions = QuickActionRouter.shared
 
     enum PartsTab: Hashable { case mine, locations, publicParts }
@@ -20,11 +19,11 @@ struct PartsView: View {
     /// model series (`filteredParts` ignores it then, and the toggle is hidden).
     @State private var filterBySelectedBike = true
     @State private var showingAddPart = false
-    @State private var selectedPart: SDPart?
+    enum Destination: Hashable { case part(SDPart), location(SDStorageLocation) }
+    @State private var selection: Destination?
     @State private var partPendingDeletion: SDPart?
     @State private var showingScanner = false
     @State private var pendingScan: ScannedLabel?
-    @State private var selectedLocation: SDStorageLocation?
     @State private var showingScanNotFound = false
     @State private var showingAddLocation = false
     /// Whether the public browse has completed at least one load this session —
@@ -34,88 +33,37 @@ struct PartsView: View {
     @ObservedObject private var connectivity = ConnectivityMonitor.shared
 
     var body: some View {
-        List {
-            // Match the other tabs: stat strip on the extended photo, below it
-            // at accessibility text sizes.
-            Section {
-                MotorcycleHeaderWithStats(
-                    motorcycle: detailVM.motorcycle, type: .parts, viewModel: detailVM,
-                    tiles: statTiles
-                )
+        MotorcycleWorkspace(motorcycle: detailVM.motorcycle, type: .parts) {
+            WorkspaceAction("Etikett scannen", systemImage: "qrcode.viewfinder", showsTitle: false) {
+                showingScanner = true
             }
-            .listRowInsets(EdgeInsets())
-            .listRowBackground(Color.clear)
-            .listRowSeparator(.hidden)
-            .listSectionMargins(.all, 0)
-
-            Section {
-                GlassSegmentedControl(
-                    segments: [
-                        .init(value: PartsTab.mine, label: "Meine Teile", count: viewModel.parts.count),
-                        .init(value: PartsTab.locations, label: "Lagerorte", count: viewModel.storageLocations.count),
-                        .init(value: PartsTab.publicParts, label: "Öffentlich")
-                    ],
-                    selection: $tab
-                )
-            }
-            .listRowInsets(EdgeInsets())
-            .listRowBackground(Color.clear)
-            .listRowSeparator(.hidden)
-
-            // One stable section whose *rows* switch with the segment — swapping
-            // whole sections made the list rebuild its section chrome on every
-            // switch, which showed as brief content flashes.
-            Section {
-                switch tab {
-                case .mine:
-                    mineRows
-                case .locations:
-                    locationRows
-                case .publicParts:
-                    publicRows
-                }
-            }
-        }
-        .adaptiveContentWidth()
-        .listStyle(.insetGrouped)
-        .scrollContentBackground(.hidden)
-        .ignoresSafeArea(edges: .top)
-        .searchable(
-            text: $searchText,
-            prompt: tab == .locations ? "Lagerort suchen …" : "Name oder Teilenummer …"
-        )
-        // Collapse the search field into a toolbar button (iOS 26 pattern) —
-        // an always-open drawer would float over the full-bleed hero photo.
-        .searchToolbarBehavior(.minimize)
-        .toolbar {
-            // Adding targets whatever the segment shows (part or storage
-            // location); the public segment is read-only. Scan is a standalone
-            // button — it is the most frequent action at the shelf and must
-            // not hide behind a menu. The items stay in the bar permanently
-            // and merely disable on Öffentlich — removing them made the whole
-            // toolbar re-layout (a visible flash) on every segment switch.
-            ToolbarItem(placement: .topBarTrailing) {
-                Button("Etikett scannen", systemImage: "qrcode.viewfinder") {
-                    showingScanner = true
-                }
+            .disabled(tab == .publicParts)
+            WorkspaceAction(addLabel, systemImage: "plus", action: addAction)
                 .disabled(tab == .publicParts)
-            }
-            ToolbarItem(placement: .topBarTrailing) {
-                Button(addLabel, systemImage: "plus", action: addAction)
-                    .disabled(tab == .publicParts)
-            }
-            ToolbarSpacer(.fixed, placement: .topBarTrailing)
-            ToolbarItem(placement: .topBarTrailing) {
-                Button("Einstellungen", systemImage: "gearshape") {
-                    chrome.openSettings()
+                .keyboardShortcut("n", modifiers: .command)
+        } content: {
+            RecordBrowser(selection: $selection, title: "Teile & Lager",
+                          emptyTitle: "Teil oder Lagerort auswählen", systemImage: "shippingbox") {
+                partsList
+            } detail: { destination in
+                switch destination {
+                case .part(let part):
+                    PartDetailView(part: part, viewModel: viewModel)
+                case .location(let location):
+                    StorageLocationDetailView(location: location, viewModel: viewModel,
+                        placeName: detailVM.location(id: location.locationId)?.name)
                 }
             }
         }
-        .refreshable {
-            await SyncEngine.shared.sync(motorcycleIds: [])
-            viewModel.reloadLocal()
-            if tab == .publicParts {
-                await viewModel.loadPublicParts(query: searchText.isEmpty ? nil : searchText)
+        .onChange(of: tab) { _, _ in selection = nil }
+        .onReceive(viewModel.$parts) { parts in
+            if case .part(let part) = selection, !parts.contains(where: { $0.clientId == part.clientId }) {
+                selection = nil
+            }
+        }
+        .onReceive(viewModel.$storageLocations) { locations in
+            if case .location(let location) = selection, !locations.contains(where: { $0.clientId == location.clientId }) {
+                selection = nil
             }
         }
         .task {
@@ -146,9 +94,6 @@ struct PartsView: View {
             AddPartView(viewModel: viewModel)
                 .glassSheet()
         }
-        .navigationDestination(item: $selectedPart) { part in
-            PartDetailView(part: part, viewModel: viewModel)
-        }
         // The scan result only gets stashed here; pushing the part/location
         // detail must wait for the scanner sheet's dismissal so the push
         // animation doesn't fight the sheet's — onDismiss fires after the
@@ -156,13 +101,6 @@ struct PartsView: View {
         .sheet(isPresented: $showingScanner, onDismiss: resolvePendingScan) {
             LabelScanSheet { pendingScan = $0 }
                 .glassSheet()
-        }
-        .navigationDestination(item: $selectedLocation) { location in
-            StorageLocationDetailView(
-                location: location,
-                viewModel: viewModel,
-                placeName: detailVM.location(id: location.locationId)?.name
-            )
         }
         .alert("Etikett nicht gefunden", isPresented: $showingScanNotFound) {
             Button("OK", role: .cancel) {}
@@ -193,6 +131,52 @@ struct PartsView: View {
         }
     }
 
+    private var partsList: some View {
+        List {
+            WorkspaceListHeader(searchText: $searchText, prompt: tab == .locations ? "Lagerort suchen …" : "Name oder Teilenummer …")
+            Section { StatStrip(statTiles).listRowInsets(EdgeInsets()) }
+            Section {
+                GlassSegmentedControl(
+                    segments: [
+                        .init(value: PartsTab.mine, label: "Meine Teile", count: viewModel.parts.count),
+                        .init(value: PartsTab.locations, label: "Lagerorte", count: viewModel.storageLocations.count),
+                        .init(value: PartsTab.publicParts, label: "Öffentlich")
+                    ],
+                    selection: $tab
+                )
+            }
+            .listRowInsets(EdgeInsets())
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
+
+            // One stable section whose *rows* switch with the segment — swapping
+            // whole sections made the list rebuild its section chrome on every
+            // switch, which showed as brief content flashes.
+            Section {
+                switch tab {
+                case .mine:
+                    mineRows
+                case .locations:
+                    locationRows
+                case .publicParts:
+                    publicRows
+                }
+            }
+        }
+        .listStyle(.insetGrouped)
+        .scrollContentBackground(.hidden)
+        .scrollDismissesKeyboard(.interactively)
+        .background(Theme.Colors.background)
+        .accessibilityIdentifier("parts.inventory")
+        .refreshable {
+            await SyncEngine.shared.sync(motorcycleIds: [])
+            viewModel.reloadLocal()
+            if tab == .publicParts {
+                await viewModel.loadPublicParts(query: searchText.isEmpty ? nil : searchText)
+            }
+        }
+    }
+
     private var addLabel: String {
         switch tab {
         case .mine, .publicParts: "Teil hinzufügen"
@@ -215,13 +199,13 @@ struct PartsView: View {
         switch pendingScan {
         case .part(let serverId):
             if let part = viewModel.part(serverId: serverId) {
-                selectedPart = part
+                selection = .part(part)
             } else {
                 showingScanNotFound = true
             }
         case .storageLocation(let serverId):
             if let location = viewModel.storageLocation(serverId: serverId) {
-                selectedLocation = location
+                selection = .location(location)
             } else {
                 showingScanNotFound = true
             }
@@ -251,7 +235,7 @@ struct PartsView: View {
     private var statTiles: [StatTile] {
         [
             StatTile(
-                eyebrow: "Teile",
+                eyebrow: "Gesamtes Lager",
                 value: "\(viewModel.parts.count)",
                 unit: viewModel.parts.count == 1 ? "Eintrag" : "Einträge",
                 accent: Theme.Colors.primary
@@ -328,16 +312,32 @@ struct PartsView: View {
             .tint(Theme.Colors.primary)
         }
 
+        Text("\(filteredParts.count) angezeigt · \(viewModel.parts.count) insgesamt")
+            .font(.footnote)
+            .foregroundStyle(.secondary)
+            .accessibilityIdentifier("parts.scopeSummary")
+
         if filteredParts.isEmpty {
             emptyStateRow(title: emptyPartsTitle, message: emptyPartsMessage, icon: "shippingbox.fill")
+            if emptyBecauseOfBikeFilter {
+                Button("Alle Teile anzeigen") { filterBySelectedBike = false }
+            } else if viewModel.parts.isEmpty {
+                Button("Erstes Teil hinzufügen", systemImage: "plus") { showingAddPart = true }
+            } else {
+                Button("Suche und Filter zurücksetzen") {
+                    searchText = ""
+                    filterBySelectedBike = false
+                }
+            }
         } else {
             ForEach(filteredParts, id: \.clientId) { part in
                 Button {
-                    selectedPart = part
+                    selection = .part(part)
                 } label: {
                     PartCard(part: part, onHand: viewModel.onHand(for: part), viewModel: viewModel)
                 }
                 .buttonStyle(.plain)
+                .selectedRecord(selection == .part(part))
                 .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                     Button(role: .destructive) {
                         partPendingDeletion = part
@@ -377,10 +377,13 @@ struct PartsView: View {
                     : "Kein Lagerort passt zur Suche.",
                 icon: "archivebox.fill"
             )
+            if viewModel.storageLocations.isEmpty {
+                Button("Lagerort hinzufügen", systemImage: "plus") { showingAddLocation = true }
+            }
         } else {
             ForEach(filteredLocations, id: \.clientId) { location in
                 Button {
-                    selectedLocation = location
+                    selection = .location(location)
                 } label: {
                     StorageLocationCard(
                         location: location,
@@ -391,6 +394,7 @@ struct PartsView: View {
                     )
                 }
                 .buttonStyle(.plain)
+                .selectedRecord(selection == .location(location))
             }
         }
     }
@@ -577,14 +581,18 @@ private struct AddStorageLocationView: View {
                     Text("Wähle einen bestehenden Lagerort, eine Garage oder eine Werkstatt.")
                 }
             }
+            .adaptiveFormWidth()
+            .scrollDismissesKeyboard(.interactively)
             .navigationTitle("Neuer Lagerort")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Abbrechen") { dismiss() }
+                        .keyboardShortcut(.cancelAction)
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Anlegen", action: save)
+                        .keyboardShortcut("s", modifiers: .command)
                         .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
             }
