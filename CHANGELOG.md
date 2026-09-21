@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.11.0](https://github.com/mightea/MotoManager-App/compare/v0.10.0...v0.11.0) (2026-09-21)
+
+
+### Features
+
+* improve adaptive motorcycle workspaces across devices ([fdd1f77](https://github.com/mightea/MotoManager-App/commit/fdd1f77398792247178e02103947ea0d84f8fa8c))
+
 ## [0.10.0](https://github.com/mightea/MotoManager-App/compare/v0.9.0...v0.10.0) (2026-09-03)
 
 
