@@ -6,8 +6,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/envoy/BRLMPrinterKit",
       "state" : {
-        "revision" : "a677f6ceb58f45cfb7b6b6b0d639470607d32737",
-        "version" : "4.13.0"
+        "revision" : "46ca43cce274b43410629d7768066bed0c67e3a3",
+        "version" : "4.13.2"
       }
     }
   ],

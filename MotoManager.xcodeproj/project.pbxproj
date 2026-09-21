@@ -594,7 +594,7 @@
 			repositoryURL = "https://github.com/envoy/BRLMPrinterKit";
 			requirement = {
 				kind = upToNextMajorVersion;
-				minimumVersion = 4.13.0;
+				minimumVersion = 4.13.2;
 			};
 		};
 /* End XCRemoteSwiftPackageReference section */
