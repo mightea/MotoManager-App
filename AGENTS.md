@@ -162,7 +162,7 @@ The app is **native-first with a motorsport accent**, and it **supports light an
 **Reusable primitives — reuse, don't reinvent:**
 - `UI/LiquidBackgroundView.swift` — adaptive canvas with brand halos (navy in dark, light gray in light)
 - `UI/StatusAccessoryBar.swift` — sync/refresh status in the tab bar's bottom accessory
-- `Views/MotorcycleSummaryHeader.swift` — immersive photo header (Dynamic Type-scaled height) with the Wechseln pill; gear/add live in the system toolbar
+- `Views/MotorcycleSummaryHeader.swift` — immersive photo header (Dynamic Type-scaled height) with the Wechseln pill and the add/gear actions; `UI/MotorcycleWorkspace.swift` stacks it above the tab content, minimizes it when a list that adopted `.tracksWorkspaceHeader()` scrolls (`UI/WorkspaceHeaderState.swift`), and on compact widths pushes records full screen over it
 - `Views/RemoteImageView.swift` — auth-aware async image loading
 - `UI/GlassSegmentedControl.swift` — the single segmented-control idiom (tabs *and* sheets)
 

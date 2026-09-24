@@ -68,7 +68,11 @@ final class MotoManagerUITests: XCTestCase {
         let recordID = firstRecord.identifier
         firstRecord.tap()
         XCTAssertTrue(app.buttons["Bearbeiten"].waitForExistence(timeout: 5))
-        XCTAssertTrue(switchBike.isHittable, "Motorcycle context remains available in a detail.")
+        if UIDevice.current.userInterfaceIdiom == .pad {
+            XCTAssertTrue(switchBike.isHittable, "Motorcycle context remains available beside a detail.")
+        } else {
+            XCTAssertFalse(switchBike.isHittable, "Phones open records full screen, covering the header.")
+        }
         capture(app, "workspace-fuel-detail")
         app.buttons["Bearbeiten"].tap()
 

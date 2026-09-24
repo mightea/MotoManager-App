@@ -9,9 +9,13 @@ Implemented from the September 2026 UX review and approved photo-header mockup.
   smaller, single-row motorcycle header. Compact layouts omit redundant
   content titles. Expanded list headings and the single search field are
   ordinary list rows, so both scroll away with the records.
+- Scrolling the content minimizes the header to a single row (name, metadata,
+  actions and the switcher) with an animation; scrolling back to the top
+  restores the photo header. Lists that barely scroll keep the full header.
 - Native tabs adapt to an optional iPad sidebar. Fuel, maintenance, parts and
-  storage locations use list/detail columns; compact windows use native back
-  navigation. Expanded details have a visible “Zur Übersicht” text-and-arrow
+  storage locations use list/detail columns on wide layouts; compact windows
+  push the record full screen over the motorcycle header with native back
+  navigation. The new fuel entry form and the motorcycle switcher stay sheets. Expanded details have a visible “Zur Übersicht” text-and-arrow
   button inside the pane, including on Duo where native toolbar controls move
   into a side rail. Switching motorcycles resets record selection.
 - Fuel has a larger consumption overview on wide screens. Maintenance pairs

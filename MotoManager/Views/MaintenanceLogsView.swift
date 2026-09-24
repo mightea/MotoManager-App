@@ -193,6 +193,7 @@ struct MaintenanceLogsView: View {
             }
         }
         .accessibilityIdentifier("service.history")
+        .tracksWorkspaceHeader()
         .listStyle(.insetGrouped)
         .scrollContentBackground(.hidden)
         .scrollDismissesKeyboard(.interactively)
@@ -226,6 +227,7 @@ struct MaintenanceLogsView: View {
             }
         }
         .accessibilityIdentifier("service.overview")
+        .tracksWorkspaceHeader()
         .listStyle(.insetGrouped)
         .scrollContentBackground(.hidden)
         .scrollDismissesKeyboard(.interactively)

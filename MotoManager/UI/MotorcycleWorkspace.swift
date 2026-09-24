@@ -1,18 +1,42 @@
 import SwiftUI
 
-/// Shared, persistent motorcycle context. Only the content beneath it scrolls.
+/// Shared, persistent motorcycle context. Only the content beneath it scrolls,
+/// and scrolling it minimizes the header (see `WorkspaceHeaderState`).
+/// Phones present records full screen: the workspace is the root of a
+/// `NavigationStack`, so a pushed record covers the header as well.
 struct MotorcycleWorkspace<Actions: View, Content: View>: View {
     let motorcycle: Motorcycle
     let type: HeaderType
     @ViewBuilder var actions: () -> Actions
     @ViewBuilder var content: () -> Content
     @Environment(\.chromeActions) private var chrome
+    @Environment(\.horizontalSizeClass) private var sizeClass
+    @StateObject private var header = WorkspaceHeaderState()
 
     var body: some View {
+        Group {
+            if sizeClass == .compact {
+                NavigationStack {
+                    workspace
+                        // The photo header replaces the bar on the root; pushed
+                        // records show the system bar with the back button.
+                        .toolbar(.hidden, for: .navigationBar)
+                        .toolbarColorScheme(.dark, for: .navigationBar)
+                }
+            } else {
+                workspace
+            }
+        }
+        .environment(\.workspaceHeader, header)
+        .background(Theme.Colors.background)
+    }
+
+    private var workspace: some View {
         GeometryReader { geometry in
             let condensed = geometry.size.width > geometry.size.height && geometry.size.height < 750
             VStack(spacing: 0) {
-                MotorcycleSummaryHeader(motorcycle: motorcycle, type: type, isCondensed: condensed) {
+                MotorcycleSummaryHeader(motorcycle: motorcycle, type: type, isCondensed: condensed,
+                                        isMinimized: header.isMinimized) {
                     HStack(spacing: Theme.Spacing.s) {
                         actions()
                         WorkspaceAction("Einstellungen", systemImage: "gearshape", showsTitle: false) {
@@ -20,11 +44,11 @@ struct MotorcycleWorkspace<Actions: View, Content: View>: View {
                         }
                     }
                 }
+                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { header.recordHeight($0) }
                 content()
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
-        .background(Theme.Colors.background)
     }
 }
 
@@ -63,6 +87,8 @@ struct WorkspaceAction: View {
 }
 
 /// Native columns keep the list alive as selections and window sizes change.
+/// Compact widths push the selected record onto the workspace's own
+/// `NavigationStack` instead, so it takes the whole screen.
 struct RecordBrowser<Selection: Hashable, Content: View, Detail: View>: View {
     @Binding var selection: Selection?
     let title: String
@@ -72,37 +98,44 @@ struct RecordBrowser<Selection: Hashable, Content: View, Detail: View>: View {
     @ViewBuilder var content: () -> Content
     @ViewBuilder var detail: (Selection) -> Detail
     @State private var visibility: NavigationSplitViewVisibility = .all
-    @State private var compactColumn: NavigationSplitViewColumn = .sidebar
     @Environment(\.horizontalSizeClass) private var sizeClass
 
     var body: some View {
-        NavigationSplitView(columnVisibility: $visibility, preferredCompactColumn: $compactColumn) {
+        if sizeClass == .compact {
             content()
-                .environment(\.workspaceListTitle, sizeClass == .regular ? title : nil)
+                .navigationDestination(item: $selection) { selection in
+                    detail(selection)
+                }
+        } else {
+            splitView
+        }
+    }
+
+    private var splitView: some View {
+        NavigationSplitView(columnVisibility: $visibility) {
+            content()
+                .environment(\.workspaceListTitle, title)
                 .navigationTitle(title)
                 .navigationBarTitleDisplayMode(.inline)
                 // Headings and search belong to the scrolling list content.
                 .toolbar(.hidden, for: .navigationBar)
-                .toolbarColorScheme(sizeClass == .compact ? .dark : nil, for: .navigationBar)
                 .navigationSplitViewColumnWidth(min: 330, ideal: 420, max: 560)
         } detail: {
             NavigationStack {
                 if let selection {
                     detail(selection).id(selection)
                         .safeAreaInset(edge: .top, spacing: 0) {
-                            if sizeClass == .regular {
-                                HStack {
-                                    Button("Zur Übersicht", systemImage: "arrow.left") {
-                                        self.selection = nil
-                                    }
-                                    .font(.subheadline.weight(.semibold))
-                                    .frame(minHeight: 44)
-                                    .accessibilityIdentifier("workspace.overview")
-                                    Spacer()
+                            HStack {
+                                Button("Zur Übersicht", systemImage: "arrow.left") {
+                                    self.selection = nil
                                 }
-                                .padding(.horizontal, Theme.Spacing.m)
-                                .background(Theme.Colors.background)
+                                .font(.subheadline.weight(.semibold))
+                                .frame(minHeight: 44)
+                                .accessibilityIdentifier("workspace.overview")
+                                Spacer()
                             }
+                            .padding(.horizontal, Theme.Spacing.m)
+                            .background(Theme.Colors.background)
                         }
                 } else if let overview {
                     overview
@@ -113,14 +146,6 @@ struct RecordBrowser<Selection: Hashable, Content: View, Detail: View>: View {
             }
         }
         .navigationSplitViewStyle(.balanced)
-        .onChange(of: selection) { _, value in
-            compactColumn = value == nil ? .sidebar : .detail
-        }
-        .onChange(of: compactColumn) { _, column in
-            // A native compact back gesture returns to the list. Clear the
-            // selection so tapping the same record can present it again.
-            if column == .sidebar && sizeClass == .compact { selection = nil }
-        }
     }
 }
 

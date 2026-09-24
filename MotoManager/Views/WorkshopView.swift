@@ -209,6 +209,7 @@ struct WorkshopView: View {
             }
         }
         .accessibilityIdentifier("workshop.references")
+        .tracksWorkspaceHeader()
         .listStyle(.insetGrouped)
         .scrollContentBackground(.hidden)
         .scrollDismissesKeyboard(.interactively)
@@ -237,6 +238,7 @@ struct WorkshopView: View {
             }
         }
         .accessibilityIdentifier("workshop.overview")
+        .tracksWorkspaceHeader()
         .listStyle(.insetGrouped)
         .scrollContentBackground(.hidden)
         .scrollDismissesKeyboard(.interactively)

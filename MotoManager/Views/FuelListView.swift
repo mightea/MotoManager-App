@@ -130,6 +130,7 @@ struct FuelListView: View {
             content
         }
         .accessibilityIdentifier("fuel.history")
+        .tracksWorkspaceHeader()
         .listStyle(.insetGrouped)
         .scrollContentBackground(.hidden)
         .scrollDismissesKeyboard(.interactively)
@@ -177,6 +178,7 @@ struct FuelListView: View {
             }
         }
         .accessibilityIdentifier("fuel.overview")
+        .tracksWorkspaceHeader()
         .listStyle(.insetGrouped)
         .scrollContentBackground(.hidden)
         .scrollDismissesKeyboard(.interactively)

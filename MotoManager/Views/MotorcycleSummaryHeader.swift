@@ -13,12 +13,14 @@ enum HeaderType {
     }
 }
 
-/// Persistent photo identity, including while reading a record. Statistics
-/// are ordinary content and scroll independently below this header.
+/// Persistent photo identity above the workspace content. Statistics are
+/// ordinary content and scroll independently below this header; scrolling
+/// them sets `isMinimized`, which shrinks the header to a single row.
 struct MotorcycleSummaryHeader<Actions: View>: View {
     let motorcycle: Motorcycle
     let type: HeaderType
     var isCondensed = false
+    var isMinimized = false
     @ViewBuilder var actions: () -> Actions
     @Environment(\.chromeActions) private var chrome
     @Environment(\.horizontalSizeClass) private var sizeClass
@@ -28,7 +30,9 @@ struct MotorcycleSummaryHeader<Actions: View>: View {
 
     var body: some View {
         Group {
-            if isCondensed && !dynamicTypeSize.isAccessibilitySize {
+            if isMinimized {
+                minimizedHeader
+            } else if isCondensed && !dynamicTypeSize.isAccessibilitySize {
                 ViewThatFits(in: .horizontal) {
                     condensedHeader
                     expandedHeader
@@ -38,9 +42,10 @@ struct MotorcycleSummaryHeader<Actions: View>: View {
             }
         }
         .foregroundStyle(Theme.Colors.onPhoto)
-        .padding(Theme.Spacing.m)
+        .padding(.horizontal, Theme.Spacing.m)
+        .padding(.vertical, isMinimized ? Theme.Spacing.s : Theme.Spacing.m)
         .frame(maxWidth: .infinity,
-               minHeight: dynamicTypeSize.isAccessibilitySize ? 0
+               minHeight: (dynamicTypeSize.isAccessibilitySize || isMinimized) ? 0
                    : isCondensed ? condensedHeight : minimumHeight + (sizeClass == .compact ? 20 : 0),
                alignment: .bottomLeading)
         .fixedSize(horizontal: false, vertical: true)
@@ -125,15 +130,29 @@ struct MotorcycleSummaryHeader<Actions: View>: View {
         }
     }
 
+    /// Single row while the content is scrolled: name, metadata and the
+    /// actions stay reachable, the photo shrinks to a strip behind them.
+    private var minimizedHeader: some View {
+        HStack(spacing: Theme.Spacing.s) {
+            identity
+            Spacer(minLength: Theme.Spacing.s)
+            actions()
+            switchButton
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
     private var identity: some View {
-        VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
+        VStack(alignment: .leading, spacing: isMinimized ? 2 : Theme.Spacing.xs) {
             Text("\(motorcycle.make) \(motorcycle.model)")
-                .font((dynamicTypeSize.isAccessibilitySize || isCondensed) ? .headline : .title2.weight(.bold))
+                .font((dynamicTypeSize.isAccessibilitySize || isCondensed || isMinimized) ? .headline : .title2.weight(.bold))
+                .lineLimit(isMinimized ? 1 : nil)
                 .fixedSize(horizontal: false, vertical: true)
             Text(metadata)
-                .font(dynamicTypeSize.isAccessibilitySize ? .caption : .footnote)
+                .font((dynamicTypeSize.isAccessibilitySize || isMinimized) ? .caption : .footnote)
                 .monospacedDigit()
                 .foregroundStyle(Theme.Colors.onPhotoSecondary)
+                .lineLimit(isMinimized ? 1 : nil)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .accessibilityElement(children: .combine)
@@ -150,13 +169,14 @@ struct MotorcycleSummaryHeader<Actions: View>: View {
     }
 
     private var switchButton: some View {
-        Button(action: chrome.openGarage) {
+        let iconOnly = dynamicTypeSize.isAccessibilitySize || isMinimized
+        return Button(action: chrome.openGarage) {
             Group {
-                if dynamicTypeSize.isAccessibilitySize { Image(systemName: "chevron.down") }
+                if iconOnly { Image(systemName: "chevron.down") }
                 else { Label("Wechseln", systemImage: "chevron.down") }
             }
                 .font(.subheadline.weight(.semibold))
-                .padding(.horizontal, dynamicTypeSize.isAccessibilitySize ? Theme.Spacing.s : Theme.Spacing.m)
+                .padding(.horizontal, iconOnly ? Theme.Spacing.s : Theme.Spacing.m)
                 .frame(minWidth: 44, minHeight: 44)
                 .glassEffect(.regular.tint(Theme.Colors.navy950.opacity(0.5)), in: Capsule())
         }

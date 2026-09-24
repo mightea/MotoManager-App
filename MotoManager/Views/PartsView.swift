@@ -168,6 +168,7 @@ struct PartsView: View {
         .scrollDismissesKeyboard(.interactively)
         .background(Theme.Colors.background)
         .accessibilityIdentifier("parts.inventory")
+        .tracksWorkspaceHeader()
         .refreshable {
             await SyncEngine.shared.sync(motorcycleIds: [])
             viewModel.reloadLocal()
