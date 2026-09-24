@@ -31,6 +31,7 @@ extension SDPart {
         isPublic = dto.isPublic
         seriesIds = dto.seriesIds
         image = dto.image
+        oemPartNumber = dto.oemPartNumber
         serverUpdatedAt = dto.updatedAt
         syncState = .synced
     }
@@ -45,6 +46,9 @@ extension SDPart {
             "seriesIds": seriesIds,
         ]
         if let partDescription, !partDescription.isEmpty { p["description"] = partDescription }
+        // Always sent: on update an empty string is what clears it server-side
+        // (an absent key keeps the stored value).
+        p["oemPartNumber"] = oemPartNumber ?? ""
         return p
     }
 }

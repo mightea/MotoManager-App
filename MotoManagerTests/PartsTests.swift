@@ -123,6 +123,48 @@ struct PartsSyncMappingTests {
         #expect(local.serverUpdatedAt == "2026-07-01T10:00:00.000Z")
     }
 
+    @Test func oemPartNumberRoundTrips() throws {
+        let part = SDPart(partNumber: "BXP-44555", name: "Regler", syncState: .pendingUpdate)
+        // Cleared locally → explicit empty string so the server clears it too.
+        #expect(part.toPayload()["oemPartNumber"] as? String == "")
+        part.oemPartNumber = "12 32 1 244 409"
+        #expect(part.toPayload()["oemPartNumber"] as? String == "12 32 1 244 409")
+
+        let json = """
+        {"id":9,"userId":1,"partNumber":"BXP-44555","name":"Regler",
+         "manufacturer":"Boxxerparts","description":null,"isPublic":false,
+         "createdAt":"2026-09-24T10:00:00.000Z","seriesIds":[],
+         "onHand":1,"stockCount":1,"oemPartNumber":"12 32 1 244 408",
+         "clientId":null,"updatedAt":"2026-09-24T10:00:00.000Z","deletedAt":null}
+        """
+        part.apply(try JSONDecoder().decode(Part.self, from: Data(json.utf8)))
+        #expect(part.oemPartNumber == "12 32 1 244 408")
+    }
+
+    @Test func partWithoutOemFieldStillDecodes() throws {
+        // Older backend (pre-053) omits the key entirely.
+        let json = """
+        {"id":9,"userId":1,"partNumber":"PN","name":"X","manufacturer":"BMW",
+         "description":null,"isPublic":false,"createdAt":"2026-09-24T10:00:00.000Z",
+         "seriesIds":[],"onHand":0,"stockCount":0,"clientId":null,
+         "updatedAt":null,"deletedAt":null}
+        """
+        let dto = try JSONDecoder().decode(Part.self, from: Data(json.utf8))
+        #expect(dto.oemPartNumber == nil)
+    }
+
+    @Test func decodesBmwbikeLookup() throws {
+        let json = """
+        {"part":{"partNumber":"12 32 1 244 409","name":"Regler","description":null,
+         "imageUrl":"https://admin.bmwbike.com/x.jpg","productUrl":"https://bmwbike.com/de/part/x",
+         "price":89.5,"currency":"CHF","seriesIds":[3,4],"unmatchedCompat":["R 80 USA"]}}
+        """
+        let res = try JSONDecoder().decode(BmwbikeLookupResponse.self, from: Data(json.utf8))
+        #expect(res.part?.seriesIds == [3, 4])
+        let empty = try JSONDecoder().decode(BmwbikeLookupResponse.self, from: Data(#"{"part":null}"#.utf8))
+        #expect(empty.part == nil)
+    }
+
     @Test func stockPayloadResolvesForeignKeysAtCallTime() {
         let partClientId = UUID()
         let stock = SDPartStock(partClientId: partClientId, quantity: 3, syncState: .pendingCreate)

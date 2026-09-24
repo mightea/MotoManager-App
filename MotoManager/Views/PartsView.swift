@@ -274,6 +274,7 @@ struct PartsView: View {
         if !query.isEmpty {
             result = result.filter {
                 $0.name.lowercased().contains(query) || $0.partNumber.lowercased().contains(query)
+                    || ($0.oemPartNumber?.lowercased().contains(query) ?? false)
             }
         }
         return result

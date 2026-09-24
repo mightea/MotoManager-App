@@ -173,6 +173,20 @@ struct PartDetailView: View {
             }
             .padding(.vertical, 2)
 
+            if let oem = part.oemPartNumber, !oem.isEmpty {
+                HStack(spacing: 8) {
+                    Text("BMW-NR.")
+                        .scaledFont(10, weight: .heavy).tracking(1.4)
+                        .foregroundStyle(.tertiary)
+                    Text(oem)
+                        .scaledFont(13, weight: .semibold)
+                        .monospaced()
+                        .foregroundStyle(.primary)
+                        .textSelection(.enabled)
+                }
+                .accessibilityElement(children: .combine)
+            }
+
             if !part.seriesIds.isEmpty {
                 seriesChips
             }

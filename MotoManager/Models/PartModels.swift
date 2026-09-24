@@ -23,6 +23,27 @@ nonisolated struct Part: Codable, Identifiable {
     let clientId: String?
     let updatedAt: String?
     let deletedAt: String?
+    /// BMW part number an aftermarket part corresponds to (backend migration
+    /// 053). Defaulted so older backends and memberwise call sites still work.
+    var oemPartNumber: String? = nil
+}
+
+/// `GET /api/part-imports/bmwbike/{partNumber}` — BMWBike catalog data for a
+/// BMW part number, fitment already mapped onto catalog ids by the server.
+nonisolated struct BmwbikeLookup: Codable {
+    let partNumber: String
+    let name: String
+    let description: String?
+    let imageUrl: String?
+    let productUrl: String
+    let price: Double?
+    let currency: String?
+    let seriesIds: [Int]
+    let unmatchedCompat: [String]
+}
+
+nonisolated struct BmwbikeLookupResponse: Codable {
+    let part: BmwbikeLookup?
 }
 
 struct PartStock: Codable, Identifiable {

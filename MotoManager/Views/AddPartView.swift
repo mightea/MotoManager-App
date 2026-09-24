@@ -10,6 +10,7 @@ struct AddPartView: View {
     @State private var partNumber: String
     @State private var name: String
     @State private var manufacturer: String
+    @State private var oemPartNumber: String
     @State private var notes: String
     @State private var isPublic: Bool
     @State private var selectedSeriesIds: Set<Int>
@@ -18,6 +19,13 @@ struct AddPartView: View {
     @State private var saveSucceeded = false
     @State private var confirmingDelete = false
     @State private var validationError: String?
+
+    // BMWBike enrichment: fills only what is still missing.
+    @State private var isEnriching = false
+    @State private var enrichMessage: String?
+    @State private var enrichFailed = false
+    /// Remote image to import once saved (only when the part has none).
+    @State private var importImageUrl: String?
 
     // Initial stock (create mode only): a new part always starts with at
     // least one recorded instance so the inventory never has empty parts.
@@ -35,6 +43,7 @@ struct AddPartView: View {
             _partNumber = State(initialValue: p.partNumber)
             _name = State(initialValue: p.name)
             _manufacturer = State(initialValue: p.manufacturer)
+            _oemPartNumber = State(initialValue: p.oemPartNumber ?? "")
             _notes = State(initialValue: p.partDescription ?? "")
             _isPublic = State(initialValue: p.isPublic)
             _selectedSeriesIds = State(initialValue: Set(p.seriesIds))
@@ -42,6 +51,7 @@ struct AddPartView: View {
             _partNumber = State(initialValue: "")
             _name = State(initialValue: "")
             _manufacturer = State(initialValue: "BMW")
+            _oemPartNumber = State(initialValue: "")
             _notes = State(initialValue: "")
             _isPublic = State(initialValue: false)
             _selectedSeriesIds = State(initialValue: [])
@@ -66,6 +76,7 @@ struct AddPartView: View {
                     field("HERSTELLER") {
                         TextField("", text: $manufacturer).foregroundStyle(.primary)
                     }
+                    oemSection
                     field("BAUREIHEN") {
                         Button { showingSeriesPicker = true } label: {
                             HStack {
@@ -147,6 +158,105 @@ struct AddPartView: View {
                 Text("Bestand und Verbrauch dieses Teils werden ebenfalls entfernt.")
             }
         }
+    }
+
+    // MARK: - BMW part number + BMWBike enrichment
+
+    /// Number to look up: the OEM field for aftermarket parts, else the
+    /// part's own number when it is a BMW part.
+    private var lookupNumber: String? {
+        let oem = oemPartNumber.trimmingCharacters(in: .whitespaces)
+        if !oem.isEmpty { return oem }
+        let own = partNumber.trimmingCharacters(in: .whitespaces)
+        let isBmw = manufacturer.trimmingCharacters(in: .whitespaces).caseInsensitiveCompare("BMW") == .orderedSame
+        return isBmw && !own.isEmpty ? own : nil
+    }
+
+    private var oemSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            field("BMW-TEILENUMMER (ORIGINAL)") {
+                TextField("", text: $oemPartNumber,
+                          prompt: Text("z. B. 12 32 1 244 409").foregroundStyle(.tertiary))
+                    .foregroundStyle(.primary)
+                    .keyboardType(.numbersAndPunctuation)
+                    .autocorrectionDisabled()
+            }
+            Text("Für Nachbau- oder Fremdteile: die BMW-Nummer, die das Teil ersetzt.")
+                .scaledFont(11)
+                .foregroundStyle(.tertiary)
+                .padding(.horizontal, 4)
+
+            if let number = lookupNumber {
+                Button {
+                    Task { await enrich(from: number) }
+                } label: {
+                    HStack(spacing: 8) {
+                        if isEnriching {
+                            ProgressView()
+                        } else {
+                            Image(systemName: "sparkle.magnifyingglass")
+                        }
+                        Text("Von BMWBike ergänzen")
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+                .glassActionButton(.secondary, in: .roundedRectangle(radius: Theme.Radius.control))
+                .disabled(isEnriching)
+            }
+            if let enrichMessage {
+                Text(enrichMessage)
+                    .scaledFont(12, weight: .semibold)
+                    .foregroundStyle(enrichFailed ? AnyShapeStyle(Theme.Colors.accent) : AnyShapeStyle(.secondary))
+                    .padding(.horizontal, 4)
+            }
+        }
+    }
+
+    private func enrich(from number: String) async {
+        isEnriching = true
+        defer { isEnriching = false }
+        enrichFailed = false
+        let result: BmwbikeLookup?
+        do {
+            result = try await viewModel.lookupBmwbike(partNumber: number)
+        } catch APIError.offline {
+            enrichFailed = true
+            enrichMessage = "Nur online möglich."
+            return
+        } catch {
+            enrichFailed = true
+            enrichMessage = "BMWBike-Abfrage fehlgeschlagen."
+            return
+        }
+        guard let result else {
+            enrichFailed = true
+            enrichMessage = "BMWBike kennt die Nummer \(number) nicht."
+            return
+        }
+
+        var added: [String] = []
+        if name.trimmingCharacters(in: .whitespaces).isEmpty {
+            name = result.name
+            added.append("Name")
+        }
+        if notes.trimmingCharacters(in: .whitespaces).isEmpty,
+           let description = result.description, !description.isEmpty {
+            notes = description
+            added.append("Beschreibung")
+        }
+        let newSeries = Set(result.seriesIds).subtracting(selectedSeriesIds)
+        if !newSeries.isEmpty {
+            selectedSeriesIds.formUnion(newSeries)
+            added.append(newSeries.count == 1 ? "1 Baureihe" : "\(newSeries.count) Baureihen")
+        }
+        let hasImage = existingPart?.image != nil || existingPart?.pendingImageUrl != nil
+        if !hasImage, importImageUrl == nil, let imageUrl = result.imageUrl {
+            importImageUrl = imageUrl
+            added.append("Bild")
+        }
+        enrichMessage = added.isEmpty
+            ? "Nichts zu ergänzen — die Daten sind bereits vollständig."
+            : "Ergänzt: " + added.joined(separator: ", ") + " (wird beim Speichern übernommen)"
     }
 
     // MARK: - Initial stock (create mode)
@@ -256,13 +366,15 @@ struct AddPartView: View {
             guard viewModel.updatePart(
                 p, partNumber: trimmedNumber, name: trimmedName,
                 manufacturer: manufacturer.trimmingCharacters(in: .whitespaces),
-                description: notes, isPublic: isPublic, seriesIds: ids) else { return }
+                description: notes, isPublic: isPublic, seriesIds: ids,
+                oemPartNumber: oemPartNumber, importImageUrl: importImageUrl) else { return }
         } else {
             let priceValue = Double(stockPrice.replacingOccurrences(of: ",", with: "."))
             guard viewModel.createPartWithInitialStock(
                 partNumber: trimmedNumber, name: trimmedName,
                 manufacturer: manufacturer.trimmingCharacters(in: .whitespaces),
                 description: notes, isPublic: isPublic, seriesIds: ids,
+                oemPartNumber: oemPartNumber, importImageUrl: importImageUrl,
                 quantity: stockQuantity, price: priceValue,
                 currency: stockCurrency.trimmingCharacters(in: .whitespaces),
                 purchaseDate: stockPurchaseDate, storageLocation: stockLocation,

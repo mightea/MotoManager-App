@@ -156,6 +156,7 @@ final class SyncEngine: ObservableObject {
         // already pushed above, so consumption→repair links resolve.
         try await pushStorageLocations()
         try await pushParts()
+        try await pushPartImageImports()
         try await pushPartStocks()
         try await pushPartConsumptions()
     }
@@ -370,6 +371,32 @@ final class SyncEngine: ObservableObject {
             } catch {
                 part.recordSyncFailure(error)
                 AppLog.error("Push part \(part.clientId) failed (attempt \(part.syncAttempts)): \(error.localizedDescription)")
+            }
+        }
+        try context.save()
+    }
+
+    /// Remote images picked in the editor (BMWBike enrichment) are imported
+    /// server-side once the part exists there. Not part of the part's own
+    /// syncState: the import is a separate endpoint and must not block or
+    /// repeat the catalog push.
+    private func pushPartImageImports() async throws {
+        let pending = (try? context.fetch(FetchDescriptor<SDPart>()))?
+            .filter { $0.pendingImageUrl != nil && $0.serverId != nil && !$0.syncState.isPending } ?? []
+        for part in pending {
+            guard let url = part.pendingImageUrl, let sid = part.serverId else { continue }
+            do {
+                let dto = try await net.importPartImage(partId: sid, url: url)
+                part.apply(dto)
+                part.pendingImageUrl = nil
+            } catch let error as APIError where isFatal(error) {
+                throw error
+            } catch APIError.http(let status, _) where (400..<500).contains(status) {
+                // Rejected URL or vanished part: retrying can't succeed.
+                part.pendingImageUrl = nil
+                AppLog.error("Part image import for \(part.clientId) rejected (HTTP \(status))")
+            } catch {
+                AppLog.error("Part image import for \(part.clientId) failed: \(error.localizedDescription)")
             }
         }
         try context.save()

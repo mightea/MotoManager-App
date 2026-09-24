@@ -623,6 +623,31 @@ class NetworkManager {
         _ = try await performRequest(request)
     }
 
+    /// BMWBike catalog data for a BMW part number (server-side lookup; the
+    /// server also maps fitment onto catalog ids). nil = BMWBike doesn't
+    /// carry the number. Online-only.
+    func lookupBmwbikePart(partNumber: String) async throws -> BmwbikeLookup? {
+        // Separators carry no meaning (the server normalizes) — sending only
+        // alphanumerics sidesteps path encoding entirely.
+        let normalized = String(partNumber.unicodeScalars.filter {
+            CharacterSet.alphanumerics.contains($0) && $0.isASCII
+        })
+        let wrapper: BmwbikeLookupResponse = try await get("/api/part-imports/bmwbike/\(normalized)")
+        return wrapper.part
+    }
+
+    /// Server-side download of a remote image (allow-listed hosts such as
+    /// BMWBike) as the part photo.
+    func importPartImage(partId: Int, url: String) async throws -> Part {
+        let body = try JSONSerialization.data(withJSONObject: ["url": url])
+        let request = try makeRequest(
+            path: "/api/parts/\(partId)/image-from-url", method: "POST", authorized: true, jsonBody: body)
+        let data = try await performRequest(request)
+        var part = try Self.decode(PartResponse.self, from: data).part
+        part.image = absolutizeImage(part.image)
+        return part
+    }
+
     /// Other users' shared parts (catalog + availability only). Online-only —
     /// results are not cached.
     func fetchPublicParts(query: String? = nil, seriesId: Int? = nil) async throws -> [PublicPart] {

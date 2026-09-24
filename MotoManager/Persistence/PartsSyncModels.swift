@@ -25,6 +25,11 @@ final class SDPart {
     /// Server-managed photo URL (uploads happen via the web client for now);
     /// default nil keeps this a lightweight SwiftData migration.
     var image: String?
+    /// BMW part number for aftermarket/other-vendor parts (migration 053).
+    var oemPartNumber: String?
+    /// Remote image (BMWBike) to import as the part photo once the part has a
+    /// server id; the SyncEngine clears it after the import. Local-only.
+    var pendingImageUrl: String?
 
     var syncState: SyncState
     var updatedAtLocal: Date

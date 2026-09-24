@@ -273,6 +273,7 @@ class PartsViewModel: ObservableObject {
     func createPartWithInitialStock(
         partNumber: String, name: String, manufacturer: String,
         description: String?, isPublic: Bool, seriesIds: [Int],
+        oemPartNumber: String? = nil, importImageUrl: String? = nil,
         quantity: Int, price: Double?, currency: String?, purchaseDate: Date,
         storageLocation: SDStorageLocation?, newLocationName: String
     ) -> SDPart? {
@@ -285,6 +286,8 @@ class PartsViewModel: ObservableObject {
             seriesIds: seriesIds,
             syncState: .pendingCreate
         )
+        part.oemPartNumber = Self.nonBlank(oemPartNumber)
+        part.pendingImageUrl = importImageUrl
         modelContext.insert(part)
 
         var location = storageLocation
@@ -320,8 +323,11 @@ class PartsViewModel: ObservableObject {
     func updatePart(
         _ part: SDPart,
         partNumber: String, name: String, manufacturer: String,
-        description: String?, isPublic: Bool, seriesIds: [Int]
+        description: String?, isPublic: Bool, seriesIds: [Int],
+        oemPartNumber: String?, importImageUrl: String? = nil
     ) -> Bool {
+        part.oemPartNumber = Self.nonBlank(oemPartNumber)
+        if let importImageUrl { part.pendingImageUrl = importImageUrl }
         part.partNumber = partNumber
         part.name = name
         part.manufacturer = manufacturer.isEmpty ? "BMW" : manufacturer
@@ -466,6 +472,19 @@ class PartsViewModel: ObservableObject {
         reloadLocal()
         SyncEngine.shared.requestSync(motorcycleIds: [])
         return true
+    }
+
+    private static func nonBlank(_ value: String?) -> String? {
+        guard let trimmed = value?.trimmingCharacters(in: .whitespaces), !trimmed.isEmpty else { return nil }
+        return trimmed
+    }
+
+    // MARK: - BMWBike enrichment
+
+    /// Looks up a BMW part number on BMWBike (via the backend). Throws on
+    /// transport/server errors; nil when BMWBike doesn't list the number.
+    func lookupBmwbike(partNumber: String) async throws -> BmwbikeLookup? {
+        try await NetworkManager.shared.lookupBmwbikePart(partNumber: partNumber)
     }
 
     private static func isoDay(_ date: Date) -> String {
