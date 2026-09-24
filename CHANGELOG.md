@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.13.0](https://github.com/mightea/MotoManager-App/compare/v0.12.0...v0.13.0) (2026-09-24)
+
+
+### Features
+
+* link parts to a BMW part number and fill missing data from BMWBike ([873bba3](https://github.com/mightea/MotoManager-App/commit/873bba34c53baff9cbea6d49aef8547ad482cd02))
+
 ## [0.12.0](https://github.com/mightea/MotoManager-App/compare/v0.11.0...v0.12.0) (2026-09-24)
 
 
