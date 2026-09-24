@@ -191,6 +191,7 @@ struct MaintenanceLogsView: View {
 
                 maintenanceContent
             }
+            WorkspaceListFooter()
         }
         .accessibilityIdentifier("service.history")
         .tracksWorkspaceHeader()
@@ -227,7 +228,6 @@ struct MaintenanceLogsView: View {
             }
         }
         .accessibilityIdentifier("service.overview")
-        .tracksWorkspaceHeader()
         .listStyle(.insetGrouped)
         .scrollContentBackground(.hidden)
         .scrollDismissesKeyboard(.interactively)

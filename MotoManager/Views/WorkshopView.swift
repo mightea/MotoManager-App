@@ -207,6 +207,7 @@ struct WorkshopView: View {
                 case .documents: documentsSection
                 }
             }
+            WorkspaceListFooter()
         }
         .accessibilityIdentifier("workshop.references")
         .tracksWorkspaceHeader()
@@ -238,7 +239,6 @@ struct WorkshopView: View {
             }
         }
         .accessibilityIdentifier("workshop.overview")
-        .tracksWorkspaceHeader()
         .listStyle(.insetGrouped)
         .scrollContentBackground(.hidden)
         .scrollDismissesKeyboard(.interactively)

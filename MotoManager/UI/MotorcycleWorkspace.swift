@@ -1,9 +1,11 @@
 import SwiftUI
 
-/// Shared, persistent motorcycle context. Only the content beneath it scrolls,
-/// and scrolling it minimizes the header (see `WorkspaceHeaderState`).
-/// Phones present records full screen: the workspace is the root of a
-/// `NavigationStack`, so a pushed record covers the header as well.
+/// Shared, persistent motorcycle context above the content. On compact
+/// widths a list that adopts `tracksWorkspaceHeader()` collapses the header
+/// as it scrolls (see `WorkspaceHeaderState.swift`); wide layouts keep it
+/// static, since two columns would fight over it. Phones present records
+/// full screen: the workspace is the root of a `NavigationStack`, so a pushed
+/// record covers the header as well.
 struct MotorcycleWorkspace<Actions: View, Content: View>: View {
     let motorcycle: Motorcycle
     let type: HeaderType
@@ -11,7 +13,11 @@ struct MotorcycleWorkspace<Actions: View, Content: View>: View {
     @ViewBuilder var content: () -> Content
     @Environment(\.chromeActions) private var chrome
     @Environment(\.horizontalSizeClass) private var sizeClass
-    @StateObject private var header = WorkspaceHeaderState()
+    // Plain `@State` holds the objects without observing them: the header
+    // and the inset views subscribe, this container must not re-render on
+    // every scroll tick.
+    @State private var metrics = WorkspaceHeaderMetrics()
+    @State private var scroll = WorkspaceScrollProgress()
 
     var body: some View {
         Group {
@@ -27,27 +33,29 @@ struct MotorcycleWorkspace<Actions: View, Content: View>: View {
                 workspace
             }
         }
-        .environment(\.workspaceHeader, header)
+        .environment(\.workspaceHeader,
+                     sizeClass == .compact ? WorkspaceHeaderContext(metrics: metrics, scroll: scroll) : nil)
         .background(Theme.Colors.background)
     }
 
     private var workspace: some View {
         GeometryReader { geometry in
             let condensed = geometry.size.width > geometry.size.height && geometry.size.height < 750
-            VStack(spacing: 0) {
-                MotorcycleSummaryHeader(motorcycle: motorcycle, type: type, isCondensed: condensed,
-                                        isMinimized: header.isMinimized) {
-                    HStack(spacing: Theme.Spacing.s) {
-                        actions()
-                        WorkspaceAction("Einstellungen", systemImage: "gearshape", showsTitle: false) {
-                            chrome.openSettings()
+            content()
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .safeAreaInset(edge: .top, spacing: 0) {
+                    WorkspaceHeaderSlot(metrics: metrics) {
+                        MotorcycleSummaryHeader(motorcycle: motorcycle, type: type, isCondensed: condensed,
+                                                metrics: metrics, scroll: scroll) {
+                            HStack(spacing: Theme.Spacing.s) {
+                                actions()
+                                WorkspaceAction("Einstellungen", systemImage: "gearshape", showsTitle: false) {
+                                    chrome.openSettings()
+                                }
+                            }
                         }
                     }
                 }
-                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { header.recordHeight($0) }
-                content()
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            }
         }
     }
 }

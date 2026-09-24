@@ -162,6 +162,7 @@ struct PartsView: View {
                     publicRows
                 }
             }
+            WorkspaceListFooter()
         }
         .listStyle(.insetGrouped)
         .scrollContentBackground(.hidden)

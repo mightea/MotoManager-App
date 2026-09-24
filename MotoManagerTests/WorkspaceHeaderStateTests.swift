@@ -3,44 +3,37 @@ import Testing
 @testable import MotoManager
 
 struct WorkspaceHeaderStateTests {
-    private func minimize(isMinimized: Bool = false, pastThreshold: Bool, maxOffset: CGFloat,
-                          headerGain: CGFloat = 120) -> Bool {
-        WorkspaceHeaderState.shouldMinimize(isMinimized: isMinimized, pastThreshold: pastThreshold,
-                                            maxOffset: maxOffset, headerGain: headerGain)
+    @Test func progressFollowsTheScrolledDistance() {
+        #expect(WorkspaceScrollProgress.progress(offset: 0, gain: 140) == 0)
+        #expect(WorkspaceScrollProgress.progress(offset: 70, gain: 140) == 0.5)
+        #expect(WorkspaceScrollProgress.progress(offset: 140, gain: 140) == 1)
     }
 
-    @Test func staysExpandedAtTheTop() {
-        #expect(minimize(pastThreshold: false, maxOffset: 2_000) == false)
-        #expect(minimize(isMinimized: true, pastThreshold: false, maxOffset: 2_000) == false)
+    @Test func progressIsClampedAtBothEnds() {
+        // Pull-to-refresh overscroll must not stretch the header.
+        #expect(WorkspaceScrollProgress.progress(offset: -80, gain: 140) == 0)
+        #expect(WorkspaceScrollProgress.progress(offset: 900, gain: 140) == 1)
     }
 
-    @Test func minimizesOnceScrolledWithEnoughContent() {
-        #expect(minimize(pastThreshold: true, maxOffset: 600) == true)
-    }
-
-    @Test func shortListsKeepTheHeader() {
-        // 60 points of scroll room disappear entirely once the header gives
-        // back 120 points, so minimizing would immediately expand again.
-        #expect(minimize(pastThreshold: true, maxOffset: 60) == false)
-        #expect(minimize(pastThreshold: true, maxOffset: 140) == false)
-        #expect(minimize(pastThreshold: true, maxOffset: 160) == true)
-    }
-
-    @Test func minimizedHeaderStaysWhileScrolledEvenWhenRoomShrinks() {
-        #expect(minimize(isMinimized: true, pastThreshold: true, maxOffset: 40) == true)
+    @Test func headerWithoutGainIsAlwaysMinimizedOnceScrolled() {
+        #expect(WorkspaceScrollProgress.progress(offset: 0, gain: 0) == 0)
+        #expect(WorkspaceScrollProgress.progress(offset: 1, gain: 0) == 1)
     }
 
     @MainActor
-    @Test func measuredHeightsDriveTheGain() {
-        let state = WorkspaceHeaderState()
-        #expect(state.headerGain == WorkspaceHeaderState.estimatedGain)
-        state.recordHeight(200)
-        #expect(state.headerGain == 130)
-        state.scrolled(pastThreshold: true, maxOffset: 800)
-        #expect(state.isMinimized)
-        state.recordHeight(60)
-        #expect(state.headerGain == 140)
-        state.scrolled(pastThreshold: false, maxOffset: 800)
-        #expect(!state.isMinimized)
+    @Test func metricsInterpolateBetweenTheMeasuredHeights() {
+        let metrics = WorkspaceHeaderMetrics()
+        metrics.expandedHeight = 200
+        metrics.minimizedHeight = 60
+        #expect(metrics.gain == 140)
+        #expect(metrics.height(at: 0) == 200)
+        #expect(metrics.height(at: 0.5) == 130)
+        #expect(metrics.height(at: 1) == 60)
+
+        let scroll = WorkspaceScrollProgress()
+        scroll.update(offset: 35, gain: metrics.gain)
+        #expect(scroll.progress == 0.25)
+        scroll.update(offset: -10, gain: metrics.gain)
+        #expect(scroll.progress == 0)
     }
 }

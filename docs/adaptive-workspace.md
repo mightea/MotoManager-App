@@ -9,9 +9,14 @@ Implemented from the September 2026 UX review and approved photo-header mockup.
   smaller, single-row motorcycle header. Compact layouts omit redundant
   content titles. Expanded list headings and the single search field are
   ordinary list rows, so both scroll away with the records.
-- Scrolling the content minimizes the header to a single row (name, metadata,
-  actions and the switcher) with an animation; scrolling back to the top
-  restores the photo header. Lists that barely scroll keep the full header.
+- The content scrolls beneath the header and drives its collapse point for
+  point: over the first ~140 points the name, the switcher pill and the
+  actions move into a single row, so the header follows the finger and its
+  controls never swap or flash. Scrolling back to the top restores the photo
+  header. Every list ends with a room row worth the collapse distance, so a
+  list that just fills the screen still collapses fully; a list much shorter
+  than the screen collapses partially. Wide layouts keep the header static,
+  since two columns would fight over it.
 - Native tabs adapt to an optional iPad sidebar. Fuel, maintenance, parts and
   storage locations use list/detail columns on wide layouts; compact windows
   push the record full screen over the motorcycle header with native back

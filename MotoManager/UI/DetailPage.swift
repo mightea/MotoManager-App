@@ -10,7 +10,8 @@ import SwiftUI
 /// Designed for push presentation inside a `NavigationStack`: it shows the
 /// system navigation bar (native back button + swipe-back, inline title) and
 /// keeps the app tabs accessible in both compact and split layouts. On phones
-/// the push covers the motorcycle header; split layouts keep it above. Page actions
+/// the push covers the motorcycle header; split layouts keep it above, and
+/// the sidebar list alone drives its collapse. Page actions
 /// (edit/delete/print) belong in the caller's `.toolbar` as standard items.
 ///
 /// `barTitle` overrides the navigation-bar title when it should differ from
@@ -27,7 +28,6 @@ struct DetailPage<HeroBackground: View, HeroContent: View, BodyContent: View>: V
     let heroBackground: HeroBackground
     let heroContent: HeroContent
     let bodyContent: BodyContent
-    @Environment(\.horizontalSizeClass) private var sizeClass
 
     init(
         accent: Color? = nil,
@@ -70,10 +70,6 @@ struct DetailPage<HeroBackground: View, HeroContent: View, BodyContent: View>: V
             bodyContent
         }
         .listStyle(.insetGrouped)
-        // Beside the motorcycle header in a split layout, scrolling the record
-        // minimizes it too. Pushed full screen on a phone, the header is
-        // covered and must keep the list's state.
-        .tracksWorkspaceHeader(isActive: sizeClass == .regular)
         .scrollContentBackground(.hidden)
         .frame(maxWidth: 800)
         .frame(maxWidth: .infinity)
