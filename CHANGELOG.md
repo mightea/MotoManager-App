@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.12.0](https://github.com/mightea/MotoManager-App/compare/v0.11.0...v0.12.0) (2026-09-24)
+
+
+### Features
+
+* minimize the motorcycle header on scroll and push phone details full screen ([2c028bb](https://github.com/mightea/MotoManager-App/commit/2c028bbbee11c5070d04b5de7b84450630cc49e6))
+* scroll-linked motorcycle header collapse ([1a4e14b](https://github.com/mightea/MotoManager-App/commit/1a4e14b835d874ad21bd7c2d11323d4c39048b87))
+
 ## [0.11.0](https://github.com/mightea/MotoManager-App/compare/v0.10.0...v0.11.0) (2026-09-21)
 
 
