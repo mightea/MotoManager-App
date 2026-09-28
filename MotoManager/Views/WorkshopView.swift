@@ -1,24 +1,22 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
+/// The "Technik" tab: one overview of the bike's reference data — tire
+/// pressure, details, torque specs and documents — instead of a category
+/// switcher. Short sections show everything; long ones show a preview and
+/// expand in place (works the same in the iPad split view, where a pushed
+/// screen would fight the document column). A single search covers every
+/// category and lists all matches while it's active. Adding goes through the
+/// header "+" menu and the empty states only, so every section header is a
+/// plain title with a count.
 struct WorkshopView: View {
     @ObservedObject var viewModel: MotorcycleDetailViewModel
     @State private var presentedDocument: Document?
     @State private var searchText = ""
-    private enum ReferenceCategory: String, CaseIterable {
-        case pressure = "Reifendruck", torque = "Drehmomente", details = "Details", documents = "Dokumente"
-        var icon: String {
-            switch self {
-            case .pressure: "gauge.with.dots.needle.bottom.50percent"
-            case .torque: "wrench.and.screwdriver"
-            case .details: "info.circle"
-            case .documents: "doc"
-            }
-        }
-    }
-    @State private var category: ReferenceCategory = .torque
     @ObservedObject private var offlineStore = DocumentOfflineStore.shared
     @State private var selectedTorqueGroup: String = "Alle"
+    @State private var torqueExpanded = false
+    @State private var detailsExpanded = false
     @State private var showingAddTorque = false
     @State private var editingTorque: SDTorqueSpec?
     @State private var showingAddDetail = false
@@ -27,22 +25,18 @@ struct WorkshopView: View {
     @State private var showingDocumentImporter = false
     @State private var isUploadingDocument = false
     @State private var documentUploadError: String?
+    @State private var pendingTorqueDelete: SDTorqueSpec?
+    @State private var pendingDetailDelete: SDMotorcycleDetail?
 
-    enum DocScope: Hashable { case moto, common }
-    @State private var docScope: DocScope = .moto
+    /// Rows a collapsed section shows before "Alle … anzeigen".
+    private static let torquePreviewCount = 3
+    private static let detailsPreviewCount = 4
 
-    private var displayedDocuments: [Document] {
-        let documents = docScope == .moto ? viewModel.documents : viewModel.commonDocuments
-        return documents.filter { matchesSearch($0.title) }
-    }
+    private var query: String { searchText.trimmingCharacters(in: .whitespaces) }
+    private var isSearching: Bool { !query.isEmpty }
 
     private func matchesSearch(_ text: String) -> Bool {
-        searchText.trimmingCharacters(in: .whitespaces).isEmpty
-            || text.localizedStandardContains(searchText.trimmingCharacters(in: .whitespaces))
-    }
-
-    private var filteredDetails: [SDMotorcycleDetail] {
-        viewModel.details.filter { matchesSearch("\($0.title) \($0.value)") }
+        !isSearching || text.localizedStandardContains(query)
     }
 
     private var motoLabel: String {
@@ -52,14 +46,14 @@ struct WorkshopView: View {
         return full.count > 14 ? make : full
     }
 
-    private var groupedTorqueSpecs: [(category: String, specs: [SDTorqueSpec])] {
-        Dictionary(grouping: viewModel.torque) { $0.category }
-            .sorted { $0.key.localizedCaseInsensitiveCompare($1.key) == .orderedAscending }
-            .map { (category: $0.key, specs: $0.value) }
+    private var filteredDetails: [SDMotorcycleDetail] {
+        viewModel.details.filter { matchesSearch("\($0.title) \($0.value)") }
     }
 
     private var torqueGroups: [String] {
-        ["Alle"] + groupedTorqueSpecs.map { $0.category }
+        let groups = Set(viewModel.torque.map(\.category))
+            .sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+        return ["Alle"] + groups
     }
 
     private var filteredTorque: [SDTorqueSpec] {
@@ -69,7 +63,10 @@ struct WorkshopView: View {
         }
     }
 
-    private var bothEmpty: Bool {
+    private var bikeDocuments: [Document] { viewModel.documents.filter { matchesSearch($0.title) } }
+    private var commonDocuments: [Document] { viewModel.commonDocuments.filter { matchesSearch($0.title) } }
+
+    private var isEmpty: Bool {
         viewModel.torque.isEmpty
             && viewModel.details.isEmpty
             && viewModel.documents.isEmpty
@@ -77,7 +74,11 @@ struct WorkshopView: View {
             && viewModel.tirePressure == nil
     }
 
-    // MARK: - Header stat strip
+    private var hasSearchResults: Bool {
+        !filteredDetails.isEmpty || !filteredTorque.isEmpty || !bikeDocuments.isEmpty || !commonDocuments.isEmpty
+    }
+
+    // MARK: - Header stat strip (iPad overview column)
 
     private var documentCount: Int {
         viewModel.documents.count + viewModel.commonDocuments.count
@@ -85,31 +86,25 @@ struct WorkshopView: View {
 
     private var statTiles: [StatTile] {
         [
-            StatTile(
-                eyebrow: "Details",
-                value: "\(viewModel.details.count)",
-                unit: viewModel.details.count == 1 ? "Eintrag" : "Einträge"
-            ),
-            StatTile(
-                eyebrow: "Drehmomente",
-                value: "\(viewModel.torque.count)",
-                unit: viewModel.torque.count == 1 ? "Eintrag" : "Einträge"
-            ),
-            StatTile(
-                eyebrow: "Dokumente",
-                value: "\(documentCount)",
-                unit: documentCount == 1 ? "Datei" : "Dateien"
-            )
+            StatTile(eyebrow: "Details", value: "\(viewModel.details.count)",
+                     unit: Self.entries(viewModel.details.count)),
+            StatTile(eyebrow: "Drehmomente", value: "\(viewModel.torque.count)",
+                     unit: Self.entries(viewModel.torque.count)),
+            StatTile(eyebrow: "Dokumente", value: "\(documentCount)",
+                     unit: documentCount == 1 ? "Datei" : "Dateien")
         ]
     }
+
+    private static func entries(_ count: Int) -> String { count == 1 ? "Eintrag" : "Einträge" }
 
     var body: some View {
         MotorcycleWorkspace(motorcycle: viewModel.motorcycle, type: .workshop) {
             Menu {
-                Button("Reifendruck", systemImage: "gauge.with.dots.needle.bottom.50percent") { showingTirePressure = true }
-                Button("Dokument hochladen", systemImage: "doc") { showingDocumentImporter = true }
-                Button("Detail hinzufügen", systemImage: "info.circle") { showingAddDetail = true }
+                Button(viewModel.tirePressure == nil ? "Reifendruck erfassen" : "Reifendruck bearbeiten",
+                       systemImage: "gauge.with.dots.needle.bottom.50percent") { showingTirePressure = true }
+                Button("Detail hinzufügen", systemImage: "list.bullet.rectangle") { showingAddDetail = true }
                 Button("Drehmoment hinzufügen", systemImage: "wrench.and.screwdriver") { showingAddTorque = true }
+                Button("Dokument hochladen", systemImage: "doc.badge.plus") { showingDocumentImporter = true }
             } label: {
                 Image(systemName: "plus")
                     .font(.headline)
@@ -132,6 +127,9 @@ struct WorkshopView: View {
             if let presentedDocument, !documents.contains(where: { $0.id == presentedDocument.id }) {
                 self.presentedDocument = nil
             }
+        }
+        .onChange(of: torqueGroups) { _, groups in
+            if !groups.contains(selectedTorqueGroup) { selectedTorqueGroup = "Alle" }
         }
         .sheet(isPresented: $showingAddTorque) {
             AddTorqueView(viewModel: viewModel)
@@ -167,45 +165,48 @@ struct WorkshopView: View {
         } message: {
             Text(documentUploadError ?? "Unbekannter Fehler")
         }
+        .alert("Drehmoment löschen?", isPresented: Binding(
+            get: { pendingTorqueDelete != nil },
+            set: { if !$0 { pendingTorqueDelete = nil } }
+        ), presenting: pendingTorqueDelete) { spec in
+            Button("Abbrechen", role: .cancel) {}
+            Button("Löschen", role: .destructive) { _ = viewModel.deleteTorque(spec) }
+        } message: { spec in
+            Text(spec.name)
+        }
+        .alert("Detail löschen?", isPresented: Binding(
+            get: { pendingDetailDelete != nil },
+            set: { if !$0 { pendingDetailDelete = nil } }
+        ), presenting: pendingDetailDelete) { detail in
+            Button("Abbrechen", role: .cancel) {}
+            Button("Löschen", role: .destructive) { _ = viewModel.deleteDetail(detail) }
+        } message: { detail in
+            Text(detail.title)
+        }
     }
 
     private var referenceList: some View {
         List {
-            WorkspaceListHeader(searchText: $searchText, prompt: "\(category.rawValue) durchsuchen …")
-            Section {
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 140))], spacing: Theme.Spacing.s) {
-                    ForEach(ReferenceCategory.allCases, id: \.self) { item in
-                        Button {
-                            category = item
-                            searchText = ""
-                        } label: {
-                            Label(item.rawValue, systemImage: item.icon)
-                                .font(.subheadline.weight(.semibold))
-                                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-                                .padding(.horizontal, Theme.Spacing.s)
-                                .background(category == item ? Theme.Colors.primary.opacity(0.14) : Color.clear,
-                                    in: RoundedRectangle(cornerRadius: Theme.Radius.control))
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityIdentifier("workshop.category.\(item)")
-                        .accessibilityAddTraits(category == item ? .isSelected : [])
-                    }
-                }
-            }
-            .listRowInsets(EdgeInsets())
-            .listRowBackground(Color.clear)
+            WorkspaceListHeader(searchText: $searchText, prompt: "Technik durchsuchen …")
 
-            if viewModel.isLoading && bothEmpty {
+            if viewModel.isLoading && isEmpty {
                 Section {
                     ForEach(0..<4, id: \.self) { _ in loadingPlaceholderRow.redacted(reason: .placeholder) }
                 }
-            } else {
-                switch category {
-                case .pressure: tirePressureSection
-                case .torque: torqueSection
-                case .details: detailsSection
-                case .documents: documentsSection
+            } else if isSearching {
+                if hasSearchResults {
+                    detailsSection
+                    torqueSection
+                    documentsSection
+                } else {
+                    ContentUnavailableView.search(text: query)
+                        .listRowBackground(Color.clear)
                 }
+            } else {
+                tirePressureSection
+                detailsSection
+                torqueSection
+                documentsSection
             }
             WorkspaceListFooter()
         }
@@ -218,20 +219,11 @@ struct WorkshopView: View {
         .refreshable { await viewModel.reconnect() }
     }
 
+    /// Detail column on iPad while no document is open. The list column
+    /// already shows every section, so this only summarises.
     private var referenceOverview: some View {
         List {
             Section { StatStrip(statTiles).listRowInsets(EdgeInsets()) }
-            // Complement the selected category without repeating its values.
-            if category != .pressure { tirePressureSection }
-            if category != .details {
-                Section("Details") {
-                    ForEach(viewModel.details, id: \.clientId) { detail in
-                        Button { editingDetail = detail } label: { MotorcycleDetailRow(detail: detail) }
-                            .buttonStyle(.plain)
-                            .accessibilityIdentifier("workshop.detail.\(detail.clientId)")
-                    }
-                }
-            }
             Section {
                 Label("Öffne ein Dokument, um es neben den technischen Daten zu lesen.", systemImage: "doc.text.magnifyingglass")
                     .font(.subheadline)
@@ -241,7 +233,6 @@ struct WorkshopView: View {
         .accessibilityIdentifier("workshop.overview")
         .listStyle(.insetGrouped)
         .scrollContentBackground(.hidden)
-        .scrollDismissesKeyboard(.interactively)
         .background(Theme.Colors.background)
         .navigationTitle("Technik im Blick")
         .navigationBarTitleDisplayMode(.inline)
@@ -263,32 +254,19 @@ struct WorkshopView: View {
         .padding(.vertical, 4)
     }
 
-    /// Section header with a trailing add/edit action — the native list-header
-    /// idiom for per-section adds. The frame + contentShape give the small
-    /// glyph the HIG-minimum 44 pt hit target without inflating the header
-    /// visually (the extra area bleeds into the header's surrounding space).
-    private func sectionHeader(_ title: String, icon: String, label: String, action: @escaping () -> Void) -> some View {
+    /// Plain section title with a trailing count — the same for every section.
+    private func sectionHeader(_ title: String, count: Int? = nil, unit: String? = nil) -> some View {
         HStack {
             Text(title)
             Spacer()
-            Button(action: action) {
-                Image(systemName: icon)
-                    .scaledFont(13, weight: .heavy)
-                    .frame(width: 44, height: 44)
-                    .contentShape(Rectangle())
+            if let count {
+                Text("\(count) \(unit ?? Self.entries(count))")
+                    .monospacedDigit()
             }
-            .buttonStyle(.borderless)
-            .tint(Theme.Colors.primary)
-            .accessibilityLabel(label)
-            // Keep the header's visual height — only the hit area grows.
-            .frame(height: 20)
-            .offset(x: 12)
         }
     }
 
-    /// Compact per-section empty state with an explicit action button — the
-    /// old bare "tippen zum Hinzufügen" text line didn't look tappable (HIG:
-    /// empty states offer guidance and a clear action).
+    /// Compact per-section empty state with an explicit action button.
     private func emptySectionRow(
         _ message: String, icon: String, actionLabel: String, action: @escaping () -> Void
     ) -> some View {
@@ -306,14 +284,40 @@ struct WorkshopView: View {
         .padding(.vertical, 10)
     }
 
+    /// "Alle 12 anzeigen" / "Weniger anzeigen" row closing a collapsible section.
+    private func expandRow(total: Int, expanded: Binding<Bool>) -> some View {
+        Button {
+            withAnimation(.easeOut(duration: 0.2)) { expanded.wrappedValue.toggle() }
+        } label: {
+            HStack {
+                Text(expanded.wrappedValue ? "Weniger anzeigen" : "Alle \(total) anzeigen")
+                Spacer()
+                Image(systemName: expanded.wrappedValue ? "chevron.up" : "chevron.down")
+                    .scaledFont(12, weight: .semibold)
+            }
+            .scaledFont(13, weight: .semibold)
+            .foregroundStyle(Theme.Colors.primary)
+            .frame(minHeight: 32)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
     // MARK: - Tire pressure
 
     @ViewBuilder
     private var tirePressureSection: some View {
         Section {
             if let pressure = viewModel.tirePressure {
-                TirePressureTable(pressure: pressure)
-                    .accessibilityIdentifier("workshop.pressure")
+                Button { showingTirePressure = true } label: {
+                    VStack(alignment: .leading, spacing: 0) {
+                        TirePressureTable(pressure: pressure)
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("workshop.pressure")
+                .accessibilityHint("Bearbeiten")
             } else {
                 emptySectionRow(
                     "Keine Druckwerte erfasst",
@@ -322,131 +326,44 @@ struct WorkshopView: View {
                 ) { showingTirePressure = true }
             }
         } header: {
-            sectionHeader(
-                "Reifendruck",
-                icon: viewModel.tirePressure == nil ? "plus" : "pencil",
-                label: viewModel.tirePressure == nil ? "Reifendruck erfassen" : "Reifendruck bearbeiten"
-            ) { showingTirePressure = true }
+            sectionHeader("Reifendruck")
         }
     }
 
-    // MARK: - Documents
+    // MARK: - Details
 
     @ViewBuilder
-    private var documentsSection: some View {
-        Section {
-            GlassSegmentedControl(
-                segments: [
-                    .init(value: .moto, label: motoLabel),
-                    .init(value: .common, label: "Allgemein")
-                ],
-                selection: $docScope
-            )
-            .listRowInsets(EdgeInsets())
-            .listRowBackground(Color.clear)
-            .listRowSeparator(.hidden)
-
-            if displayedDocuments.isEmpty {
-                // Explain what the segment *means* — "Allgemein" being empty
-                // is expected as long as every document is bound to a bike,
-                // but a blank grid doesn't say so.
-                Text(!searchText.isEmpty ? "Keine Dokumente passen zur Suche." : docScope == .common
-                    ? "Keine allgemeinen Dokumente — Dokumente ohne Motorrad-Zuordnung erscheinen hier."
-                    : "Keine Dokumente für \(motoLabel) erfasst.")
-                    .scaledFont(12, weight: .medium)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 8)
-            } else {
-                documentsGrid
-                    .listRowInsets(EdgeInsets())
-                    .listRowBackground(Color.clear)
-                    .listRowSeparator(.hidden)
-                    .padding(.vertical, 2)
-            }
-
-            Button {
-                showingDocumentImporter = true
-            } label: {
-                Group {
-                    if isUploadingDocument {
-                        Label("Dokument wird hochgeladen …", systemImage: "arrow.up.circle")
-                    } else {
-                        Label("Dokument hochladen", systemImage: "plus")
-                    }
-                }
-                .scaledFont(13, weight: .semibold)
-            }
-            .tint(Theme.Colors.primary)
-            .disabled(isUploadingDocument)
-        } header: {
-            HStack {
-                Text("Dokumente")
-                Spacer()
-                Text("\(displayedDocuments.count) \(displayedDocuments.count == 1 ? "Eintrag" : "Einträge")")
-            }
-        }
-    }
-
-    private func handleDocumentSelection(_ result: Result<[URL], Error>) {
-        do {
-            guard let url = try result.get().first else { return }
-            isUploadingDocument = true
-            Task {
-                defer { isUploadingDocument = false }
-                let hasAccess = url.startAccessingSecurityScopedResource()
-                defer { if hasAccess { url.stopAccessingSecurityScopedResource() } }
-                do {
-                    let data = try await Task.detached(priority: .userInitiated) {
-                        try Data(contentsOf: url, options: .mappedIfSafe)
-                    }.value
-                    let type = UTType(filenameExtension: url.pathExtension)
-                    try await viewModel.uploadDocument(
-                        title: url.deletingPathExtension().lastPathComponent,
-                        fileName: url.lastPathComponent,
-                        mimeType: type?.preferredMIMEType ?? "application/octet-stream",
-                        data: data
-                    )
-                } catch {
-                    documentUploadError = error.localizedDescription
-                }
-            }
-        } catch {
-            documentUploadError = error.localizedDescription
-        }
-    }
-
-    private var documentsGrid: some View {
-        LazyVGrid(
-            columns: [GridItem(.adaptive(minimum: 150), spacing: 10)],
-            spacing: 10
-        ) {
-            ForEach(displayedDocuments) { doc in
-                    Button {
-                        presentedDocument = doc
-                    } label: {
-                        DocumentTile(document: doc, offlineStatus: offlineStore.status(of: doc))
-                    }
-                    .buttonStyle(.plain)
-                    .contextMenu {
-                        switch offlineStore.status(of: doc) {
-                        case .available:
-                            Button(role: .destructive) {
-                                offlineStore.removeOffline(doc)
-                            } label: {
-                                Label("Offline-Kopie entfernen", systemImage: "xmark.icloud")
+    private var detailsSection: some View {
+        let rows = filteredDetails
+        if !(isSearching && rows.isEmpty) {
+            Section {
+                if viewModel.details.isEmpty {
+                    emptySectionRow(
+                        "Keine Details erfasst",
+                        icon: "list.bullet.rectangle",
+                        actionLabel: "Detail hinzufügen"
+                    ) { showingAddDetail = true }
+                } else {
+                    let collapsed = !isSearching && !detailsExpanded && rows.count > Self.detailsPreviewCount + 1
+                    ForEach(collapsed ? Array(rows.prefix(Self.detailsPreviewCount)) : rows, id: \.clientId) { detail in
+                        Button { editingDetail = detail } label: {
+                            MotorcycleDetailRow(detail: detail)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("workshop.detail.\(detail.clientId)")
+                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                            Button { pendingDetailDelete = detail } label: {
+                                Label("Löschen", systemImage: "trash")
                             }
-                        case .notAvailable:
-                            Button {
-                                offlineStore.makeAvailableOffline(doc)
-                            } label: {
-                                Label("Offline verfügbar machen", systemImage: "arrow.down.circle")
-                            }
-                        case .downloading:
-                            Label("Wird geladen …", systemImage: "arrow.down.circle.dotted")
+                            .tint(.red)
                         }
                     }
+                    if !isSearching && rows.count > Self.detailsPreviewCount + 1 {
+                        expandRow(total: rows.count, expanded: $detailsExpanded)
+                    }
+                }
+            } header: {
+                sectionHeader("Details", count: isSearching ? rows.count : viewModel.details.count)
             }
         }
     }
@@ -455,49 +372,53 @@ struct WorkshopView: View {
 
     @ViewBuilder
     private var torqueSection: some View {
-        Section {
-            if viewModel.torque.isEmpty {
-                emptySectionRow(
-                    "Keine Drehmomente erfasst",
-                    icon: "wrench.and.screwdriver",
-                    actionLabel: "Drehmoment hinzufügen"
-                ) { showingAddTorque = true }
-            } else {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 6) {
-                        ForEach(torqueGroups, id: \.self) { group in
-                            chip(group)
+        let rows = filteredTorque
+        if !(isSearching && rows.isEmpty) {
+            Section {
+                if viewModel.torque.isEmpty {
+                    emptySectionRow(
+                        "Keine Drehmomente erfasst",
+                        icon: "wrench.and.screwdriver",
+                        actionLabel: "Drehmoment hinzufügen"
+                    ) { showingAddTorque = true }
+                } else {
+                    let canCollapse = !isSearching && rows.count > Self.torquePreviewCount + 1
+                    // Group filter only once the whole list is on screen — a
+                    // filter over a three-row preview is noise.
+                    if (torqueExpanded || isSearching) && torqueGroups.count > 2 {
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 6) {
+                                ForEach(torqueGroups, id: \.self) { group in
+                                    chip(group)
+                                }
+                            }
+                            .padding(.horizontal, 2)
+                            .padding(.vertical, 2)
+                        }
+                        .listRowInsets(EdgeInsets())
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
+                    }
+                    let visible = canCollapse && !torqueExpanded ? Array(rows.prefix(Self.torquePreviewCount)) : rows
+                    ForEach(visible, id: \.clientId) { spec in
+                        Button { editingTorque = spec } label: {
+                            TorqueRow(spec: spec, showGroup: selectedTorqueGroup == "Alle")
+                        }
+                        .buttonStyle(.plain)
+                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                            Button { pendingTorqueDelete = spec } label: {
+                                Label("Löschen", systemImage: "trash")
+                            }
+                            .tint(.red)
                         }
                     }
-                    .padding(.horizontal, 2)
-                    .padding(.vertical, 2)
-                }
-                .listRowInsets(EdgeInsets())
-                .listRowBackground(Color.clear)
-                .listRowSeparator(.hidden)
-
-                if filteredTorque.isEmpty { ContentUnavailableView.search(text: searchText) }
-                ForEach(filteredTorque, id: \.clientId) { spec in
-                    Button { editingTorque = spec } label: {
-                        TorqueRow(spec: spec, showGroup: selectedTorqueGroup == "Alle")
-                    }
-                    .buttonStyle(.plain)
-                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                        Button(role: .destructive) {
-                            _ = viewModel.deleteTorque(spec)
-                        } label: {
-                            Label("Löschen", systemImage: "trash")
-                        }
-                        .tint(.red)
+                    if canCollapse {
+                        expandRow(total: rows.count, expanded: $torqueExpanded)
                     }
                 }
+            } header: {
+                sectionHeader("Drehmomente", count: isSearching ? rows.count : viewModel.torque.count)
             }
-        } header: {
-            sectionHeader(
-                "Drehmoment-Spezifikationen",
-                icon: "plus",
-                label: "Drehmoment hinzufügen"
-            ) { showingAddTorque = true }
         }
     }
 
@@ -528,43 +449,118 @@ struct WorkshopView: View {
         .accessibilityAddTraits(active ? [.isSelected] : [])
         .animation(.easeOut(duration: 0.2), value: selectedTorqueGroup)
     }
-}
 
-// MARK: - Details
+    // MARK: - Documents
 
-extension WorkshopView {
     @ViewBuilder
-    private var detailsSection: some View {
-        Section {
-            if viewModel.details.isEmpty {
-                emptySectionRow(
-                    "Keine Details erfasst",
-                    icon: "info.circle",
-                    actionLabel: "Detail hinzufügen"
-                ) { showingAddDetail = true }
-            } else if filteredDetails.isEmpty {
-                ContentUnavailableView.search(text: searchText)
-            } else {
-                ForEach(filteredDetails, id: \.clientId) { detail in
-                    Button { editingDetail = detail } label: {
-                        MotorcycleDetailRow(detail: detail)
+    private var documentsSection: some View {
+        let bike = bikeDocuments
+        let common = commonDocuments
+        if !(isSearching && bike.isEmpty && common.isEmpty) {
+            Section {
+                if viewModel.documents.isEmpty && viewModel.commonDocuments.isEmpty && !isUploadingDocument {
+                    emptySectionRow(
+                        "Keine Dokumente erfasst",
+                        icon: "doc",
+                        actionLabel: "Dokument hochladen"
+                    ) { showingDocumentImporter = true }
+                } else {
+                    if !bike.isEmpty {
+                        documentStrip(title: common.isEmpty ? nil : motoLabel, documents: bike)
                     }
-                    .buttonStyle(.plain)
-                    .accessibilityIdentifier("workshop.detail.\(detail.clientId)")
-                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                        Button(role: .destructive) {
-                            _ = viewModel.deleteDetail(detail)
-                        } label: {
-                            Label("Löschen", systemImage: "trash")
+                    if !common.isEmpty {
+                        documentStrip(title: "Allgemein", documents: common)
+                    }
+                    if isUploadingDocument {
+                        HStack(spacing: Theme.Spacing.s) {
+                            ProgressView()
+                            Text("Dokument wird hochgeladen …")
+                                .scaledFont(13, weight: .semibold)
+                                .foregroundStyle(.secondary)
                         }
-                        .tint(.red)
                     }
                 }
+            } header: {
+                let count = isSearching ? bike.count + common.count : documentCount
+                sectionHeader("Dokumente", count: count, unit: count == 1 ? "Datei" : "Dateien")
             }
-        } header: {
-            sectionHeader("Details", icon: "plus", label: "Detail hinzufügen") {
-                showingAddDetail = true
+        }
+    }
+
+    /// Horizontally scrolling row of document cards — keeps a long document
+    /// list to one row of height instead of a grid that pushes everything
+    /// else off screen.
+    private func documentStrip(title: String?, documents: [Document]) -> some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.s) {
+            if let title { FormLabel(title) }
+            ScrollView(.horizontal, showsIndicators: false) {
+                LazyHStack(spacing: 10) {
+                    ForEach(documents) { doc in
+                        Button {
+                            presentedDocument = doc
+                        } label: {
+                            DocumentTile(document: doc, offlineStatus: offlineStore.status(of: doc))
+                                .frame(width: 132)
+                        }
+                        .buttonStyle(.plain)
+                        .contextMenu { offlineMenu(for: doc) }
+                    }
+                }
+                .padding(.vertical, 2)
             }
+            .scrollClipDisabled()
+        }
+        .listRowInsets(EdgeInsets(top: Theme.Spacing.s, leading: Theme.Spacing.m,
+                                  bottom: Theme.Spacing.s, trailing: Theme.Spacing.m))
+        .listRowBackground(Color.clear)
+        .listRowSeparator(.hidden)
+    }
+
+    @ViewBuilder
+    private func offlineMenu(for doc: Document) -> some View {
+        switch offlineStore.status(of: doc) {
+        case .available:
+            Button(role: .destructive) {
+                offlineStore.removeOffline(doc)
+            } label: {
+                Label("Offline-Kopie entfernen", systemImage: "xmark.icloud")
+            }
+        case .notAvailable:
+            Button {
+                offlineStore.makeAvailableOffline(doc)
+            } label: {
+                Label("Offline verfügbar machen", systemImage: "arrow.down.circle")
+            }
+        case .downloading:
+            Label("Wird geladen …", systemImage: "arrow.down.circle.dotted")
+        }
+    }
+
+    private func handleDocumentSelection(_ result: Result<[URL], Error>) {
+        do {
+            guard let url = try result.get().first else { return }
+            isUploadingDocument = true
+            Task {
+                defer { isUploadingDocument = false }
+                let hasAccess = url.startAccessingSecurityScopedResource()
+                defer { if hasAccess { url.stopAccessingSecurityScopedResource() } }
+                do {
+                    let data = try await Task.detached(priority: .userInitiated) {
+                        try Data(contentsOf: url, options: .mappedIfSafe)
+                    }.value
+                    let type = UTType(filenameExtension: url.pathExtension)
+                    try await viewModel.uploadDocument(
+                        title: url.deletingPathExtension().lastPathComponent,
+                        fileName: url.lastPathComponent,
+                        mimeType: type?.preferredMIMEType ?? "application/octet-stream",
+                        data: data
+                    )
+                } catch {
+                    documentUploadError = error.localizedDescription
+                }
+            }
+        } catch {
+            documentUploadError = error.localizedDescription
         }
     }
 }
@@ -694,73 +690,128 @@ private struct TirePressureTable: View {
 
 // MARK: - Torque row
 
+/// Built to be read at arm's length at the bike: the torque value is the
+/// largest thing on the row, the tool size sits in its own badge (it's what
+/// you reach for), and every size scales with Dynamic Type.
 private struct TorqueRow: View {
     let spec: SDTorqueSpec
     let showGroup: Bool
 
     var body: some View {
-        HStack(alignment: .top) {
-            VStack(alignment: .leading, spacing: 3) {
-                HStack(spacing: 6) {
+        HStack(alignment: .center, spacing: Theme.Spacing.m) {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
                     Text(spec.name)
-                        .scaledFont(13, weight: .semibold)
+                        .scaledFont(17, weight: .semibold)
                         .foregroundStyle(.primary)
                         .fixedSize(horizontal: false, vertical: true)
                     if spec.syncState.isPending { PendingBadge() }
-                    if spec.unverified {
-                        Label("Unverifiziert", systemImage: "exclamationmark.triangle.fill")
-                            .labelStyle(.titleAndIcon)
-                            .scaledFont(9, weight: .heavy)
-                            .tracking(0.4)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 1.5)
-                            .background(Capsule().fill(Color.orange.opacity(0.16)))
-                            .foregroundStyle(.orange)
-                    }
                 }
 
-                if showGroup || (spec.toolSize.map { !$0.isEmpty } ?? false) {
+                if hasTool || showGroup || spec.unverified {
                     HStack(spacing: 6) {
+                        if let tool = spec.toolSize, !tool.isEmpty {
+                            Label(tool, systemImage: "wrench.adjustable")
+                                .labelStyle(.titleAndIcon)
+                                .scaledFont(14, weight: .bold)
+                                .foregroundStyle(.primary)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 3)
+                                .background(Capsule().fill(Color.primary.opacity(0.08)))
+                        }
                         if showGroup {
                             Text(spec.category.uppercased())
-                                .scaledFont(9, weight: .heavy)
+                                .scaledFont(11, weight: .heavy)
                                 .tracking(0.4)
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 1.5)
-                                .background(Capsule().fill(Theme.Colors.primary.opacity(0.22)))
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 3)
+                                .background(Capsule().fill(Theme.Colors.primary.opacity(0.16)))
                                 .foregroundStyle(Theme.Colors.primary)
                         }
-                        if let tool = spec.toolSize, !tool.isEmpty {
-                            Text(tool)
-                                .scaledFont(10, weight: .semibold)
-                                .foregroundStyle(.secondary)
+                        if spec.unverified {
+                            Label("Unverifiziert", systemImage: "exclamationmark.triangle.fill")
+                                .labelStyle(.titleAndIcon)
+                                .scaledFont(11, weight: .heavy)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 3)
+                                .background(Capsule().fill(Color.orange.opacity(0.16)))
+                                .foregroundStyle(.orange)
                         }
                     }
                 }
 
-                // Full description on its own line so it wraps and the row grows
-                // vertically instead of truncating.
+                // Full description on its own line so it wraps and the row
+                // grows vertically instead of truncating.
                 if let description = spec.recordDescription, !description.isEmpty {
                     Text(description)
-                        .scaledFont(11)
+                        .scaledFont(14)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
-            Spacer(minLength: 8)
-            Text(torqueDisplay)
-                .scaledFont(15, weight: .bold)
-                .monospacedDigit()
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            VStack(alignment: .trailing, spacing: 2) {
+                HStack(alignment: .firstTextBaseline, spacing: 3) {
+                    Text(valueText)
+                        .scaledFont(30, weight: .bold, design: .rounded)
+                        .monospacedDigit()
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.6)
+                    Text("Nm")
+                        .scaledFont(15, weight: .bold, design: .rounded)
+                        .foregroundStyle(.secondary)
+                }
                 .foregroundStyle(spec.unverified ? Color.orange : Theme.Colors.primary)
+                if let tolerance = toleranceText {
+                    Text(tolerance)
+                        .scaledFont(14, weight: .semibold, design: .rounded)
+                        .monospacedDigit()
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .fixedSize(horizontal: true, vertical: false)
         }
+        .padding(.vertical, 6)
         .contentShape(Rectangle())
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(accessibilityText)
     }
 
-    private var torqueDisplay: String {
+    private var hasTool: Bool { !(spec.toolSize ?? "").isEmpty }
+
+    /// "60", "25–30", "2,5" — German decimals, no truncation of halves.
+    private var valueText: String {
         if let end = spec.torqueEnd, end != spec.torque {
-            return "\(Int(spec.torque))–\(Int(end)) Nm"
+            return "\(Self.format(spec.torque))–\(Self.format(end))"
         }
-        return "\(Int(spec.torque)) Nm"
+        return Self.format(spec.torque)
+    }
+
+    private var toleranceText: String? {
+        guard let variation = spec.variation, variation > 0 else { return nil }
+        return "± \(Self.format(variation)) Nm"
+    }
+
+    private var accessibilityText: String {
+        var parts = [spec.name]
+        if let end = spec.torqueEnd, end != spec.torque {
+            parts.append("\(Self.format(spec.torque)) bis \(Self.format(end)) Newtonmeter")
+        } else {
+            parts.append("\(Self.format(spec.torque)) Newtonmeter")
+        }
+        if let variation = spec.variation, variation > 0 {
+            parts.append("Toleranz plus minus \(Self.format(variation))")
+        }
+        if let tool = spec.toolSize, !tool.isEmpty { parts.append("Werkzeug \(tool)") }
+        if showGroup { parts.append(spec.category) }
+        if spec.unverified { parts.append("unverifiziert") }
+        if let description = spec.recordDescription, !description.isEmpty { parts.append(description) }
+        return parts.joined(separator: ", ")
+    }
+
+    static func format(_ value: Double) -> String {
+        value.formatted(.number.precision(.fractionLength(0...1)).locale(Formatters.displayLocale))
     }
 }
 
