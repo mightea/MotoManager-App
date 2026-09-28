@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.13.0](https://github.com/mightea/MotoManager-App/compare/v0.12.0...v0.13.0) (2026-09-28)
+
+
+### Features
+
+* link parts to a BMW part number and fill missing data from BMWBike ([873bba3](https://github.com/mightea/MotoManager-App/commit/873bba34c53baff9cbea6d49aef8547ad482cd02))
+* lock the iPhone app to portrait ([40c4d24](https://github.com/mightea/MotoManager-App/commit/40c4d2403f98e9a5dfb12d6f45ac6c7934072a27))
+* open every sheet at full height ([bf56f03](https://github.com/mightea/MotoManager-App/commit/bf56f03610dbd08f468db10ae313aee0311604fb))
+* turn the workshop tab into one overview with readable torque specs ([8373715](https://github.com/mightea/MotoManager-App/commit/8373715d30930952b1205aa73e54ef4599f511a9))
+* unify all form dialogs on a shared sheet ([e6f15ee](https://github.com/mightea/MotoManager-App/commit/e6f15ee2b4debcf3fee6d87f31265bda9b7b4f06))
+
+
+### Bug Fixes
+
+* wrap torque badges instead of squeezing them ([236a6a8](https://github.com/mightea/MotoManager-App/commit/236a6a854af23e08f27262d9531f3d67ba3a9a9f))
+
 ## [0.12.0](https://github.com/mightea/MotoManager-App/compare/v0.11.0...v0.12.0) (2026-09-24)
 
 
