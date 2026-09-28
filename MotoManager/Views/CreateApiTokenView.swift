@@ -10,13 +10,35 @@ struct CreateApiTokenView: View {
     /// the list can update without a reload.
     let onCreated: (ApiToken) -> Void
 
-    @Environment(\.dismiss) private var dismiss
+    @State private var created: ApiTokenCreated?
+
+    var body: some View {
+        // Step 1 is a FormSheet whose save never "succeeds" in the dismiss
+        // sense: it returns false and swaps this view to step 2 instead.
+        Group {
+            if let created {
+                ApiTokenSecretSheet(created: created)
+                    .transition(.opacity)
+            } else {
+                ApiTokenFormSheet { result in
+                    onCreated(result.apiToken)
+                    withAnimation { created = result }
+                }
+            }
+        }
+        .sensoryFeedback(.success, trigger: created != nil) { _, new in new }
+    }
+}
+
+// MARK: - Step 1: form
+
+private struct ApiTokenFormSheet: View {
+    let onCreated: (ApiTokenCreated) -> Void
+
     @State private var name = ""
     @State private var scope: ApiTokenScope = .read
     @State private var expiry: Expiry = .never
-    @State private var isCreating = false
     @State private var errorMessage: String?
-    @State private var created: ApiTokenCreated?
 
     private enum Expiry: Int, CaseIterable, Identifiable {
         case never = 0
@@ -36,118 +58,99 @@ struct CreateApiTokenView: View {
         var days: Int? { self == .never ? nil : rawValue }
     }
 
-    var body: some View {
-        NavigationStack {
-            Group {
-                if let created {
-                    ApiTokenSecretView(created: created)
-                } else {
-                    form
-                }
-            }
-            .navigationTitle(created == nil ? "Token erstellen" : "Neuer Token")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                if created == nil {
-                    ToolbarItem(placement: .cancellationAction) {
-                        Button("Abbrechen") { dismiss() }
-                            .disabled(isCreating)
-                    }
-                    ToolbarItem(placement: .confirmationAction) {
-                        if isCreating {
-                            ProgressView().controlSize(.small)
-                        } else {
-                            Button("Erstellen") { create() }
-                                .disabled(trimmedName.isEmpty)
-                        }
-                    }
-                } else {
-                    ToolbarItem(placement: .confirmationAction) {
-                        Button("Fertig") { dismiss() }
-                    }
-                }
-            }
-            .alert("Token konnte nicht erstellt werden", isPresented: Binding(
-                get: { errorMessage != nil },
-                set: { if !$0 { errorMessage = nil } }
-            )) {
-                Button("OK", role: .cancel) { }
-            } message: {
-                Text(errorMessage ?? "")
-            }
-        }
-        // Once the secret is on screen, an accidental swipe-down must not
-        // throw it away — it can never be shown again.
-        .interactiveDismissDisabled(created != nil)
-    }
-
     private var trimmedName: String {
         name.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    // MARK: - Form
-
-    private var form: some View {
-        Form {
-            Section {
-                TextField("Name", text: $name, prompt: Text("z. B. Claude Code auf dem Mac"))
+    var body: some View {
+        FormSheet(
+            title: "Token hinzufügen",
+            canSave: !trimmedName.isEmpty,
+            tracked: [name, scope, expiry],
+            error: errorMessage,
+            onSave: create
+        ) {
+            FormField("Name", hint: "Hilft dir später zu erkennen, welcher Client den Token verwendet.") {
+                TextField("", text: $name, prompt: formPrompt("z. B. Claude Code auf dem Mac"))
                     .textInputAutocapitalization(.sentences)
                     .submitLabel(.done)
-            } header: {
-                Text("Name")
-            } footer: {
-                Text("Hilft dir später zu erkennen, welcher Client den Token verwendet.")
             }
 
-            Section {
+            VStack(alignment: .leading, spacing: 6) {
+                FormLabel("Berechtigung")
                 Picker("Berechtigung", selection: $scope) {
                     ForEach(ApiTokenScope.allCases) { scope in
                         Text(scope.label).tag(scope)
                     }
                 }
-                .pickerStyle(.inline)
+                .pickerStyle(.segmented)
                 .labelsHidden()
-            } header: {
-                Text("Berechtigung")
-            } footer: {
                 Text(scope == .read
                      ? "Der Assistent kann Daten nur abfragen."
                      : "Der Assistent kann zusätzlich Wartungen, Tankstopps, Probleme, Ausgaben und Teile anlegen – nie löschen, nie Admin.")
+                    .scaledFont(11, weight: .medium)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
-            Section {
+            FormField(
+                "Gültigkeit",
+                hint: "Abgelaufene Tokens werden automatisch abgelehnt. Du kannst jeden Token jederzeit widerrufen."
+            ) {
                 Picker("Gültigkeit", selection: $expiry) {
                     ForEach(Expiry.allCases) { option in
                         Text(option.label).tag(option)
                     }
                 }
                 .pickerStyle(.menu)
-            } footer: {
-                Text("Abgelaufene Tokens werden automatisch abgelehnt. Du kannst jeden Token jederzeit widerrufen.")
+                .labelsHidden()
             }
         }
-        .scrollContentBackground(.hidden)
-        .disabled(isCreating)
     }
 
-    private func create() {
+    /// Always returns false: on success the parent replaces this sheet with
+    /// the one-time secret screen instead of dismissing.
+    private func create() async -> Bool {
+        errorMessage = nil
         let tokenName = trimmedName
-        guard !tokenName.isEmpty, !isCreating else { return }
-        isCreating = true
-        Task {
-            defer { isCreating = false }
-            do {
-                let result = try await NetworkManager.shared.createApiToken(
-                    name: tokenName,
-                    scope: scope,
-                    expiresInDays: expiry.days
-                )
-                onCreated(result.apiToken)
-                withAnimation { created = result }
-            } catch {
-                errorMessage = error.localizedDescription
-            }
+        guard !tokenName.isEmpty else { return false }
+        do {
+            let result = try await NetworkManager.shared.createApiToken(
+                name: tokenName,
+                scope: scope,
+                expiresInDays: expiry.days
+            )
+            onCreated(result)
+        } catch {
+            errorMessage = "Token konnte nicht erstellt werden: \(error.localizedDescription)"
         }
+        return false
+    }
+}
+
+// MARK: - Step 2: one-time secret chrome
+
+/// Same chrome as a FormSheet (inline title, ✓ confirm), but there is
+/// nothing to save — ✓ just closes. Swipe-down stays blocked: the secret can
+/// never be shown again.
+private struct ApiTokenSecretSheet: View {
+    let created: ApiTokenCreated
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            ApiTokenSecretView(created: created)
+                .navigationTitle("Neuer Token")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button(role: .confirm) { dismiss() }
+                            .keyboardShortcut(.defaultAction)
+                            .accessibilityLabel("Fertig")
+                    }
+                }
+        }
+        .interactiveDismissDisabled()
     }
 }
 
@@ -171,7 +174,7 @@ private struct ApiTokenSecretView: View {
             Section {
                 Label {
                     Text("Dieser Token wird nur **jetzt** angezeigt. Kopiere ihn an einen sicheren Ort – danach kann er nicht mehr abgerufen werden, nur noch widerrufen.")
-                        .font(.subheadline)
+                        .scaledFont(15)
                 } icon: {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .foregroundStyle(.orange)
@@ -193,17 +196,15 @@ private struct ApiTokenSecretView: View {
                               systemImage: copiedToken ? "checkmark" : "doc.on.doc")
                             .frame(maxWidth: .infinity)
                     }
-                    .buttonStyle(.borderedProminent)
-                    .tint(copiedToken ? .green : Theme.Colors.primary)
+                    .glassActionButton(copiedToken ? .success : .primary,
+                                       in: .roundedRectangle(radius: Theme.Radius.control))
 
                     ShareLink(item: created.token, subject: Text("MotoManager API-Token „\(created.apiToken.name)“")) {
                         Label("Teilen", systemImage: "square.and.arrow.up")
                             .frame(maxWidth: .infinity)
                     }
-                    .buttonStyle(.bordered)
-                    .tint(Theme.Colors.primary)
+                    .glassActionButton(.secondary, in: .roundedRectangle(radius: Theme.Radius.control))
                 }
-                .buttonBorderShape(.roundedRectangle(radius: Theme.Radius.control))
                 .listRowSeparator(.hidden)
             } header: {
                 Text("Token „\(created.apiToken.name)“ · \(created.apiToken.scopeLabel)")

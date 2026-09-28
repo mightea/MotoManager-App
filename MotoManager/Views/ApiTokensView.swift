@@ -39,6 +39,7 @@ struct ApiTokensView: View {
             CreateApiTokenView { created in
                 viewModel.insert(created)
             }
+            .glassSheet() // full height: the one-time secret step needs the room
         }
         .confirmationDialog(
             "Token widerrufen?",

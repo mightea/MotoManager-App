@@ -105,7 +105,9 @@ struct LabelScanSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Abbrechen") { dismiss() }
+                    Button(role: .close) { dismiss() }
+                        .keyboardShortcut(.cancelAction)
+                        .accessibilityLabel("Abbrechen")
                 }
             }
         }

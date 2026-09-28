@@ -12,7 +12,6 @@ import SwiftData
 struct AddMaintenanceView: View {
     @ObservedObject var viewModel: MotorcycleDetailViewModel
     let existingRecord: SDMaintenanceRecord?
-    @Environment(\.dismiss) private var dismiss
 
     /// Parts consumed by this repair (partClientId → quantity). Seeded from the
     /// record's existing consumptions when editing, so parts can be added,
@@ -62,10 +61,9 @@ struct AddMaintenanceView: View {
     @State private var currency: String
     @State private var notes: String
     @State private var date: Date
-    @State private var confirmingDelete = false
     @State private var showingOdoScanner = false
-    /// Trigger for the save-success haptic (flips just before dismissal).
-    @State private var saveSucceeded = false
+    /// Why the last save failed; shown as a banner at the top of the form.
+    @State private var errorMessage: String?
 
     /// Set when editing a record whose stored type isn't canonical; submitted
     /// unchanged unless the user touches a type-determining control.
@@ -132,116 +130,106 @@ struct AddMaintenanceView: View {
     }
 
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: Theme.Spacing.l) {
-                    field("ART") {
-                        Picker("Art", selection: $formType) {
-                            ForEach(Self.formTypes, id: \.value) { Text($0.label).tag($0.value) }
-                        }
-                        .pickerStyle(.menu)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-
-                    typeSpecificFields
-
-                    field("KILOMETERSTAND") {
-                        HStack(spacing: 8) {
-                            TextField("", text: $odo).keyboardType(.numberPad).foregroundStyle(.primary)
-                            Button {
-                                showingOdoScanner = true
-                            } label: {
-                                Image(systemName: "camera.viewfinder")
-                                    .scaledFont(26, weight: .semibold)
-                                    .foregroundStyle(Theme.Colors.primary)
-                                    .frame(width: 52, height: 44)
-                                    .contentShape(Rectangle())
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityLabel("Kilometerstand scannen")
-                        }
-                    }
-                    HStack(spacing: Theme.Spacing.m) {
-                        field("KOSTEN") {
-                            TextField("", text: $cost, prompt: Text("0").foregroundStyle(.tertiary))
-                                .keyboardType(.decimalPad).foregroundStyle(.primary)
-                        }
-                        field("WÄHRUNG") {
-                            TextField("", text: $currency).foregroundStyle(.primary)
-                                .textInputAutocapitalization(.characters)
-                        }
-                    }
-                    field("DATUM") {
-                        DatePicker("", selection: $date, displayedComponents: .date)
-                            .labelsHidden().tint(Theme.Colors.primary)
-                    }
-                    field("BESCHREIBUNG") {
-                        TextField("", text: $notes, prompt: Text("z. B. Ölwechsel + Filter").foregroundStyle(.tertiary), axis: .vertical)
-                            .lineLimit(2...5).foregroundStyle(.primary)
-                    }
-
-                    usedPartsSection
-
-                    if existingRecord != nil { deleteButton }
+        FormSheet(
+            title: existingRecord == nil ? "Wartung erfassen" : "Wartung bearbeiten",
+            canSave: canSave,
+            tracked: [
+                formType, brakeComponent, brand, model, tirePosition, tireSize, dotCode,
+                batteryType, fluidType, viscosity, oilType, odo, cost, currency, notes, date,
+                // Stable proxy: equal to the booked parts until the user edits
+                // them, so seeding on appear doesn't count as a change.
+                AnyHashable(usedParts == bookedParts ? [UUID: Int]() : usedParts),
+            ],
+            error: errorMessage,
+            delete: existingRecord.map { record in
+                FormSheetDelete(title: "Wartung löschen?") { viewModel.deleteMaintenance(record) }
+            },
+            onSave: save
+        ) {
+            FormField("Art") {
+                Picker("Art", selection: $formType) {
+                    ForEach(Self.formTypes, id: \.value) { Text($0.label).tag($0.value) }
                 }
-                .padding(Theme.Spacing.l)
-                .adaptiveFormWidth()
+                .pickerStyle(.menu)
+                .labelsHidden()
             }
-            .scrollDismissesKeyboard(.interactively)
-            .navigationTitle(existingRecord == nil ? "Wartung erfassen" : "Wartung bearbeiten")
-            .navigationBarTitleDisplayMode(.inline)
-            // Success tick when the save lands (HIG: haptic feedback for
-            // user-initiated confirmations).
-            .sensoryFeedback(.success, trigger: saveSucceeded) { _, new in new }
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Abbrechen") { dismiss() }
-                        .keyboardShortcut(.cancelAction)
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Speichern", action: save)
-                        .keyboardShortcut("s", modifiers: .command)
+
+            typeSpecificFields
+
+            FormField(
+                "Kilometerstand",
+                unit: "km",
+                hint: odoIsValid ? nil : "Bitte einen gültigen Kilometerstand eingeben."
+            ) {
+                HStack(spacing: Theme.Spacing.s) {
+                    TextField("", text: $odo, prompt: formPrompt("0"))
+                        .keyboardType(.numberPad)
+                    Button {
+                        showingOdoScanner = true
+                    } label: {
+                        Image(systemName: "camera.viewfinder")
+                            .scaledFont(26, weight: .semibold)
+                            .foregroundStyle(Theme.Colors.primary)
+                            .frame(width: 52, height: 44)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Kilometerstand scannen")
                 }
             }
-            .onChange(of: formType) { typeDirty = true }
-            .onChange(of: brakeComponent) { typeDirty = true }
-            .onChange(of: fluidType) { typeDirty = true }
-            .sheet(isPresented: $showingOdoScanner) {
-                OdometerScanSheet(onResult: { value in odo = "\(value)" })
-                    .glassSheet()
-            }
-            .onAppear {
-                let context = PersistenceController.shared.mainContext
-                var parts = PartsInventory.availableParts(in: context)
-
-                // Seed from what the record already holds. Those parts may have
-                // zero on-hand (this entry used them up), so they are missing from
-                // `availableParts` and have to be merged back in — otherwise the
-                // entry's own parts would be invisible in its own form.
-                if let record = existingRecord {
-                    let existing = PartsInventory.consumptions(forMaintenance: record, in: context)
-                    var booked: [UUID: Int] = [:]
-                    for consumption in existing {
-                        booked[consumption.partClientId, default: 0] += consumption.quantity
-                    }
-                    bookedParts = booked
-                    usedParts = booked
-
-                    let known = Set(parts.map(\.clientId))
-                    let missing = ((try? context.fetch(FetchDescriptor<SDPart>())) ?? [])
-                        .filter { booked[$0.clientId] != nil && !known.contains($0.clientId) }
-                    parts = (parts + missing).sorted { $0.name < $1.name }
+            HStack(alignment: .top, spacing: Theme.Spacing.m) {
+                FormField("Kosten") {
+                    TextField("", text: $cost, prompt: formPrompt("0"))
+                        .keyboardType(.decimalPad)
                 }
-                availableParts = parts
-            }
-            .alert("Eintrag löschen?", isPresented: $confirmingDelete) {
-                Button("Abbrechen", role: .cancel) { }
-                Button("Löschen", role: .destructive) {
-                    guard let record = existingRecord,
-                          viewModel.deleteMaintenance(record) else { return }
-                    dismiss()
+                FormField("Währung") {
+                    TextField("", text: $currency, prompt: formPrompt("CHF"))
+                        .textInputAutocapitalization(.characters)
+                        .autocorrectionDisabled()
                 }
             }
+            FormField("Datum") {
+                DatePicker("Datum", selection: $date, displayedComponents: .date)
+                    .labelsHidden()
+                    .tint(Theme.Colors.primary)
+            }
+            FormField("Beschreibung") {
+                TextField("", text: $notes, prompt: formPrompt("z. B. Ölwechsel + Filter"), axis: .vertical)
+                    .lineLimit(2...5)
+            }
+
+            usedPartsSection
+        }
+        .onChange(of: formType) { typeDirty = true }
+        .onChange(of: brakeComponent) { typeDirty = true }
+        .onChange(of: fluidType) { typeDirty = true }
+        .sheet(isPresented: $showingOdoScanner) {
+            OdometerScanSheet(onResult: { value in odo = "\(value)" })
+                .glassSheet()
+        }
+        .onAppear {
+            let context = PersistenceController.shared.mainContext
+            var parts = PartsInventory.availableParts(in: context)
+
+            // Seed from what the record already holds. Those parts may have
+            // zero on-hand (this entry used them up), so they are missing from
+            // `availableParts` and have to be merged back in — otherwise the
+            // entry's own parts would be invisible in its own form.
+            if let record = existingRecord {
+                let existing = PartsInventory.consumptions(forMaintenance: record, in: context)
+                var booked: [UUID: Int] = [:]
+                for consumption in existing {
+                    booked[consumption.partClientId, default: 0] += consumption.quantity
+                }
+                bookedParts = booked
+                usedParts = booked
+
+                let known = Set(parts.map(\.clientId))
+                let missing = ((try? context.fetch(FetchDescriptor<SDPart>())) ?? [])
+                    .filter { booked[$0.clientId] != nil && !known.contains($0.clientId) }
+                parts = (parts + missing).sorted { $0.name < $1.name }
+            }
+            availableParts = parts
         }
     }
 
@@ -251,32 +239,32 @@ struct AddMaintenanceView: View {
     private var typeSpecificFields: some View {
         switch formType {
         case "tire":
-            labeledControl("POSITION") { tirePositionPicker }
-            HStack(spacing: Theme.Spacing.m) {
-                field("GRÖSSE") {
-                    TextField("", text: $tireSize, prompt: prompt("180/55 ZR17")).foregroundStyle(.primary)
+            labeledControl("Position") { tirePositionPicker }
+            HStack(alignment: .top, spacing: Theme.Spacing.m) {
+                FormField("Grösse") {
+                    TextField("", text: $tireSize, prompt: formPrompt("180/55 ZR17"))
                 }
-                field("DOT-CODE") {
-                    TextField("", text: $dotCode, prompt: prompt("2423")).foregroundStyle(.primary)
+                FormField("DOT-Code") {
+                    TextField("", text: $dotCode, prompt: formPrompt("2423"))
                 }
             }
             brandModelFields
         case "fluid":
-            field("FLUID-ART") {
+            FormField("Fluid-Art") {
                 Picker("Fluid-Art", selection: $fluidType) {
                     ForEach(Self.fluidTypes, id: \.self) {
                         Text(SDMaintenanceRecord.fluidTypeLabels[$0] ?? $0).tag($0)
                     }
                 }
                 .pickerStyle(.menu)
-                .frame(maxWidth: .infinity, alignment: .leading)
+                .labelsHidden()
             }
             if fluidType.hasSuffix("oil") {
-                HStack(spacing: Theme.Spacing.m) {
-                    field("VISKOSITÄT") {
-                        TextField("", text: $viscosity, prompt: prompt("10W-40")).foregroundStyle(.primary)
+                HStack(alignment: .top, spacing: Theme.Spacing.m) {
+                    FormField("Viskosität") {
+                        TextField("", text: $viscosity, prompt: formPrompt("10W-40"))
                     }
-                    field("ÖL-TYP") {
+                    FormField("Öl-Typ") {
                         Picker("Öl-Typ", selection: $oilType) {
                             Text("—").tag("")
                             ForEach(["synthetic", "semi-synthetic", "mineral"], id: \.self) {
@@ -284,15 +272,15 @@ struct AddMaintenanceView: View {
                             }
                         }
                         .pickerStyle(.menu)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .labelsHidden()
                     }
                 }
             }
-            field("MARKE") {
-                TextField("", text: $brand, prompt: prompt("z. B. Motul")).foregroundStyle(.primary)
+            FormField("Marke") {
+                TextField("", text: $brand, prompt: formPrompt("z. B. Motul"))
             }
         case "brake":
-            labeledControl("KOMPONENTE") {
+            labeledControl("Komponente") {
                 GlassSegmentedControl(
                     segments: [
                         .init(value: "brakepad", label: "Bremsbeläge"),
@@ -301,17 +289,17 @@ struct AddMaintenanceView: View {
                     selection: $brakeComponent
                 )
             }
-            labeledControl("POSITION") { tirePositionPicker }
+            labeledControl("Position") { tirePositionPicker }
             brandModelFields
         case "battery":
-            field("BATTERIETYP") {
+            FormField("Batterietyp") {
                 Picker("Batterietyp", selection: $batteryType) {
                     ForEach(["lead-acid", "gel", "agm", "lithium-ion", "other"], id: \.self) {
                         Text(MaintenanceCategory.batteryTypeLabels[$0] ?? $0).tag($0)
                     }
                 }
                 .pickerStyle(.menu)
-                .frame(maxWidth: .infinity, alignment: .leading)
+                .labelsHidden()
             }
             brandModelFields
         default:
@@ -331,39 +319,21 @@ struct AddMaintenanceView: View {
     }
 
     private var brandModelFields: some View {
-        HStack(spacing: Theme.Spacing.m) {
-            field("MARKE") {
-                TextField("", text: $brand, prompt: prompt("z. B. Michelin")).foregroundStyle(.primary)
+        HStack(alignment: .top, spacing: Theme.Spacing.m) {
+            FormField("Marke") {
+                TextField("", text: $brand, prompt: formPrompt("z. B. Michelin"))
             }
-            field("MODELL") {
-                TextField("", text: $model, prompt: prompt("z. B. Road 6")).foregroundStyle(.primary)
+            FormField("Modell") {
+                TextField("", text: $model, prompt: formPrompt("z. B. Road 6"))
             }
         }
     }
 
-    private func prompt(_ text: String) -> Text {
-        Text(text).foregroundStyle(.tertiary)
-    }
-
-    private func field<Content: View>(_ label: String, @ViewBuilder content: () -> Content) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(label)
-                .scaledFont(10, weight: .heavy).tracking(1.4)
-                .foregroundStyle(.secondary)
-            content()
-                .padding(.horizontal, 14).padding(.vertical, 12)
-                .background(RoundedRectangle(cornerRadius: Theme.Radius.field).fill(Color.primary.opacity(0.06)))
-                .overlay(RoundedRectangle(cornerRadius: Theme.Radius.field).stroke(Theme.Glass.border, lineWidth: 0.5))
-        }
-    }
-
-    /// Field label without the boxed background — for controls that bring
-    /// their own chrome (the glass segmented control).
+    /// Eyebrow label over a control that brings its own chrome (the glass
+    /// segmented control), so it gets no field box.
     private func labeledControl<Content: View>(_ label: String, @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(label)
-                .scaledFont(10, weight: .heavy).tracking(1.4)
-                .foregroundStyle(.secondary)
+            FormLabel(label)
             content()
         }
     }
@@ -373,8 +343,8 @@ struct AddMaintenanceView: View {
     @ViewBuilder
     private var usedPartsSection: some View {
         if !availableParts.isEmpty {
-            field("VERWENDETE TEILE") {
-                VStack(alignment: .leading, spacing: 10) {
+            FormField("Verwendete Teile") {
+                VStack(alignment: .leading, spacing: Theme.Spacing.s) {
                     ForEach(selectedParts, id: \.clientId) { part in
                         usedPartRow(part)
                     }
@@ -458,14 +428,6 @@ struct AddMaintenanceView: View {
         }
     }
 
-    private var deleteButton: some View {
-        Button(role: .destructive) { confirmingDelete = true } label: {
-            Text("Löschen").frame(maxWidth: .infinity)
-        }
-        .glassActionButton(.danger, in: .roundedRectangle(radius: Theme.Radius.control))
-        .padding(.top, Theme.Spacing.s)
-    }
-
     // MARK: - Save
 
     /// The `type` string written to the record: legacy stays untouched unless
@@ -475,15 +437,43 @@ struct AddMaintenanceView: View {
         return formType == "brake" ? brakeComponent : formType
     }
 
-    private func save() {
-        let odoValue = Int(odo) ?? (viewModel.motorcycle.latestOdo ?? viewModel.motorcycle.initialOdo)
-        let costValue = Double(cost.replacingOccurrences(of: ",", with: ".")) ?? 0
+    /// Kilometerstand as entered (digits only, whitespace ignored).
+    private var parsedOdo: Int? {
+        let trimmed = odo.trimmingCharacters(in: .whitespaces)
+        guard let value = Int(trimmed), value >= 0 else { return nil }
+        return value
+    }
+
+    /// Empty cost means "none" (0); anything else must parse.
+    private var parsedCost: Double? {
+        let trimmed = cost.trimmingCharacters(in: .whitespaces)
+        if trimmed.isEmpty { return 0 }
+        guard let value = Double(trimmed.replacingOccurrences(of: ",", with: ".")), value >= 0 else { return nil }
+        return value
+    }
+
+    private var odoIsValid: Bool {
+        odo.trimmingCharacters(in: .whitespaces).isEmpty || parsedOdo != nil
+    }
+
+    /// A parseable odometer is required; cost is optional but must parse, and
+    /// a cost needs a currency to be stored with.
+    private var canSave: Bool {
+        guard parsedOdo != nil, let costValue = parsedCost else { return false }
+        if costValue > 0 && currency.trimmingCharacters(in: .whitespaces).isEmpty { return false }
+        return true
+    }
+
+    private func save() async -> Bool {
+        errorMessage = nil
+        guard let odoValue = parsedOdo, let costValue = parsedCost else { return false }
+        let currencyValue = currency.trimmingCharacters(in: .whitespaces).uppercased()
         let type = submittedType
         let category = MaintenanceCategory.normalize(type: type, fluidType: nil).category
 
         var draft = MotorcycleDetailViewModel.MaintenanceDraft(
             type: type, odo: odoValue, date: date,
-            cost: costValue, currency: currency, description: notes
+            cost: costValue, currency: currencyValue, description: notes
         )
         switch category {
         case .tire:
@@ -515,14 +505,19 @@ struct AddMaintenanceView: View {
         }
 
         if let r = existingRecord {
-            guard viewModel.updateMaintenance(r, draft: draft) else { return }
+            guard viewModel.updateMaintenance(r, draft: draft) else {
+                errorMessage = "Speichern fehlgeschlagen."
+                return false
+            }
             syncUsedParts(for: r)
         } else {
-            guard let record = viewModel.createMaintenance(draft) else { return }
+            guard let record = viewModel.createMaintenance(draft) else {
+                errorMessage = "Speichern fehlgeschlagen."
+                return false
+            }
             recordUsedParts(for: record)
         }
-        saveSucceeded = true
-        dismiss()
+        return true
     }
 
     /// Book the selected parts against the freshly created repair. Linked via

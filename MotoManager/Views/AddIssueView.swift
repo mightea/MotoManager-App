@@ -5,7 +5,6 @@ import SwiftUI
 struct AddIssueView: View {
     @ObservedObject var viewModel: MotorcycleDetailViewModel
     let existingIssue: SDIssue?
-    @Environment(\.dismiss) private var dismiss
 
     @State private var title: String
     @State private var notes: String
@@ -13,7 +12,7 @@ struct AddIssueView: View {
     @State private var priority: String
     @State private var status: String
     @State private var date: Date
-    @State private var savedAnim = false
+    @State private var errorMessage: String?
 
     private let priorities = ["low", "medium", "high"]
     private let statuses = ["new", "in_progress", "done"]
@@ -40,80 +39,55 @@ struct AddIssueView: View {
     }
 
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: Theme.Spacing.l) {
-                    field("TITEL") {
-                        TextField("", text: $title, prompt: Text("z. B. Bremsbeläge abgenutzt").foregroundStyle(.tertiary))
-                            .textInputAutocapitalization(.sentences)
-                            .foregroundStyle(.primary)
-                    }
-
-                    field("KILOMETERSTAND") {
-                        TextField("", text: $odo)
-                            .keyboardType(.numberPad)
-                            .foregroundStyle(.primary)
-                    }
-
-                    labeledSegment("PRIORITÄT", selection: $priority, options: priorities, label: priorityLabel)
-                    labeledSegment("STATUS", selection: $status, options: statuses, label: statusLabel)
-
-                    field("DATUM") {
-                        DatePicker("", selection: $date, displayedComponents: .date)
-                            .labelsHidden()
-                            .tint(Theme.Colors.primary)
-                    }
-
-                    field("NOTIZEN") {
-                        TextField("", text: $notes, prompt: Text("Optionale Details").foregroundStyle(.tertiary), axis: .vertical)
-                            .lineLimit(3...6)
-                            .foregroundStyle(.primary)
-                    }
+        FormSheet(
+            title: existingIssue == nil ? "Mangel erfassen" : "Mangel bearbeiten",
+            canSave: canSave,
+            tracked: [title, notes, odo, priority, status, date],
+            error: errorMessage,
+            delete: existingIssue.map { issue in
+                FormSheetDelete(title: "Mangel löschen?") {
+                    let ok = viewModel.deleteIssue(issue)
+                    if !ok { errorMessage = "Löschen fehlgeschlagen." }
+                    return ok
                 }
-                .padding(Theme.Spacing.l)
-                .adaptiveFormWidth()
+            },
+            onSave: save
+        ) {
+            FormField("Titel") {
+                TextField("", text: $title, prompt: formPrompt("z. B. Bremsbeläge abgenutzt"))
+                    .textInputAutocapitalization(.sentences)
             }
-            .scrollDismissesKeyboard(.interactively)
-            .navigationTitle(existingIssue == nil ? "Mangel erfassen" : "Mangel bearbeiten")
-            .navigationBarTitleDisplayMode(.inline)
-            // Success tick when the save lands (HIG: haptic feedback for
-            // user-initiated confirmations).
-            .sensoryFeedback(.success, trigger: savedAnim) { _, new in new }
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Abbrechen") { dismiss() }
-                        .keyboardShortcut(.cancelAction)
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Speichern") { save() }
-                        .keyboardShortcut("s", modifiers: .command)
-                        .disabled(title.trimmingCharacters(in: .whitespaces).isEmpty)
-                }
+
+            FormField("Kilometerstand", unit: "km") {
+                TextField("", text: $odo)
+                    .keyboardType(.numberPad)
             }
-        }
-    }
 
-    private func field<Content: View>(_ label: String, @ViewBuilder content: () -> Content) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(label)
-                .scaledFont(10, weight: .heavy).tracking(1.4)
-                .foregroundStyle(.secondary)
-            content()
-                .padding(.horizontal, 14).padding(.vertical, 12)
-                .background(RoundedRectangle(cornerRadius: Theme.Radius.field).fill(Color.primary.opacity(0.06)))
-                .overlay(RoundedRectangle(cornerRadius: Theme.Radius.field).stroke(Theme.Glass.border, lineWidth: 0.5))
-        }
-    }
+            VStack(alignment: .leading, spacing: 6) {
+                FormLabel("Priorität")
+                GlassSegmentedControl(
+                    segments: priorities.map { .init(value: $0, label: priorityLabel($0)) },
+                    selection: $priority
+                )
+            }
+            VStack(alignment: .leading, spacing: 6) {
+                FormLabel("Status")
+                GlassSegmentedControl(
+                    segments: statuses.map { .init(value: $0, label: statusLabel($0)) },
+                    selection: $status
+                )
+            }
 
-    private func labeledSegment(_ label: String, selection: Binding<String>, options: [String], label labeler: @escaping (String) -> String) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(label)
-                .scaledFont(10, weight: .heavy).tracking(1.4)
-                .foregroundStyle(.secondary)
-            GlassSegmentedControl(
-                segments: options.map { .init(value: $0, label: labeler($0)) },
-                selection: selection
-            )
+            FormField("Datum") {
+                DatePicker("", selection: $date, displayedComponents: .date)
+                    .labelsHidden()
+                    .tint(Theme.Colors.primary)
+            }
+
+            FormField("Notizen") {
+                TextField("", text: $notes, prompt: formPrompt("Optionale Details"), axis: .vertical)
+                    .lineLimit(3...6)
+            }
         }
     }
 
@@ -124,21 +98,25 @@ struct AddIssueView: View {
         switch s { case "in_progress": return "In Arbeit"; case "done": return "Erledigt"; default: return "Neu" }
     }
 
-    private func save() {
+    private var parsedOdo: Int? {
+        Int(odo.trimmingCharacters(in: .whitespaces))
+    }
+
+    private var canSave: Bool {
+        !title.trimmingCharacters(in: .whitespaces).isEmpty && parsedOdo != nil
+    }
+
+    private func save() async -> Bool {
+        errorMessage = nil
         let trimmed = title.trimmingCharacters(in: .whitespaces)
-        guard !trimmed.isEmpty else { return }
-        let odoValue = Int(odo) ?? (viewModel.motorcycle.latestOdo ?? viewModel.motorcycle.initialOdo)
+        guard !trimmed.isEmpty, let odoValue = parsedOdo else { return false }
         let saved: Bool
         if let issue = existingIssue {
             saved = viewModel.updateIssue(issue, odo: odoValue, title: trimmed, description: notes, priority: priority, status: status, date: date)
         } else {
             saved = viewModel.createIssue(odo: odoValue, title: trimmed, description: notes, priority: priority, status: status, date: date)
         }
-        guard saved else { return }
-        withAnimation { savedAnim = true }
-        Task {
-            try? await Task.sleep(nanoseconds: 400_000_000)
-            dismiss()
-        }
+        if !saved { errorMessage = "Speichern fehlgeschlagen." }
+        return saved
     }
 }

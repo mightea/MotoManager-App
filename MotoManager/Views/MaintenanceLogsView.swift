@@ -19,6 +19,7 @@ struct MaintenanceLogsView: View {
     @State private var selectedRecord: SDMaintenanceRecord?
     @State private var showingAddIssue = false
     @State private var editingIssue: SDIssue?
+    @State private var pendingIssueDelete: SDIssue?
     @State private var showingAddMaintenance = false
 
     private var serviceRecords: [SDMaintenanceRecord] {
@@ -127,6 +128,15 @@ struct MaintenanceLogsView: View {
                 self.selectedRecord = nil
             }
         }
+        .alert("Mangel löschen?", isPresented: Binding(
+            get: { pendingIssueDelete != nil },
+            set: { if !$0 { pendingIssueDelete = nil } }
+        ), presenting: pendingIssueDelete) { issue in
+            Button("Abbrechen", role: .cancel) {}
+            Button("Löschen", role: .destructive) { _ = viewModel.deleteIssue(issue) }
+        } message: { issue in
+            Text(issue.title)
+        }
         .sheet(isPresented: $showingAddIssue) {
             AddIssueView(viewModel: viewModel)
                 .glassSheet()
@@ -145,7 +155,9 @@ struct MaintenanceLogsView: View {
         List {
             WorkspaceListHeader(searchText: $searchText, prompt: tab == .issues ? "Mängel durchsuchen …" : "Verlauf durchsuchen …")
             if sizeClass != .regular {
-                Section { StatStrip(statTiles).listRowInsets(EdgeInsets()) }
+                // No interval tile here: the intervals card below already
+                // carries that status (plus what's due next).
+                Section { StatStrip(Array(statTiles.dropLast())).listRowInsets(EdgeInsets()) }
             }
             Section {
                 GlassSegmentedControl(
@@ -298,8 +310,8 @@ struct MaintenanceLogsView: View {
                     .buttonStyle(.plain)
                     .accessibilityIdentifier("service.issue.\(issue.clientId)")
                     .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                        Button(role: .destructive) {
-                            _ = viewModel.deleteIssue(issue)
+                        Button {
+                            pendingIssueDelete = issue
                         } label: {
                             Label("Löschen", systemImage: "trash")
                         }

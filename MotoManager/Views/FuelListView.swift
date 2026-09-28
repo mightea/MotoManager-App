@@ -8,6 +8,7 @@ struct FuelListView: View {
     @ObservedObject private var quickActions = QuickActionRouter.shared
     @State private var showingAddFuel = false
     @State private var selectedFuelRecord: SDMaintenanceRecord?
+    @State private var pendingFuelDelete: SDMaintenanceRecord?
 
     /// Backed by SwiftData (offline-first); already filtered to fuel + non-deleted.
     private var fuelRecords: [SDMaintenanceRecord] {
@@ -74,7 +75,7 @@ struct FuelListView: View {
 
     var body: some View {
         MotorcycleWorkspace(motorcycle: viewModel.motorcycle, type: .fuel) {
-            WorkspaceAction("Neue Tankung", systemImage: "plus") { showingAddFuel = true }
+            WorkspaceAction("Tankung erfassen", systemImage: "plus") { showingAddFuel = true }
                 .keyboardShortcut("n", modifiers: .command)
         } content: {
             RecordBrowser(selection: $selectedFuelRecord, title: "Tankverlauf",
@@ -99,6 +100,13 @@ struct FuelListView: View {
             if FuelEntryDraft.load(motorcycleId: viewModel.motorcycle.id, editingClientId: nil) != nil {
                 showingAddFuel = true
             }
+        }
+        .alert("Tankung löschen?", isPresented: Binding(
+            get: { pendingFuelDelete != nil },
+            set: { if !$0 { pendingFuelDelete = nil } }
+        ), presenting: pendingFuelDelete) { record in
+            Button("Abbrechen", role: .cancel) {}
+            Button("Löschen", role: .destructive) { _ = viewModel.deleteFuelRecord(record) }
         }
         .sheet(isPresented: $showingAddFuel) {
             AddFuelView(viewModel: viewModel)
@@ -231,8 +239,8 @@ struct FuelListView: View {
                         .selectedRecord(selectedFuelRecord?.clientId == record.clientId)
                         .accessibilityIdentifier("fuel.record.\(record.clientId)")
                         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                            Button(role: .destructive) {
-                                _ = viewModel.deleteFuelRecord(record)
+                            Button {
+                                pendingFuelDelete = record
                             } label: {
                                 Label("Löschen", systemImage: "trash")
                             }

@@ -15,6 +15,9 @@ struct PartDetailView: View {
     @State private var showingPrintLabel = false
     @State private var printingLocation: SDStorageLocation?
     @State private var didAutoDismiss = false
+    /// Row deletes (swipe/context menu) wait here for confirmation.
+    @State private var pendingStockDelete: SDPartStock?
+    @State private var pendingConsumptionDelete: SDPartConsumption?
     /// Captured at init so the auto-pop guard never reads a deleted model.
     private let partClientId: UUID
 
@@ -87,6 +90,30 @@ struct PartDetailView: View {
                 PrintLabelView(content: content)
                     .glassSheet()
             }
+        }
+        .alert(
+            "Bestand löschen?",
+            isPresented: Binding(
+                get: { pendingStockDelete != nil },
+                set: { if !$0 { pendingStockDelete = nil } }
+            ),
+            presenting: pendingStockDelete
+        ) { stock in
+            Button("Abbrechen", role: .cancel) { }
+            Button("Löschen", role: .destructive) { viewModel.deleteStock(stock) }
+        }
+        .alert(
+            "Verbrauch löschen?",
+            isPresented: Binding(
+                get: { pendingConsumptionDelete != nil },
+                set: { if !$0 { pendingConsumptionDelete = nil } }
+            ),
+            presenting: pendingConsumptionDelete
+        ) { consumption in
+            Button("Abbrechen", role: .cancel) { }
+            Button("Löschen", role: .destructive) { viewModel.deleteConsumption(consumption) }
+        } message: { _ in
+            Text("Die Menge wird dem Bestand wieder gutgeschrieben.")
         }
         // Pop back if the part disappears underneath us (remote delete via
         // sync, or delete from within the edit sheet).
@@ -238,8 +265,10 @@ struct PartDetailView: View {
                     }
                     .buttonStyle(.plain)
                     .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                        Button(role: .destructive) {
-                            viewModel.deleteStock(stock)
+                        // No destructive role: that animates the row away
+                        // before the confirmation is answered.
+                        Button {
+                            pendingStockDelete = stock
                         } label: {
                             Label("Löschen", systemImage: "trash")
                         }
@@ -255,7 +284,7 @@ struct PartDetailView: View {
                             }
                         }
                         Button(role: .destructive) {
-                            viewModel.deleteStock(stock)
+                            pendingStockDelete = stock
                         } label: {
                             Label("Löschen", systemImage: "trash")
                         }
@@ -349,8 +378,8 @@ struct PartDetailView: View {
                 ForEach(consumptions, id: \.clientId) { consumption in
                     consumptionRowLinked(consumption)
                         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                            Button(role: .destructive) {
-                                viewModel.deleteConsumption(consumption)
+                            Button {
+                                pendingConsumptionDelete = consumption
                             } label: {
                                 Label("Zurückbuchen", systemImage: "arrow.uturn.backward")
                             }
@@ -358,7 +387,7 @@ struct PartDetailView: View {
                         }
                         .contextMenu {
                             Button(role: .destructive) {
-                                viewModel.deleteConsumption(consumption)
+                                pendingConsumptionDelete = consumption
                             } label: {
                                 Label("Löschen (Bestand zurückbuchen)", systemImage: "arrow.uturn.backward")
                             }
@@ -487,28 +516,31 @@ struct AddPartStockView: View {
     @ObservedObject var viewModel: PartsViewModel
     let part: SDPart
     let existingStock: SDPartStock?
-    @Environment(\.dismiss) private var dismiss
 
     @State private var quantity: Int
     @State private var price: String
     @State private var currency: String
     @State private var purchaseDate: Date
     @State private var selectedLocation: SDStorageLocation?
-    @State private var newLocationName = ""
+    @State private var newLocationName: String
     @State private var notes: String
     @State private var isUsed: Bool
+    @State private var errorMessage: String?
 
     init(viewModel: PartsViewModel, part: SDPart, existingStock: SDPartStock? = nil) {
         self.viewModel = viewModel
         self.part = part
         self.existingStock = existingStock
+        _newLocationName = State(initialValue: "")
         if let s = existingStock {
             _quantity = State(initialValue: s.quantity)
             _price = State(initialValue: s.price.map { String($0) } ?? "")
             _currency = State(initialValue: s.currency ?? "CHF")
             let f = ISO8601DateFormatter(); f.formatOptions = [.withFullDate]
             _purchaseDate = State(initialValue: s.purchaseDate.flatMap { f.date(from: $0) } ?? Date())
-            _selectedLocation = State(initialValue: nil)
+            // Resolved here (not onAppear) so the unsaved-changes snapshot
+            // starts from the stored location.
+            _selectedLocation = State(initialValue: viewModel.storageLocation(clientId: s.storageLocationClientId))
             _notes = State(initialValue: s.notes ?? "")
             _isUsed = State(initialValue: s.isUsed)
         } else {
@@ -523,147 +555,77 @@ struct AddPartStockView: View {
     }
 
     var body: some View {
-        NavigationStack {
-        ScrollView {
-            VStack(alignment: .leading, spacing: Theme.Spacing.l) {
-                field("MENGE") {
-                    Stepper(value: $quantity, in: 1...999) {
-                        Text("\(quantity) Stück")
-                            .scaledFont(15, weight: .bold)
-                            .foregroundStyle(.primary)
-                    }
-                }
-                HStack(spacing: Theme.Spacing.m) {
-                    field("PREIS (GESAMT)") {
-                        TextField("", text: $price, prompt: Text("0").foregroundStyle(.tertiary))
-                            .keyboardType(.decimalPad).foregroundStyle(.primary)
-                    }
-                    field("WÄHRUNG") {
-                        TextField("", text: $currency).foregroundStyle(.primary)
-                            .textInputAutocapitalization(.characters)
-                    }
-                }
-                field("KAUFDATUM") {
-                    DatePicker("", selection: $purchaseDate, displayedComponents: .date)
-                        .labelsHidden().tint(Theme.Colors.primary)
-                }
-                field("LAGERORT") {
-                    locationPicker
-                }
-                field("NEUER LAGERORT (OPTIONAL)") {
-                    TextField("", text: $newLocationName,
-                              prompt: Text("z. B. Regal A · Kiste 3").foregroundStyle(.tertiary))
-                        .foregroundStyle(.primary)
-                }
-                field("NOTIZEN") {
-                    TextField("", text: $notes,
-                              prompt: Text("z. B. Kauf bei Motorradteile Meyer").foregroundStyle(.tertiary),
-                              axis: .vertical)
-                        .lineLimit(2...4).foregroundStyle(.primary)
-                }
-                field("ZUSTAND") {
-                    Toggle(isOn: $isUsed) {
-                        VStack(alignment: .leading, spacing: 1) {
-                            Text("Gebrauchtteil")
-                                .scaledFont(15, weight: .semibold)
-                                .foregroundStyle(.primary)
-                            Text("z. B. aus einem Motorrad ausgeschlachtet")
-                                .scaledFont(11)
-                                .foregroundStyle(.tertiary)
-                        }
-                    }
-                    .tint(Theme.Colors.primary)
-                }
-
-                if let existingStock {
-                    Button(role: .destructive) {
-                        guard viewModel.deleteStock(existingStock) else { return }
-                        dismiss()
-                    } label: {
-                        Text("Löschen").frame(maxWidth: .infinity)
-                    }
-                    .glassActionButton(.danger, in: .roundedRectangle(radius: Theme.Radius.control))
-                    .padding(.top, Theme.Spacing.s)
-                }
+        FormSheet(
+            title: existingStock == nil ? "Bestand hinzufügen" : "Bestand bearbeiten",
+            canSave: canSave,
+            tracked: [quantity, price, currency, purchaseDate,
+                      selectedLocation?.clientId.uuidString ?? "", newLocationName, notes, isUsed],
+            error: errorMessage,
+            delete: existingStock.map { stock in
+                FormSheetDelete(title: "Bestand löschen?") { viewModel.deleteStock(stock) }
+            },
+            onSave: save
+        ) {
+            PartQuantityField(quantity: $quantity)
+            CurrencyField(price: $price, currency: $currency)
+            FormField("Kaufdatum") {
+                DatePicker("", selection: $purchaseDate, displayedComponents: .date)
+                    .labelsHidden().tint(Theme.Colors.primary)
             }
-            .padding(Theme.Spacing.l)
-            .adaptiveFormWidth()
-        }
-        .scrollDismissesKeyboard(.interactively)
-        .navigationTitle(existingStock == nil ? "Bestand hinzufügen" : "Bestand bearbeiten")
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .cancellationAction) {
-                Button("Abbrechen") { dismiss() }
-                    .keyboardShortcut(.cancelAction)
+            StorageLocationPicker(
+                viewModel: viewModel,
+                selection: $selectedLocation,
+                newLocationName: $newLocationName
+            )
+            FormField("Notizen") {
+                TextField("", text: $notes,
+                          prompt: formPrompt("z. B. Kauf bei Motorradteile Meyer"),
+                          axis: .vertical)
+                    .lineLimit(2...4)
             }
-            ToolbarItem(placement: .confirmationAction) {
-                Button("Speichern", action: save)
-                    .keyboardShortcut("s", modifiers: .command)
-            }
-        }
-        .onAppear {
-            if let s = existingStock {
-                selectedLocation = viewModel.storageLocation(clientId: s.storageLocationClientId)
-            }
-        }
+            FormToggleRow(
+                title: "Gebrauchtteil",
+                subtitle: "z. B. aus einem Motorrad ausgeschlachtet",
+                isOn: $isUsed
+            )
         }
     }
 
-    private var locationPicker: some View {
-        Menu {
-            Button("Kein Lagerort") { selectedLocation = nil }
-            ForEach(viewModel.storageLocations, id: \.clientId) { location in
-                Button(viewModel.locationPath(location) ?? location.name) {
-                    selectedLocation = location
-                }
-            }
-        } label: {
-            HStack {
-                Text(selectedLocation.flatMap { viewModel.locationPath($0) } ?? "Kein Lagerort")
-                    .foregroundStyle(selectedLocation == nil ? AnyShapeStyle(.tertiary) : AnyShapeStyle(.primary))
-                    .lineLimit(1)
-                Spacer()
-                Image(systemName: "chevron.up.chevron.down")
-                    .scaledFont(11, weight: .semibold)
-                    .foregroundStyle(.tertiary)
-            }
-        }
+    /// Quantity is stepper-bound (≥ 1); the price is optional but must be a
+    /// number when given.
+    private var canSave: Bool {
+        quantity > 0 && CurrencyField.isValid(price)
     }
 
-    private func field<Content: View>(_ label: String, @ViewBuilder content: () -> Content) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(label)
-                .scaledFont(10, weight: .heavy).tracking(1.4)
-                .foregroundStyle(.secondary)
-            content()
-                .padding(.horizontal, 14).padding(.vertical, 12)
-                .background(RoundedRectangle(cornerRadius: Theme.Radius.field).fill(Color.primary.opacity(0.06)))
-                .overlay(RoundedRectangle(cornerRadius: Theme.Radius.field).stroke(Theme.Glass.border, lineWidth: 0.5))
-        }
-    }
-
-    private func save() {
+    private func save() async -> Bool {
+        errorMessage = nil
+        guard canSave else { return false }
         // Inline location creation wins over the picker when both are set.
         var location = selectedLocation
         let newName = newLocationName.trimmingCharacters(in: .whitespaces)
         if !newName.isEmpty {
-            guard let created = viewModel.createStorageLocation(name: newName, parent: selectedLocation) else { return }
+            guard let created = viewModel.createStorageLocation(name: newName, parent: selectedLocation) else {
+                errorMessage = "Lagerort konnte nicht angelegt werden."
+                return false
+            }
             location = created
         }
-        let priceValue = Double(price.replacingOccurrences(of: ",", with: "."))
+        let priceValue = CurrencyField.parse(price)
+        let trimmedCurrency = currency.trimmingCharacters(in: .whitespaces)
+        let saved: Bool
         if let s = existingStock {
-            guard viewModel.updateStock(
-                s, quantity: quantity, price: priceValue, currency: currency,
+            saved = viewModel.updateStock(
+                s, quantity: quantity, price: priceValue, currency: trimmedCurrency,
                 purchaseDate: purchaseDate, storageLocation: location, notes: notes,
-                isUsed: isUsed) else { return }
+                isUsed: isUsed)
         } else {
-            guard viewModel.addStock(
-                part: part, quantity: quantity, price: priceValue, currency: currency,
+            saved = viewModel.addStock(
+                part: part, quantity: quantity, price: priceValue, currency: trimmedCurrency,
                 purchaseDate: purchaseDate, storageLocation: location, notes: notes,
-                isUsed: isUsed) != nil else { return }
+                isUsed: isUsed) != nil
         }
-        dismiss()
+        if !saved { errorMessage = "Speichern fehlgeschlagen." }
+        return saved
     }
 }
 
@@ -674,81 +636,50 @@ struct AddPartStockView: View {
 struct AddPartConsumptionView: View {
     @ObservedObject var viewModel: PartsViewModel
     let part: SDPart
-    @Environment(\.dismiss) private var dismiss
 
     @State private var quantity = 1
     @State private var date = Date()
     @State private var notes = ""
-    @State private var errorText: String?
+    @State private var errorMessage: String?
 
     private var onHand: Int { viewModel.onHand(for: part) }
 
     var body: some View {
-        NavigationStack {
-        ScrollView {
-            VStack(alignment: .leading, spacing: Theme.Spacing.l) {
-                Text("\(part.name) · \(onHand) auf Lager")
-                    .scaledFont(12, weight: .semibold)
-                    .foregroundStyle(.secondary)
-
-                field("MENGE") {
-                    Stepper(value: $quantity, in: 1...max(1, onHand)) {
-                        Text("\(quantity) Stück")
-                            .scaledFont(15, weight: .bold)
-                            .foregroundStyle(.primary)
-                    }
-                }
-                field("DATUM") {
-                    DatePicker("", selection: $date, displayedComponents: .date)
-                        .labelsHidden().tint(Theme.Colors.primary)
-                }
-                field("NOTIZ") {
-                    TextField("", text: $notes,
-                              prompt: Text("z. B. defekt / verloren").foregroundStyle(.tertiary))
-                        .foregroundStyle(.primary)
-                }
-
-                if let errorText {
-                    Text(errorText)
-                        .scaledFont(12, weight: .semibold)
-                        .foregroundStyle(Theme.Colors.accent)
-                }
-            }
-            .padding(Theme.Spacing.l)
-        }
-        .navigationTitle("Verbrauch erfassen")
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .cancellationAction) {
-                Button("Abbrechen") { dismiss() }
-                    .keyboardShortcut(.cancelAction)
-            }
-            ToolbarItem(placement: .confirmationAction) {
-                Button("Speichern", action: save)
-                    .keyboardShortcut("s", modifiers: .command)
-            }
-        }
-        }
-    }
-
-    private func field<Content: View>(_ label: String, @ViewBuilder content: () -> Content) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(label)
-                .scaledFont(10, weight: .heavy).tracking(1.4)
+        FormSheet(
+            title: "Verbrauch erfassen",
+            canSave: canSave,
+            tracked: [quantity, date, notes],
+            error: errorMessage,
+            onSave: save
+        ) {
+            Text("\(part.name) · \(onHand) auf Lager")
+                .scaledFont(12, weight: .semibold)
                 .foregroundStyle(.secondary)
-            content()
-                .padding(.horizontal, 14).padding(.vertical, 12)
-                .background(RoundedRectangle(cornerRadius: Theme.Radius.field).fill(Color.primary.opacity(0.06)))
-                .overlay(RoundedRectangle(cornerRadius: Theme.Radius.field).stroke(Theme.Glass.border, lineWidth: 0.5))
+
+            PartQuantityField(quantity: $quantity, range: 1...max(1, onHand))
+            FormField("Datum") {
+                DatePicker("", selection: $date, displayedComponents: .date)
+                    .labelsHidden().tint(Theme.Colors.primary)
+            }
+            FormField("Notiz") {
+                TextField("", text: $notes, prompt: formPrompt("z. B. defekt / verloren"))
+            }
         }
     }
 
-    private func save() {
+    /// Can't book more than is on hand (the server enforces the same).
+    private var canSave: Bool {
+        quantity >= 1 && quantity <= onHand
+    }
+
+    private func save() async -> Bool {
+        errorMessage = nil
+        guard canSave else { return false }
         guard viewModel.addConsumption(part: part, quantity: quantity, date: date, notes: notes) else {
-            errorText = "Nicht genug Bestand."
-            return
+            errorMessage = "Nicht genug Bestand oder Speichern fehlgeschlagen."
+            return false
         }
-        dismiss()
+        return true
     }
 }
 

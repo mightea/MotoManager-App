@@ -103,7 +103,7 @@ final class MotoManagerUITests: XCTestCase {
             app.buttons[recordID].tap()
             XCTAssertTrue(app.buttons["Bearbeiten"].waitForExistence(timeout: 5), "The same row must reopen after going back.")
         }
-        app.buttons["Neue Tankung"].tap()
+        app.buttons["Tankung erfassen"].tap()
         XCTAssertTrue(odo.waitForExistence(timeout: 5))
         let seededOdo = odo.value as? String
         let seededPrice = price.value as? String
@@ -140,7 +140,7 @@ final class MotoManagerUITests: XCTestCase {
             XCTAssertFalse(app.buttons[recordID].exists, "Switching motorcycles must discard the previous detail and records.")
             XCTAssertFalse(app.buttons["Bearbeiten"].exists)
             capture(app, "workspace-switched-motorcycle")
-        } else { app.buttons["Fertig"].tap() }
+        } else { app.buttons["Schliessen"].tap() }
         XCUIDevice.shared.orientation = .portrait
     }
 
@@ -277,13 +277,15 @@ final class MotoManagerUITests: XCTestCase {
         try tapWorkspaceTab("Technik", in: app)
         let references = app.collectionViews["workshop.references"]
         let referenceOverview = app.collectionViews["workshop.overview"]
-        references.buttons["workshop.category.pressure"].tap()
-        XCTAssertEqual(app.buttons.matching(identifier: "Reifendruck bearbeiten").count, 1)
+        // One overview list: pressure and details sit side by side, and the
+        // iPad overview column only summarises (no duplicated rows).
+        let pressure = references.buttons["workshop.pressure"]
+        XCTAssertTrue(pressure.waitForExistence(timeout: 5))
+        XCTAssertEqual(app.buttons.matching(identifier: "workshop.pressure").count, 1)
         if expanded {
-            XCTAssertFalse(referenceOverview.buttons["Reifendruck bearbeiten"].exists)
+            XCTAssertFalse(referenceOverview.buttons["workshop.pressure"].exists)
         }
         capture(app, "deduplicated-pressure")
-        references.buttons["workshop.category.details"].tap()
         let detailPredicate = NSPredicate(format: "identifier BEGINSWITH 'workshop.detail.'")
         let detail = references.buttons.matching(detailPredicate).firstMatch
         XCTAssertTrue(detail.waitForExistence(timeout: 5))

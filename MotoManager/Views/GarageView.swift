@@ -47,8 +47,10 @@ struct GarageView: View {
             .navigationTitle("Motorrad wählen")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Fertig") { dismiss() }
+                ToolbarItem(placement: .cancellationAction) {
+                    Button(role: .close) { dismiss() }
+                        .keyboardShortcut(.cancelAction)
+                        .accessibilityLabel("Schliessen")
                 }
             }
         }

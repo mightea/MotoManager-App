@@ -2,12 +2,13 @@ import CoreLocation
 import MapKit
 import SwiftUI
 
-/// Glass bottom-sheet fuel-entry flow.
+/// Fuel-entry sheet on the shared `FormSheet` scaffold.
 ///
 /// Native fields preserve complete values on focus. Price/L and total are
 /// auto-coupled — typing into one derives the other from the entered liters.
-/// Currency is picked above the fields; keyboard controls move
-/// between the odometer, liters, per-liter price and total.
+/// Currency is picked above the fields; the sheet's own keyboard toolbar
+/// (instead of FormSheet's plain "Fertig") moves between the odometer,
+/// liters, per-liter price and total.
 ///
 /// Location, notes, and fuelType are intentionally not shown in this sheet
 /// (per design); when editing an existing record they are preserved from the
@@ -16,9 +17,7 @@ import SwiftUI
 struct AddFuelView: View {
     @ObservedObject var viewModel: MotorcycleDetailViewModel
     let existingRecord: SDMaintenanceRecord?
-    @Environment(\.dismiss) var dismiss
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    @Environment(\.horizontalSizeClass) private var sizeClass
 
     private enum Field: Hashable { case odo, liters, price, total }
     private enum PriceCouple: String { case perLiter, total }
@@ -35,11 +34,10 @@ struct AddFuelView: View {
     @State private var fullTank: Bool
     @State private var fuelAdditiveAdded: Bool
     @State private var leadSubstituteAdded: Bool
-    @State private var savedAnim: Bool = false
     @State private var showingOdoScanner = false
+    @State private var errorMessage: String?
     @State private var currency: String
     @State private var currencies: [Currency]
-    @State private var currencyPopoverOpen: Bool = false
     /// Hidden — preserved across edits but not user-editable in this sheet.
     @State private var fuelType: String
     @State private var locationName: String
@@ -137,60 +135,35 @@ struct AddFuelView: View {
     // MARK: - Body
 
     var body: some View {
-        NavigationStack {
-            ZStack(alignment: .top) {
-                Color.clear
-
-                ScrollView {
-                    VStack(spacing: 0) {
-                        HStack {
-                            Text("Währung").font(.subheadline).foregroundStyle(.secondary)
-                            Spacer()
-                            currencyMenu.frame(minHeight: 44)
-                        }
-                        .padding(.horizontal, Theme.Spacing.m)
-                        fieldStack
-                        dateRow
-                        if existingRecord == nil {
-                            stationRow
-                        }
-                        metaRow
-                        additiveRow
-                        saveButton
-                    }
-                    .padding(.top, 10)
-                    .adaptiveFormWidth()
-                }
-                .scrollDismissesKeyboard(.interactively)
+        FormSheet(
+            title: isEditing ? "Tankung bearbeiten" : "Tankung erfassen",
+            canSave: canSave,
+            // Station fields are left out on purpose: GPS detection fills them
+            // on open, which must not count as an unsaved user change.
+            // coupleSource is bookkeeping (which price field was typed last)
+            // that flips on focus alone — not a user change.
+            tracked: [odo, liters, price, total, fullTank,
+                      fuelAdditiveAdded, leadSubstituteAdded, currency, date],
+            error: errorMessage,
+            delete: existingRecord.map { record in
+                FormSheetDelete(
+                    title: "Tankung löschen?",
+                    message: "Diese Tankung kann nicht wiederhergestellt werden."
+                ) { viewModel.deleteFuelRecord(record) }
+            },
+            // Own keyboard toolbar with field chaining (see `fieldStack`).
+            showsKeyboardDone: false,
+            onSave: save
+        ) {
+            currencyRow
+            fieldStack
+            dateRow
+            if existingRecord == nil {
+                stationRow
             }
-            .navigationTitle(isEditing ? "Tankung bearbeiten" : "Neue Tankung")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Abbrechen") { dismiss() }
-                        .keyboardShortcut(.cancelAction)
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button(action: save) {
-                        if sizeClass == .regular { Text("Speichern") }
-                        else { Image(systemName: "checkmark") }
-                    }
-                        .disabled(!canSave || savedAnim)
-                        .keyboardShortcut("s", modifiers: .command)
-                        .accessibilityLabel("Speichern")
-                        .accessibilityIdentifier("fuel.save")
-                }
-                ToolbarItemGroup(placement: .keyboard) {
-                    Button("Vorheriges Feld", systemImage: "chevron.up") { moveFocus(by: -1) }
-                        .labelStyle(.iconOnly)
-                        .disabled(focused == .odo)
-                    Button("Nächstes Feld", systemImage: "chevron.down") { moveFocus(by: 1) }
-                        .labelStyle(.iconOnly)
-                        .disabled(focused == .total)
-                    Spacer()
-                    Button("Fertig") { focused = nil }
-                }
-            }
+            fullTankSection
+            FormToggleRow(title: "Additiv", isOn: $fuelAdditiveAdded)
+            FormToggleRow(title: "Bleiersatz", isOn: $leadSubstituteAdded)
         }
         .sheet(isPresented: $showingOdoScanner) {
             OdometerScanSheet(onResult: { value in
@@ -254,8 +227,9 @@ struct AddFuelView: View {
             draft.persist()
         }
         .onDisappear {
-            // Every normal close path (saved, cancelled, swiped away) retires
-            // the draft; only a mid-entry process death leaves it for restore.
+            // Every normal close path (saved, cancelled, swiped away, deleted)
+            // retires the draft; only a mid-entry process death leaves it for
+            // restore.
             FuelEntryDraft.clear()
         }
     }
@@ -278,30 +252,52 @@ struct AddFuelView: View {
 
     // MARK: - Sections
 
+    private var currencyRow: some View {
+        FormField("Währung") {
+            currencyMenu
+        }
+    }
+
+    /// The four chained numeric inputs. Carries the sheet's keyboard toolbar
+    /// (previous/next field + "Fertig"); it sits inside FormSheet's
+    /// NavigationStack, so the items land in the keyboard bar.
     private var fieldStack: some View {
-        VStack(spacing: Theme.Spacing.s) {
-            HStack(alignment: .center, spacing: Theme.Spacing.s) {
-                numericField("Kilometerstand", unit: "km", text: $odo, field: .odo, hint: odoHint)
+        VStack(alignment: .leading, spacing: Theme.Spacing.m) {
+            numericField("Kilometerstand", unit: "km", text: $odo, field: .odo, hint: odoHint) {
                 Button {
                     focused = nil
                     showingOdoScanner = true
                 } label: {
                     Image(systemName: "camera.viewfinder")
-                        .font(.title2)
-                        .frame(width: 52, height: 52)
+                        .scaledFont(20, weight: .semibold)
+                        .foregroundStyle(Theme.Colors.primary)
+                        .frame(width: 36, height: 28)
+                        .contentShape(Rectangle())
                 }
+                .buttonStyle(.plain)
                 .accessibilityLabel("Kilometerstand scannen")
             }
             numericField("Tankmenge", unit: "L", text: $liters, field: .liters, hint: litersHint)
             let priceLayout = dynamicTypeSize.isAccessibilitySize
-                ? AnyLayout(VStackLayout(spacing: Theme.Spacing.s))
-                : AnyLayout(HStackLayout(spacing: Theme.Spacing.s))
+                ? AnyLayout(VStackLayout(alignment: .leading, spacing: Theme.Spacing.m))
+                : AnyLayout(HStackLayout(alignment: .top, spacing: Theme.Spacing.m))
             priceLayout {
                 priceField
                 totalField
             }
         }
-        .padding(.horizontal, Theme.Spacing.m)
+        .toolbar {
+            ToolbarItemGroup(placement: .keyboard) {
+                Button("Vorheriges Feld", systemImage: "chevron.up") { moveFocus(by: -1) }
+                    .labelStyle(.iconOnly)
+                    .disabled(focused == .odo)
+                Button("Nächstes Feld", systemImage: "chevron.down") { moveFocus(by: 1) }
+                    .labelStyle(.iconOnly)
+                    .disabled(focused == .total)
+                Spacer()
+                Button("Fertig") { focused = nil }
+            }
+        }
     }
 
     private var priceField: some View {
@@ -314,12 +310,31 @@ struct AddFuelView: View {
             hint: coupleSource == .perLiter && !total.isEmpty ? "Berechnet" : nil)
     }
 
-    private func numericField(_ title: String, unit: String, text: Binding<String>, field: Field, hint: String? = nil) -> some View {
-        VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
-            Text(title).font(.caption.weight(.semibold)).foregroundStyle(.secondary)
-            HStack(alignment: .firstTextBaseline) {
-                TextField(title, text: text, prompt: Text("0"))
-                    .font(.title2.weight(.semibold))
+    private func numericField(
+        _ title: String,
+        unit: String,
+        text: Binding<String>,
+        field: Field,
+        hint: String? = nil
+    ) -> some View {
+        numericField(title, unit: unit, text: text, field: field, hint: hint) { EmptyView() }
+    }
+
+    /// A `FormField` with a large monospaced value; `accessory` sits at the
+    /// trailing edge of the input (e.g. the odometer scan button).
+    private func numericField<Accessory: View>(
+        _ title: String,
+        unit: String,
+        text: Binding<String>,
+        field: Field,
+        hint: String? = nil,
+        @ViewBuilder accessory: () -> Accessory
+    ) -> some View {
+        let accessoryView = accessory()
+        return FormField(title, unit: unit, hint: hint) {
+            HStack(spacing: Theme.Spacing.s) {
+                TextField("", text: text, prompt: formPrompt("0"))
+                    .scaledFont(20, weight: .bold)
                     .monospacedDigit()
                     .keyboardType(field == .odo ? .numberPad : .decimalPad)
                     .focused($focused, equals: field)
@@ -327,18 +342,8 @@ struct AddFuelView: View {
                     .onSubmit { moveFocus(by: 1) }
                     .accessibilityLabel(title)
                     .accessibilityIdentifier("fuel.\(field)")
-                Text(unit).font(.footnote).foregroundStyle(.secondary)
+                accessoryView
             }
-            if let hint, !hint.isEmpty {
-                Text(hint).font(.caption).foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        }
-        .padding(Theme.Spacing.m)
-        .background(Theme.Colors.backgroundElevated, in: RoundedRectangle(cornerRadius: Theme.Radius.field))
-        .overlay {
-            RoundedRectangle(cornerRadius: Theme.Radius.field)
-                .stroke(focused == field ? Theme.Colors.primary : Theme.Glass.border, lineWidth: 1)
         }
     }
 
@@ -352,60 +357,17 @@ struct AddFuelView: View {
         self.focused = fields.indices.contains(next) ? fields[next] : nil
     }
 
-    private var metaRow: some View {
-        HStack(alignment: .center) {
-            fullTankToggle
-            Spacer(minLength: 0)
+    /// "Voll getankt" plus the derived consumption for this fill-up.
+    private var fullTankSection: some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.s) {
+            FormToggleRow(title: "Voll getankt", isOn: $fullTank)
             if let l100 = derivedConsumption {
                 consumptionChip(l100)
             }
         }
-        .padding(.horizontal, 18)
-        .padding(.top, 6)
-        .padding(.bottom, 4)
     }
 
-    private var additiveRow: some View {
-        HStack(alignment: .center, spacing: 8) {
-            checkPill(label: "Additiv", isOn: $fuelAdditiveAdded)
-            checkPill(label: "Bleiersatz", isOn: $leadSubstituteAdded)
-            Spacer(minLength: 0)
-        }
-        .padding(.horizontal, 18)
-        .padding(.top, 2)
-        .padding(.bottom, 4)
-    }
-
-    private var saveButton: some View {
-        Button(action: save) {
-            HStack(spacing: 8) {
-                if savedAnim {
-                    Image(systemName: "checkmark")
-                        .scaledFont(16, weight: .bold)
-                    Text("Gespeichert")
-                } else if viewModel.isLoading {
-                    ProgressView()
-                } else {
-                    Text(isEditing ? "Änderungen speichern" : "Tankung speichern")
-                }
-            }
-            .frame(maxWidth: .infinity)
-            .frame(minHeight: 34)
-            .scaledFont(15, weight: .heavy)
-        }
-        .glassActionButton(savedAnim ? .success : .primary, in: .roundedRectangle(radius: Theme.Radius.chip))
-        .disabled(!canSave || savedAnim)
-        .padding(.horizontal, 14)
-        .padding(.top, 10)
-        .padding(.bottom, 14)
-        .animation(.easeOut(duration: 0.18), value: canSave)
-        .animation(.easeOut(duration: 0.18), value: savedAnim)
-        // Success tick when the save lands (HIG: haptic feedback for
-        // user-initiated confirmations).
-        .sensoryFeedback(.success, trigger: savedAnim) { _, new in new }
-    }
-
-    // MARK: - Toolbar subcomponents
+    // MARK: - Currency
 
     private var currencyMenu: some View {
         Menu {
@@ -415,109 +377,16 @@ struct AddFuelView: View {
                 }
             }
         } label: {
-            HStack(spacing: 4) {
+            HStack(spacing: Theme.Spacing.xs) {
                 Image(systemName: "\(Formatters.currencySymbol(for: currency)).circle")
-                    .scaledFont(11, weight: .semibold)
+                    .scaledFont(13, weight: .semibold)
                 Text(currency)
-                    .scaledFont(12, weight: .heavy)
+                    .scaledFont(14, weight: .heavy)
             }
+            .frame(minHeight: 28)
+            .contentShape(Rectangle())
         }
         .accessibilityLabel("Währung")
-    }
-
-    // MARK: - Meta-row helpers
-
-    private var fullTankToggle: some View {
-        Button {
-            withAnimation(.easeOut(duration: 0.18)) {
-                fullTank.toggle()
-            }
-        } label: {
-            HStack(spacing: 6) {
-                ZStack {
-                    Circle()
-                        .fill(fullTank ? Color.green : Color.clear)
-                        .frame(width: 16, height: 16)
-                    if fullTank {
-                        Image(systemName: "checkmark")
-                            .scaledFont(9, weight: .heavy)
-                            .foregroundStyle(.primary)
-                    } else {
-                        Circle()
-                            .stroke(Color.primary.opacity(0.35), lineWidth: 1.5)
-                            .frame(width: 16, height: 16)
-                    }
-                }
-                Text("Voll getankt")
-                    .scaledFont(11, weight: .semibold)
-                    .foregroundStyle(fullTank ? Color.green : Color.primary)
-            }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 5)
-            .background(
-                Capsule().fill(
-                    fullTank
-                        ? Color.green.opacity(0.18)
-                        : Color.primary.opacity(0.08)
-                )
-            )
-            .overlay(
-                Capsule().stroke(
-                    fullTank
-                        ? Color.green.opacity(0.35)
-                        : Color.clear,
-                    lineWidth: 0.5
-                )
-            )
-        }
-        .buttonStyle(.plain)
-    }
-
-    /// Same pill style as `fullTankToggle`, for the additive/lead-substitute flags.
-    private func checkPill(label: String, isOn: Binding<Bool>) -> some View {
-        Button {
-            withAnimation(.easeOut(duration: 0.18)) {
-                isOn.wrappedValue.toggle()
-            }
-        } label: {
-            HStack(spacing: 6) {
-                ZStack {
-                    Circle()
-                        .fill(isOn.wrappedValue ? Color.green : Color.clear)
-                        .frame(width: 16, height: 16)
-                    if isOn.wrappedValue {
-                        Image(systemName: "checkmark")
-                            .scaledFont(9, weight: .heavy)
-                            .foregroundStyle(.primary)
-                    } else {
-                        Circle()
-                            .stroke(Color.primary.opacity(0.35), lineWidth: 1.5)
-                            .frame(width: 16, height: 16)
-                    }
-                }
-                Text(label)
-                    .scaledFont(11, weight: .semibold)
-                    .foregroundStyle(isOn.wrappedValue ? Color.green : Color.primary)
-            }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 5)
-            .background(
-                Capsule().fill(
-                    isOn.wrappedValue
-                        ? Color.green.opacity(0.18)
-                        : Color.primary.opacity(0.08)
-                )
-            )
-            .overlay(
-                Capsule().stroke(
-                    isOn.wrappedValue
-                        ? Color.green.opacity(0.35)
-                        : Color.clear,
-                    lineWidth: 0.5
-                )
-            )
-        }
-        .buttonStyle(.plain)
     }
 
     private func consumptionChip(_ value: Double) -> some View {
@@ -610,35 +479,20 @@ struct AddFuelView: View {
     /// Compact date row so a missed fill-up can be backdated right when it's
     /// entered (defaults to today; future dates make no sense for a fill-up).
     private var dateRow: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "calendar")
-                .scaledFont(14, weight: .semibold)
-                .foregroundStyle(Theme.Colors.primary)
-                .frame(width: 22)
-            Text("DATUM")
-                .scaledFont(9, weight: .heavy)
-                .tracking(1)
-                .foregroundStyle(Theme.Glass.mutedText)
-            Spacer(minLength: 0)
+        FormField("Datum") {
             DatePicker("", selection: $date, in: ...Date(), displayedComponents: .date)
                 .labelsHidden()
                 .environment(\.locale, Formatters.displayLocale)
                 .tint(Theme.Colors.primary)
         }
-        .frame(minHeight: 30)
-        .padding(.horizontal, 14)
-        .padding(.vertical, 6)
-        .background(RoundedRectangle(cornerRadius: Theme.Radius.field).fill(Color.primary.opacity(0.05)))
-        .overlay(RoundedRectangle(cornerRadius: Theme.Radius.field).stroke(Theme.Glass.border, lineWidth: 0.5))
-        .padding(.horizontal, 14)
-        .padding(.top, 8)
+        .accessibilityElement(children: .contain)
         .accessibilityLabel("Datum der Tankung")
     }
 
     // MARK: - Fuel station (GPS detection)
 
     private var stationRow: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: Theme.Spacing.s) {
             Image(systemName: "fuelpump.fill")
                 .scaledFont(14, weight: .semibold)
                 .foregroundStyle(Theme.Colors.primary)
@@ -646,12 +500,7 @@ struct AddFuelView: View {
             stationContent
         }
         .frame(minHeight: 30)
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
-        .background(RoundedRectangle(cornerRadius: Theme.Radius.field).fill(Color.primary.opacity(0.05)))
-        .overlay(RoundedRectangle(cornerRadius: Theme.Radius.field).stroke(Theme.Glass.border, lineWidth: 0.5))
-        .padding(.horizontal, 14)
-        .padding(.top, 8)
+        .formFieldBox()
     }
 
     @ViewBuilder
@@ -672,9 +521,7 @@ struct AddFuelView: View {
             Spacer(minLength: 0)
         case .matched:
             VStack(alignment: .leading, spacing: 1) {
-                Text("TANKSTELLE")
-                    .scaledFont(9, weight: .heavy).tracking(1)
-                    .foregroundStyle(Theme.Glass.mutedText)
+                FormLabel("Tankstelle")
                 Text(stationName)
                     .scaledFont(14, weight: .semibold)
                     .foregroundStyle(.primary).lineLimit(1)
@@ -686,9 +533,7 @@ struct AddFuelView: View {
             }
         case .suggestCreate:
             VStack(alignment: .leading, spacing: 2) {
-                Text("NEUE TANKSTELLE")
-                    .scaledFont(9, weight: .heavy).tracking(1)
-                    .foregroundStyle(Theme.Glass.mutedText)
+                FormLabel("Neue Tankstelle")
                 TextField("Name der Tankstelle", text: $stationName)
                     .scaledFont(14, weight: .semibold)
                     .foregroundStyle(.primary)
@@ -863,8 +708,9 @@ struct AddFuelView: View {
 
     // MARK: - Save
 
-    private func save() {
-        guard canSave, !savedAnim else { return }
+    private func save() async -> Bool {
+        errorMessage = nil
+        guard canSave else { return false }
         let pricePerLiter = priceValue
         let totalCost = totalValue
 
@@ -893,13 +739,10 @@ struct AddFuelView: View {
                 longitude: stationCoord?.longitude
             )
         }
-        guard saved else { return }
-
-        withAnimation { savedAnim = true }
-        Task {
-            try? await Task.sleep(nanoseconds: 500_000_000)
-            dismiss()
+        if !saved {
+            errorMessage = "Speichern fehlgeschlagen."
         }
+        return saved
     }
 }
 

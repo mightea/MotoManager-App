@@ -5,7 +5,6 @@ import SwiftUI
 struct AddPartView: View {
     @ObservedObject var viewModel: PartsViewModel
     let existingPart: SDPart?
-    @Environment(\.dismiss) private var dismiss
 
     @State private var partNumber: String
     @State private var name: String
@@ -15,10 +14,7 @@ struct AddPartView: View {
     @State private var isPublic: Bool
     @State private var selectedSeriesIds: Set<Int>
     @State private var showingSeriesPicker = false
-    /// Trigger for the save-success haptic (flips just before dismissal).
-    @State private var saveSucceeded = false
-    @State private var confirmingDelete = false
-    @State private var validationError: String?
+    @State private var errorMessage: String?
 
     // BMWBike enrichment: fills only what is still missing.
     @State private var isEnriching = false
@@ -59,105 +55,82 @@ struct AddPartView: View {
     }
 
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: Theme.Spacing.l) {
-                    field("TEILENUMMER") {
-                        TextField("", text: $partNumber,
-                                  prompt: Text("z. B. 11 42 7 673 541").foregroundStyle(.tertiary))
-                            .foregroundStyle(.primary)
-                            .autocorrectionDisabled()
-                    }
-                    field("NAME") {
-                        TextField("", text: $name,
-                                  prompt: Text("z. B. Ölfilter").foregroundStyle(.tertiary))
-                            .foregroundStyle(.primary)
-                    }
-                    field("HERSTELLER") {
-                        TextField("", text: $manufacturer).foregroundStyle(.primary)
-                    }
-                    oemSection
-                    field("BAUREIHEN") {
-                        Button { showingSeriesPicker = true } label: {
-                            HStack {
-                                Text(seriesSummary)
-                                    .foregroundStyle(selectedSeriesIds.isEmpty ? AnyShapeStyle(.tertiary) : AnyShapeStyle(.primary))
-                                    .lineLimit(2)
-                                    .multilineTextAlignment(.leading)
-                                Spacer()
-                                Image(systemName: "chevron.up.chevron.down")
-                                    .scaledFont(11, weight: .semibold)
-                                    .foregroundStyle(.tertiary)
-                            }
-                        }
-                        .buttonStyle(.plain)
-                    }
-                    field("BESCHREIBUNG") {
-                        TextField("", text: $notes,
-                                  prompt: Text("z. B. passt auch für Ölkühler-Variante").foregroundStyle(.tertiary),
-                                  axis: .vertical)
-                            .lineLimit(2...5).foregroundStyle(.primary)
-                    }
-
-                    Toggle(isOn: $isPublic) {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Öffentlich teilen")
-                                .scaledFont(14, weight: .bold)
-                                .foregroundStyle(.primary)
-                            Text("Andere Nutzer sehen Teiledaten und Verfügbarkeit — nie Preise oder Lagerorte.")
-                                .scaledFont(11)
-                                .foregroundStyle(.tertiary)
-                        }
-                    }
-                    .tint(Theme.Colors.primary)
-                    .padding(.horizontal, 4)
-
-                    if existingPart == nil {
-                        initialStockSection
-                    }
-
-                    if let validationError {
-                        Text(validationError)
-                            .scaledFont(12, weight: .semibold)
-                            .foregroundStyle(Theme.Colors.accent)
-                    }
-
-                    if existingPart != nil { deleteButton }
-                }
-                .padding(Theme.Spacing.l)
-                .adaptiveFormWidth()
+        FormSheet(
+            title: existingPart == nil ? "Teil hinzufügen" : "Teil bearbeiten",
+            canSave: canSave,
+            tracked: tracked,
+            error: errorMessage,
+            delete: existingPart.map { part in
+                FormSheetDelete(
+                    title: "Teil löschen?",
+                    message: "Bestand und Verbrauch dieses Teils werden ebenfalls entfernt."
+                ) { viewModel.deletePart(part) }
+            },
+            onSave: save
+        ) {
+            FormField("Teilenummer") {
+                TextField("", text: $partNumber, prompt: formPrompt("z. B. 11 42 7 673 541"))
+                    .autocorrectionDisabled()
             }
-            .scrollDismissesKeyboard(.interactively)
-            .navigationTitle(existingPart == nil ? "Teil hinzufügen" : "Teil bearbeiten")
-            .navigationBarTitleDisplayMode(.inline)
-            // Success tick when the save lands (HIG: haptic feedback for
-            // user-initiated confirmations).
-            .sensoryFeedback(.success, trigger: saveSucceeded) { _, new in new }
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Abbrechen") { dismiss() }
-                        .keyboardShortcut(.cancelAction)
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Speichern", action: save)
-                        .keyboardShortcut("s", modifiers: .command)
-                }
+            FormField("Name") {
+                TextField("", text: $name, prompt: formPrompt("z. B. Ölfilter"))
             }
-            .sheet(isPresented: $showingSeriesPicker) {
-                SeriesPickerView(viewModel: viewModel, selection: $selectedSeriesIds)
-                    .glassSheet()
+            FormField("Hersteller") {
+                TextField("", text: $manufacturer, prompt: formPrompt("BMW"))
             }
-            .alert("Teil löschen?", isPresented: $confirmingDelete) {
-                Button("Abbrechen", role: .cancel) { }
-                Button("Löschen", role: .destructive) {
-                    guard let part = existingPart,
-                          viewModel.deletePart(part) else { return }
-                    dismiss()
+            oemSection
+            FormField("Baureihen") {
+                Button { showingSeriesPicker = true } label: {
+                    HStack {
+                        Text(seriesSummary)
+                            .foregroundStyle(selectedSeriesIds.isEmpty ? AnyShapeStyle(.tertiary) : AnyShapeStyle(.primary))
+                            .lineLimit(2)
+                            .multilineTextAlignment(.leading)
+                        Spacer()
+                        Image(systemName: "chevron.up.chevron.down")
+                            .scaledFont(11, weight: .semibold)
+                            .foregroundStyle(.tertiary)
+                    }
+                    .contentShape(Rectangle())
                 }
-            } message: {
-                Text("Bestand und Verbrauch dieses Teils werden ebenfalls entfernt.")
+                .buttonStyle(.plain)
+            }
+            FormField("Beschreibung") {
+                TextField("", text: $notes,
+                          prompt: formPrompt("z. B. passt auch für Ölkühler-Variante"),
+                          axis: .vertical)
+                    .lineLimit(2...5)
+            }
+            FormToggleRow(
+                title: "Öffentlich teilen",
+                subtitle: "Andere Nutzer sehen Teiledaten und Verfügbarkeit — nie Preise oder Lagerorte.",
+                isOn: $isPublic
+            )
+
+            if existingPart == nil {
+                initialStockSection
             }
         }
+        .sheet(isPresented: $showingSeriesPicker) {
+            SeriesPickerView(viewModel: viewModel, selection: $selectedSeriesIds)
+                .glassSheet()
+        }
+    }
+
+    /// Every editable value, for the unsaved-changes guard.
+    private var tracked: [AnyHashable] {
+        [partNumber, name, manufacturer, oemPartNumber, notes, isPublic,
+         selectedSeriesIds, importImageUrl ?? "",
+         stockQuantity, stockPrice, stockCurrency, stockPurchaseDate,
+         stockLocation?.clientId.uuidString ?? "", newLocationName]
+    }
+
+    /// Part number and name are required (they are the part's identity);
+    /// the initial stock price is optional but must be a number when given.
+    private var canSave: Bool {
+        !partNumber.trimmingCharacters(in: .whitespaces).isEmpty
+            && !name.trimmingCharacters(in: .whitespaces).isEmpty
+            && (existingPart != nil || CurrencyField.isValid(stockPrice))
     }
 
     // MARK: - BMW part number + BMWBike enrichment
@@ -173,24 +146,21 @@ struct AddPartView: View {
     }
 
     private var oemSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            field("BMW-TEILENUMMER (ORIGINAL)") {
-                TextField("", text: $oemPartNumber,
-                          prompt: Text("z. B. 12 32 1 244 409").foregroundStyle(.tertiary))
-                    .foregroundStyle(.primary)
+        VStack(alignment: .leading, spacing: Theme.Spacing.s) {
+            FormField(
+                "BMW-Teilenummer (Original)",
+                hint: "Für Nachbau- oder Fremdteile: die BMW-Nummer, die das Teil ersetzt."
+            ) {
+                TextField("", text: $oemPartNumber, prompt: formPrompt("z. B. 12 32 1 244 409"))
                     .keyboardType(.numbersAndPunctuation)
                     .autocorrectionDisabled()
             }
-            Text("Für Nachbau- oder Fremdteile: die BMW-Nummer, die das Teil ersetzt.")
-                .scaledFont(11)
-                .foregroundStyle(.tertiary)
-                .padding(.horizontal, 4)
 
             if let number = lookupNumber {
                 Button {
                     Task { await enrich(from: number) }
                 } label: {
-                    HStack(spacing: 8) {
+                    HStack(spacing: Theme.Spacing.s) {
                         if isEnriching {
                             ProgressView()
                         } else {
@@ -207,7 +177,7 @@ struct AddPartView: View {
                 Text(enrichMessage)
                     .scaledFont(12, weight: .semibold)
                     .foregroundStyle(enrichFailed ? AnyShapeStyle(Theme.Colors.accent) : AnyShapeStyle(.secondary))
-                    .padding(.horizontal, 4)
+                    .padding(.horizontal, Theme.Spacing.xs)
             }
         }
     }
@@ -263,56 +233,19 @@ struct AddPartView: View {
 
     private var initialStockSection: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.l) {
-            Text("ERSTER BESTAND")
-                .scaledFont(11, weight: .heavy).tracking(2)
-                .foregroundStyle(.secondary)
-
-            field("MENGE") {
-                Stepper(value: $stockQuantity, in: 1...999) {
-                    Text("\(stockQuantity) Stück")
-                        .scaledFont(15, weight: .bold)
-                        .foregroundStyle(.primary)
-                }
-            }
-            HStack(spacing: Theme.Spacing.m) {
-                field("PREIS (GESAMT)") {
-                    TextField("", text: $stockPrice, prompt: Text("0").foregroundStyle(.tertiary))
-                        .keyboardType(.decimalPad).foregroundStyle(.primary)
-                }
-                field("WÄHRUNG") {
-                    TextField("", text: $stockCurrency).foregroundStyle(.primary)
-                        .textInputAutocapitalization(.characters)
-                }
-            }
-            field("KAUFDATUM") {
+            FormLabel("Erster Bestand")
+                .padding(.top, Theme.Spacing.s)
+            PartQuantityField(quantity: $stockQuantity)
+            CurrencyField(price: $stockPrice, currency: $stockCurrency)
+            FormField("Kaufdatum") {
                 DatePicker("", selection: $stockPurchaseDate, displayedComponents: .date)
                     .labelsHidden().tint(Theme.Colors.primary)
             }
-            field("LAGERORT") {
-                Menu {
-                    Button("Kein Lagerort") { stockLocation = nil }
-                    ForEach(viewModel.storageLocations, id: \.clientId) { location in
-                        Button(viewModel.locationPath(location) ?? location.name) {
-                            stockLocation = location
-                        }
-                    }
-                } label: {
-                    HStack {
-                        Text(stockLocation.flatMap { viewModel.locationPath($0) } ?? "Kein Lagerort")
-                            .foregroundStyle(stockLocation == nil ? AnyShapeStyle(.tertiary) : AnyShapeStyle(.primary))
-                            .lineLimit(1)
-                        Spacer()
-                        Image(systemName: "chevron.up.chevron.down")
-                            .scaledFont(11, weight: .semibold)
-                            .foregroundStyle(.tertiary)
-                    }
-                }
-            }
-            field("NEUER LAGERORT (OPTIONAL)") {
-                TextField("", text: $newLocationName,
-                          prompt: Text("z. B. Regal A · Kiste 3").foregroundStyle(.tertiary))
-                    .foregroundStyle(.primary)
-            }
+            StorageLocationPicker(
+                viewModel: viewModel,
+                selection: $stockLocation,
+                newLocationName: $newLocationName
+            )
         }
     }
 
@@ -323,33 +256,11 @@ struct AddPartView: View {
         return names.joined(separator: ", ") + (more > 0 ? " +\(more)" : "")
     }
 
-    private func field<Content: View>(_ label: String, @ViewBuilder content: () -> Content) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(label)
-                .scaledFont(10, weight: .heavy).tracking(1.4)
-                .foregroundStyle(.secondary)
-            content()
-                .padding(.horizontal, 14).padding(.vertical, 12)
-                .background(RoundedRectangle(cornerRadius: Theme.Radius.field).fill(Color.primary.opacity(0.06)))
-                .overlay(RoundedRectangle(cornerRadius: Theme.Radius.field).stroke(Theme.Glass.border, lineWidth: 0.5))
-        }
-    }
-
-    private var deleteButton: some View {
-        Button(role: .destructive) { confirmingDelete = true } label: {
-            Text("Löschen").frame(maxWidth: .infinity)
-        }
-        .glassActionButton(.danger, in: .roundedRectangle(radius: Theme.Radius.control))
-        .padding(.top, Theme.Spacing.s)
-    }
-
-    private func save() {
+    private func save() async -> Bool {
+        errorMessage = nil
         let trimmedNumber = partNumber.trimmingCharacters(in: .whitespaces)
         let trimmedName = name.trimmingCharacters(in: .whitespaces)
-        guard !trimmedNumber.isEmpty, !trimmedName.isEmpty else {
-            validationError = "Teilenummer und Name sind erforderlich."
-            return
-        }
+        guard canSave else { return false }
         // Same identity rule as the server (partNumber + name, live parts only)
         // so the pending create can't come back as a 400.
         let duplicate = viewModel.parts.contains {
@@ -357,31 +268,31 @@ struct AddPartView: View {
                 && $0.partNumber == trimmedNumber && $0.name == trimmedName
         }
         guard !duplicate else {
-            validationError = "Ein Teil mit dieser Teilenummer und diesem Namen existiert bereits."
-            return
+            errorMessage = "Ein Teil mit dieser Teilenummer und diesem Namen existiert bereits."
+            return false
         }
 
         let ids = Array(selectedSeriesIds).sorted()
+        let saved: Bool
         if let p = existingPart {
-            guard viewModel.updatePart(
+            saved = viewModel.updatePart(
                 p, partNumber: trimmedNumber, name: trimmedName,
                 manufacturer: manufacturer.trimmingCharacters(in: .whitespaces),
                 description: notes, isPublic: isPublic, seriesIds: ids,
-                oemPartNumber: oemPartNumber, importImageUrl: importImageUrl) else { return }
+                oemPartNumber: oemPartNumber, importImageUrl: importImageUrl)
         } else {
-            let priceValue = Double(stockPrice.replacingOccurrences(of: ",", with: "."))
-            guard viewModel.createPartWithInitialStock(
+            saved = viewModel.createPartWithInitialStock(
                 partNumber: trimmedNumber, name: trimmedName,
                 manufacturer: manufacturer.trimmingCharacters(in: .whitespaces),
                 description: notes, isPublic: isPublic, seriesIds: ids,
                 oemPartNumber: oemPartNumber, importImageUrl: importImageUrl,
-                quantity: stockQuantity, price: priceValue,
+                quantity: stockQuantity, price: CurrencyField.parse(stockPrice),
                 currency: stockCurrency.trimmingCharacters(in: .whitespaces),
                 purchaseDate: stockPurchaseDate, storageLocation: stockLocation,
-                newLocationName: newLocationName) != nil else { return }
+                newLocationName: newLocationName) != nil
         }
-        saveSucceeded = true
-        dismiss()
+        if !saved { errorMessage = "Speichern fehlgeschlagen." }
+        return saved
     }
 }
 
@@ -418,40 +329,27 @@ struct SeriesPickerView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            HStack {
-                Text("Baureihen")
-                    .scaledFont(22, weight: .heavy)
-                    .foregroundStyle(.primary)
-                Spacer()
-                Button("Fertig") { dismiss() }
-                    .scaledFont(15, weight: .bold)
-                    .foregroundStyle(Theme.Colors.primary)
-            }
-            .padding(Theme.Spacing.l)
-
-            HStack(spacing: 8) {
-                Image(systemName: "magnifyingglass")
-                    .scaledFont(13, weight: .semibold)
-                    .foregroundStyle(.tertiary)
-                TextField("", text: $searchText,
-                          prompt: Text("Suchen …").foregroundStyle(.tertiary))
-                    .foregroundStyle(.primary)
-                    .autocorrectionDisabled()
-            }
-            .padding(.horizontal, 14).padding(.vertical, 11)
-            .background(RoundedRectangle(cornerRadius: Theme.Radius.field).fill(Color.primary.opacity(0.06)))
-            .overlay(RoundedRectangle(cornerRadius: Theme.Radius.field).stroke(Theme.Glass.border, lineWidth: 0.5))
-            .padding(.horizontal, Theme.Spacing.l)
-
+        NavigationStack {
             ScrollView {
-                LazyVStack(spacing: 4) {
+                LazyVStack(spacing: Theme.Spacing.xs) {
                     ForEach(filtered, id: \.node.id) { entry in
                         seriesRow(entry.node, depth: isSearching ? 0 : entry.depth)
                     }
                     createSection
                 }
                 .padding(Theme.Spacing.l)
+                .adaptiveFormWidth()
+            }
+            .scrollDismissesKeyboard(.interactively)
+            .searchable(text: $searchText, placement: .navigationBarDrawer(displayMode: .always), prompt: "Suchen …")
+            .autocorrectionDisabled()
+            .navigationTitle("Baureihen")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(role: .confirm) { dismiss() }
+                        .accessibilityLabel("Fertig")
+                }
             }
         }
         .task { await viewModel.loadSeries() }
@@ -496,10 +394,8 @@ struct SeriesPickerView: View {
 
     @ViewBuilder
     private var createSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("EIGENE BAUREIHE")
-                .scaledFont(10, weight: .heavy).tracking(1.4)
-                .foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: Theme.Spacing.s) {
+            FormLabel("Eigene Baureihe")
                 .padding(.top, Theme.Spacing.m)
 
             if !connectivity.isOnline {
@@ -507,14 +403,10 @@ struct SeriesPickerView: View {
                     .scaledFont(12)
                     .foregroundStyle(.tertiary)
             } else {
-                HStack(spacing: 8) {
-                    TextField("", text: $newManufacturer,
-                              prompt: Text("Hersteller").foregroundStyle(.tertiary))
-                        .foregroundStyle(.primary)
+                HStack(spacing: Theme.Spacing.s) {
+                    TextField("", text: $newManufacturer, prompt: formPrompt("Hersteller"))
                         .frame(maxWidth: 110)
-                    TextField("", text: $newName,
-                              prompt: Text("z. B. R 90 S").foregroundStyle(.tertiary))
-                        .foregroundStyle(.primary)
+                    TextField("", text: $newName, prompt: formPrompt("z. B. R 90 S"))
                     Button {
                         Task { await createSeries() }
                     } label: {
@@ -527,15 +419,12 @@ struct SeriesPickerView: View {
                         }
                     }
                     .disabled(creating || newName.trimmingCharacters(in: .whitespaces).isEmpty)
+                    .accessibilityLabel("Baureihe anlegen")
                 }
-                .padding(.horizontal, 14).padding(.vertical, 10)
-                .background(RoundedRectangle(cornerRadius: Theme.Radius.field).fill(Color.primary.opacity(0.06)))
-                .overlay(RoundedRectangle(cornerRadius: Theme.Radius.field).stroke(Theme.Glass.border, lineWidth: 0.5))
+                .formFieldBox()
 
                 if let createError {
-                    Text(createError)
-                        .scaledFont(12, weight: .semibold)
-                        .foregroundStyle(Theme.Colors.accent)
+                    FormErrorBanner(message: createError)
                 }
             }
         }

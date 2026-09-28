@@ -44,7 +44,9 @@ struct PrintLabelView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
-                Button("Schliessen") { dismiss() }
+                Button(role: .close) { dismiss() }
+                    .keyboardShortcut(.cancelAction)
+                    .accessibilityLabel("Schliessen")
             }
         }
         .task(id: tapeRaw) {
@@ -219,7 +221,7 @@ struct PrintLabelView: View {
             .frame(maxWidth: .infinity)
             .padding(.vertical, 13)
         }
-        .glassActionButton(.primary, in: .roundedRectangle(radius: 14))
+        .glassActionButton(.primary, in: .roundedRectangle(radius: Theme.Radius.chip))
         .disabled(!canPrint)
     }
 

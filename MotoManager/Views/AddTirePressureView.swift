@@ -6,12 +6,11 @@ import SwiftUI
 /// Every configuration is optional but at least one complete front/rear
 /// pair is required; deleting removes only the selected configuration —
 /// deleting the last one removes the record. Online-only (no offline queue):
-/// failures surface as an alert and the sheet stays open.
+/// failures surface as an inline error and the sheet stays open.
 struct AddTirePressureView: View {
     @ObservedObject var viewModel: MotorcycleDetailViewModel
-    @Environment(\.dismiss) private var dismiss
 
-    private struct ConfigInput {
+    private struct ConfigInput: Hashable {
         var front = ""
         var rear = ""
         var sidecar = ""
@@ -31,11 +30,7 @@ struct AddTirePressureView: View {
     @State private var unit: String
     @State private var config: PressureConfig = .solo
     @State private var inputs: [PressureConfig: ConfigInput]
-    @State private var confirmingDelete = false
-    @State private var isSaving = false
     @State private var errorMessage: String?
-    @State private var alertTitle = "Fehler"
-    @State private var savedAnim = false
 
     init(viewModel: MotorcycleDetailViewModel) {
         self.viewModel = viewModel
@@ -64,57 +59,27 @@ struct AddTirePressureView: View {
     }
 
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: Theme.Spacing.l) {
-                    unitPicker
-                    configPicker
+        FormSheet(
+            title: isEditing ? "Reifendruck bearbeiten" : "Reifendruck erfassen",
+            canSave: canSave,
+            tracked: [unit, inputs],
+            error: errorMessage,
+            delete: isEditing && state(of: config) != .empty ? deleteAction : nil,
+            onSave: save
+        ) {
+            unitPicker
+            configPicker
 
-                    pressureField("VORDERREIFEN", text: binding(\.front))
-                    pressureField("HINTERREIFEN", text: binding(\.rear))
-                    if hasSidecar {
-                        pressureField("BEIWAGENREIFEN", text: binding(\.sidecar))
-                    }
+            pressureField("Vorderreifen", text: binding(\.front))
+            pressureField("Hinterreifen", text: binding(\.rear))
+            if hasSidecar {
+                pressureField("Beiwagenreifen", text: binding(\.sidecar))
+            }
 
-                    if state(of: config) == .incomplete {
-                        Text("Vorder- und Hinterreifen zusammen erfassen.")
-                            .scaledFont(11, weight: .semibold)
-                            .foregroundStyle(Theme.Colors.accent)
-                    }
-
-                    if isEditing && state(of: config) != .empty { deleteButton }
-                }
-                .padding(Theme.Spacing.l)
-                .adaptiveFormWidth()
-            }
-            .scrollDismissesKeyboard(.interactively)
-            .navigationTitle(isEditing ? "Reifendruck bearbeiten" : "Reifendruck erfassen")
-            .navigationBarTitleDisplayMode(.inline)
-            // Success tick when the save lands (HIG: haptic feedback for
-            // user-initiated confirmations).
-            .sensoryFeedback(.success, trigger: savedAnim) { _, new in new }
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Abbrechen") { dismiss() }
-                        .keyboardShortcut(.cancelAction)
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Speichern") { save() }
-                        .keyboardShortcut("s", modifiers: .command)
-                        .disabled(!canSave || isSaving)
-                }
-            }
-            .alert(alertTitle, isPresented: .init(
-                get: { errorMessage != nil },
-                set: { if !$0 { errorMessage = nil } }
-            )) {
-                Button("OK", role: .cancel) { }
-            } message: {
-                Text(errorMessage ?? "")
-            }
-            .alert(deleteRemovesRecord ? "Reifendruck-Eintrag löschen?" : "\(config.label) löschen?", isPresented: $confirmingDelete) {
-                Button("Abbrechen", role: .cancel) { }
-                Button("Löschen", role: .destructive) { deleteSelectedConfig() }
+            if state(of: config) == .incomplete {
+                Text("Vorder- und Hinterreifen zusammen erfassen.")
+                    .scaledFont(11, weight: .semibold)
+                    .foregroundStyle(Theme.Colors.accent)
             }
         }
     }
@@ -123,9 +88,7 @@ struct AddTirePressureView: View {
 
     private var unitPicker: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("EINHEIT")
-                .scaledFont(10, weight: .heavy).tracking(1.4)
-                .foregroundStyle(.secondary)
+            FormLabel("Einheit")
             GlassSegmentedControl(
                 segments: [
                     .init(value: "bar", label: "bar"),
@@ -141,9 +104,7 @@ struct AddTirePressureView: View {
 
     private var configPicker: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("KONFIGURATION")
-                .scaledFont(10, weight: .heavy).tracking(1.4)
-                .foregroundStyle(.secondary)
+            FormLabel("Konfiguration")
             GlassSegmentedControl(
                 segments: PressureConfig.allCases.map { cfg in
                     .init(value: cfg, label: state(of: cfg) == .complete ? "\(cfg.label) ✓" : cfg.label)
@@ -151,44 +112,37 @@ struct AddTirePressureView: View {
                 selection: $config
             )
             Text("Mindestens eine Konfiguration erfassen — Felder leer lassen, um eine zu entfernen.")
-                .scaledFont(10, weight: .medium)
-                .foregroundStyle(.tertiary)
-        }
-    }
-
-    private func pressureField(_ label: String, text: Binding<String>) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(label)
-                .scaledFont(10, weight: .heavy).tracking(1.4)
+                .scaledFont(11, weight: .medium)
                 .foregroundStyle(.secondary)
-            HStack {
-                TextField("", text: text, prompt: Text(unit == "psi" ? "z. B. 32" : "z. B. 2.2").foregroundStyle(.tertiary))
-                    .keyboardType(.decimalPad)
-                    .foregroundStyle(.primary)
-                Text(unit)
-                    .scaledFont(11, weight: .heavy).tracking(1)
-                    .foregroundStyle(.tertiary)
-            }
-            .padding(.horizontal, 14).padding(.vertical, 12)
-            .background(RoundedRectangle(cornerRadius: Theme.Radius.field).fill(Color.primary.opacity(0.06)))
-            .overlay(RoundedRectangle(cornerRadius: Theme.Radius.field).stroke(Theme.Glass.border, lineWidth: 0.5))
-
-            if let bar = PressureUnitFormat.parseToBar(text.wrappedValue, unit: unit) {
-                Text(PressureUnitFormat.secondary(bar: bar, unit: unit))
-                    .scaledFont(10, weight: .semibold)
-                    .foregroundStyle(.tertiary)
-            }
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 
-    private var deleteButton: some View {
-        Button(role: .destructive) { confirmingDelete = true } label: {
-            Text(deleteRemovesRecord ? "Eintrag löschen" : "\(config.label) löschen")
-                .frame(maxWidth: .infinity)
+    /// Pressure input with the unit as suffix; the hint shows the value
+    /// converted to the other unit once it parses.
+    private func pressureField(_ label: String, text: Binding<String>) -> some View {
+        FormField(
+            label,
+            unit: unit,
+            hint: PressureUnitFormat.parseToBar(text.wrappedValue, unit: unit)
+                .map { PressureUnitFormat.secondary(bar: $0, unit: unit) }
+        ) {
+            TextField("", text: text, prompt: formPrompt(unit == "psi" ? "z. B. 32" : "z. B. 2.2"))
+                .keyboardType(.decimalPad)
         }
-        .glassActionButton(.danger, in: .roundedRectangle(radius: Theme.Radius.control))
-        .disabled(isSaving)
-        .padding(.top, Theme.Spacing.s)
+    }
+
+    /// Deletes only the selected configuration, or the whole record when no
+    /// other configuration holds values.
+    private var deleteAction: FormSheetDelete {
+        FormSheetDelete(
+            title: deleteRemovesRecord ? "Reifendruck-Eintrag löschen?" : "\(config.label) löschen?",
+            message: deleteRemovesRecord
+                ? "Der gesamte Reifendruck-Eintrag wird entfernt."
+                : "Nur die Konfiguration \(config.label) wird entfernt, die übrigen bleiben erhalten."
+        ) {
+            await deleteSelectedConfig()
+        }
     }
 
     // MARK: - State
@@ -247,50 +201,41 @@ struct AddTirePressureView: View {
         return payload
     }
 
-    /// Present a save/delete failure. A connectivity failure reads as "Offline"
-    /// (title and body); anything else keeps the generic "Fehler" alert.
+    /// Present a save/delete failure inline. A connectivity failure reads as
+    /// "Offline"; anything else shows the error's description.
     private func present(_ error: Error) {
         if case APIError.offline = error {
-            alertTitle = "Offline"
             errorMessage = APIError.offline.errorDescription ?? "Offline"
         } else {
-            alertTitle = "Fehler"
             errorMessage = error.localizedDescription
         }
     }
 
-    private func save() {
-        guard canSave, !isSaving else { return }
-        isSaving = true
-        Task {
-            do {
-                try await viewModel.saveTirePressure(payload: buildPayload())
-                withAnimation { savedAnim = true }
-                try? await Task.sleep(nanoseconds: 400_000_000)
-                dismiss()
-            } catch {
-                present(error)
-            }
-            isSaving = false
+    private func save() async -> Bool {
+        errorMessage = nil
+        guard canSave else { return false }
+        do {
+            try await viewModel.saveTirePressure(payload: buildPayload())
+            return true
+        } catch {
+            present(error)
+            return false
         }
     }
 
-    private func deleteSelectedConfig() {
-        guard !isSaving else { return }
-        isSaving = true
-        Task {
-            do {
-                if deleteRemovesRecord {
-                    try await viewModel.deleteTirePressure()
-                } else {
-                    inputs[config] = ConfigInput()
-                    try await viewModel.saveTirePressure(payload: buildPayload(omitting: config))
-                }
-                dismiss()
-            } catch {
-                present(error)
+    private func deleteSelectedConfig() async -> Bool {
+        errorMessage = nil
+        do {
+            if deleteRemovesRecord {
+                try await viewModel.deleteTirePressure()
+            } else {
+                try await viewModel.saveTirePressure(payload: buildPayload(omitting: config))
+                inputs[config] = ConfigInput()
             }
-            isSaving = false
+            return true
+        } catch {
+            present(error)
+            return false
         }
     }
 

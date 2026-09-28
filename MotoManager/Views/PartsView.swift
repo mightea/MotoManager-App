@@ -112,7 +112,7 @@ struct PartsView: View {
                 viewModel: viewModel,
                 places: detailVM.userLocations
             )
-            .glassSheet()
+            .glassSheet(detents: [.medium, .large])
         }
         // Warning tap when the destructive confirmation comes up (HIG:
         // haptics for consequential moments, used sparingly).
@@ -305,20 +305,34 @@ struct PartsView: View {
         return "Kein Teil passt zu Suche oder Filter."
     }
 
-    @ViewBuilder
-    private var mineRows: some View {
-        if let moto = motorcycle, moto.seriesId != nil {
-            Toggle(isOn: $filterBySelectedBike) {
-                Text("Passend für \(moto.make) \(moto.model)")
-                    .scaledFont(13, weight: .semibold)
-            }
-            .tint(Theme.Colors.primary)
-        }
-
+    private var scopeSummary: some View {
         Text("\(filteredParts.count) angezeigt · \(viewModel.parts.count) insgesamt")
             .font(.footnote)
             .foregroundStyle(.secondary)
             .accessibilityIdentifier("parts.scopeSummary")
+    }
+
+    @ViewBuilder
+    private var mineRows: some View {
+        // Filter and its result count share one row instead of two.
+        // The switch sits beside (not around) the texts so the count stays
+        // its own accessibility element (`parts.scopeSummary`).
+        if let moto = motorcycle, moto.seriesId != nil {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Passend für \(moto.make) \(moto.model)")
+                        .scaledFont(13, weight: .semibold)
+                        .accessibilityHidden(true)
+                    scopeSummary
+                }
+                Spacer(minLength: Theme.Spacing.s)
+                Toggle("Passend für \(moto.make) \(moto.model)", isOn: $filterBySelectedBike)
+                    .labelsHidden()
+                    .tint(Theme.Colors.primary)
+            }
+        } else {
+            scopeSummary
+        }
 
         if filteredParts.isEmpty {
             emptyStateRow(title: emptyPartsTitle, message: emptyPartsMessage, icon: "shippingbox.fill")
@@ -517,9 +531,9 @@ private struct AddStorageLocationView: View {
     @ObservedObject var viewModel: PartsViewModel
     let places: [Location]
 
-    @Environment(\.dismiss) private var dismiss
     @State private var name = ""
     @State private var placement: Placement = .none
+    @State private var errorMessage: String?
 
     private enum Placement: Hashable {
         case none
@@ -539,72 +553,67 @@ private struct AddStorageLocationView: View {
             .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
     }
 
+    private var canSave: Bool {
+        !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
     var body: some View {
-        NavigationStack {
-            Form {
-                Section("Lagerort") {
-                    TextField("Name, z. B. Regal A", text: $name)
-                        .textInputAutocapitalization(.sentences)
-                }
+        FormSheet(
+            title: "Lagerort hinzufügen",
+            canSave: canSave,
+            tracked: [name, placement],
+            error: errorMessage,
+            onSave: save
+        ) {
+            FormField("Name") {
+                TextField("", text: $name, prompt: formPrompt("z. B. Regal A"))
+                    .textInputAutocapitalization(.sentences)
+            }
+            FormField(
+                "Untergebracht in",
+                hint: "Wähle einen bestehenden Lagerort, eine Garage oder eine Werkstatt."
+            ) {
+                Picker("Untergebracht in", selection: $placement) {
+                    Text("Kein übergeordneter Ort")
+                        .tag(Placement.none)
 
-                Section {
-                    Picker("Untergebracht in", selection: $placement) {
-                        Text("Kein übergeordneter Ort")
-                            .tag(Placement.none)
-
-                        if !viewModel.storageLocations.isEmpty {
-                            Section("Lagerorte") {
-                                ForEach(viewModel.storageLocations, id: \.clientId) { location in
-                                    Text(viewModel.locationPath(location) ?? location.name)
-                                        .tag(Placement.storageLocation(location.clientId))
-                                }
-                            }
-                        }
-
-                        if !garages.isEmpty {
-                            Section("Garagen & Lager") {
-                                ForEach(garages) { place in
-                                    Text(place.name)
-                                        .tag(Placement.place(place.id))
-                                }
-                            }
-                        }
-
-                        if !workshops.isEmpty {
-                            Section("Werkstätten") {
-                                ForEach(workshops) { workshop in
-                                    Text(workshop.name)
-                                        .tag(Placement.place(workshop.id))
-                                }
+                    if !viewModel.storageLocations.isEmpty {
+                        Section("Lagerorte") {
+                            ForEach(viewModel.storageLocations, id: \.clientId) { location in
+                                Text(viewModel.locationPath(location) ?? location.name)
+                                    .tag(Placement.storageLocation(location.clientId))
                             }
                         }
                     }
-                    .pickerStyle(.navigationLink)
-                } footer: {
-                    Text("Wähle einen bestehenden Lagerort, eine Garage oder eine Werkstatt.")
+
+                    if !garages.isEmpty {
+                        Section("Garagen & Lager") {
+                            ForEach(garages) { place in
+                                Text(place.name)
+                                    .tag(Placement.place(place.id))
+                            }
+                        }
+                    }
+
+                    if !workshops.isEmpty {
+                        Section("Werkstätten") {
+                            ForEach(workshops) { workshop in
+                                Text(workshop.name)
+                                    .tag(Placement.place(workshop.id))
+                            }
+                        }
+                    }
                 }
-            }
-            .adaptiveFormWidth()
-            .scrollDismissesKeyboard(.interactively)
-            .navigationTitle("Neuer Lagerort")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Abbrechen") { dismiss() }
-                        .keyboardShortcut(.cancelAction)
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Anlegen", action: save)
-                        .keyboardShortcut("s", modifiers: .command)
-                        .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                }
+                .pickerStyle(.menu)
+                .labelsHidden()
             }
         }
     }
 
-    private func save() {
+    private func save() async -> Bool {
+        errorMessage = nil
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedName.isEmpty else { return }
+        guard !trimmedName.isEmpty else { return false }
 
         let created: SDStorageLocation?
         switch placement {
@@ -623,7 +632,11 @@ private struct AddStorageLocationView: View {
             )
         }
 
-        if created != nil { dismiss() }
+        guard created != nil else {
+            errorMessage = "Lagerort konnte nicht gespeichert werden."
+            return false
+        }
+        return true
     }
 }
 
