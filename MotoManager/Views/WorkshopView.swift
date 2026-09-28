@@ -133,23 +133,23 @@ struct WorkshopView: View {
         }
         .sheet(isPresented: $showingAddTorque) {
             AddTorqueView(viewModel: viewModel)
-                .glassSheet(detents: [.medium, .large])
+                .glassSheet()
         }
         .sheet(item: $editingTorque) { spec in
             AddTorqueView(viewModel: viewModel, existingSpec: spec)
-                .glassSheet(detents: [.medium, .large])
+                .glassSheet()
         }
         .sheet(isPresented: $showingAddDetail) {
             AddDetailView(viewModel: viewModel)
-                .glassSheet(detents: [.medium, .large])
+                .glassSheet()
         }
         .sheet(item: $editingDetail) { detail in
             AddDetailView(viewModel: viewModel, existingDetail: detail)
-                .glassSheet(detents: [.medium, .large])
+                .glassSheet()
         }
         .sheet(isPresented: $showingTirePressure) {
             AddTirePressureView(viewModel: viewModel)
-                .glassSheet(detents: [.medium, .large])
+                .glassSheet()
         }
         .fileImporter(
             isPresented: $showingDocumentImporter,

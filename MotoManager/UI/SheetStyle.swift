@@ -8,10 +8,10 @@ extension View {
     /// The system material is the sheet's only background — sheet content must
     /// not paint its own canvas on top, so the material (and the user's iOS 27
     /// glass-intensity preference) stays in charge of the look in both
-    /// appearances. Quick single-purpose forms should pass compact `detents`
-    /// (e.g. `[.medium]`) instead of the full-height default.
-    func glassSheet(detents: Set<PresentationDetent> = [.large]) -> some View {
-        self.presentationDetents(detents)
+    /// appearances. Every sheet is full height — no half-height detents — so
+    /// all of them open the same way.
+    func glassSheet() -> some View {
+        self.presentationDetents([.large])
             .presentationCornerRadius(Theme.Radius.sheet)
             .presentationBackground(.regularMaterial)
             .presentationDragIndicator(.visible)

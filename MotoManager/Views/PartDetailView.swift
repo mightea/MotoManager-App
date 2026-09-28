@@ -77,7 +77,7 @@ struct PartDetailView: View {
         }
         .sheet(isPresented: $showingAddConsumption) {
             AddPartConsumptionView(viewModel: viewModel, part: part)
-                .glassSheet(detents: [.medium, .large])
+                .glassSheet()
         }
         .sheet(isPresented: $showingPrintLabel) {
             if let content = partLabelContent {

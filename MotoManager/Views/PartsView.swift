@@ -112,7 +112,7 @@ struct PartsView: View {
                 viewModel: viewModel,
                 places: detailVM.userLocations
             )
-            .glassSheet(detents: [.medium, .large])
+            .glassSheet()
         }
         // Warning tap when the destructive confirmation comes up (HIG:
         // haptics for consequential moments, used sparingly).
