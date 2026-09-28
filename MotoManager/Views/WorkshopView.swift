@@ -709,7 +709,9 @@ private struct TorqueRow: View {
                 }
 
                 if hasTool || showGroup || spec.unverified {
-                    HStack(spacing: 6) {
+                    // Badges keep their text on one line and wrap as a whole
+                    // when the value column leaves too little width.
+                    BadgeFlow(spacing: 6) {
                         if let tool = spec.toolSize, !tool.isEmpty {
                             Label(tool, systemImage: "wrench.adjustable")
                                 .labelStyle(.titleAndIcon)
@@ -718,6 +720,7 @@ private struct TorqueRow: View {
                                 .padding(.horizontal, 8)
                                 .padding(.vertical, 3)
                                 .background(Capsule().fill(Color.primary.opacity(0.08)))
+                                .fixedSize()
                         }
                         if showGroup {
                             Text(spec.category.uppercased())
@@ -727,6 +730,7 @@ private struct TorqueRow: View {
                                 .padding(.vertical, 3)
                                 .background(Capsule().fill(Theme.Colors.primary.opacity(0.16)))
                                 .foregroundStyle(Theme.Colors.primary)
+                                .fixedSize()
                         }
                         if spec.unverified {
                             Label("Unverifiziert", systemImage: "exclamationmark.triangle.fill")
@@ -736,6 +740,7 @@ private struct TorqueRow: View {
                                 .padding(.vertical, 3)
                                 .background(Capsule().fill(Color.orange.opacity(0.16)))
                                 .foregroundStyle(.orange)
+                                .fixedSize()
                         }
                     }
                 }
@@ -812,6 +817,52 @@ private struct TorqueRow: View {
 
     static func format(_ value: Double) -> String {
         value.formatted(.number.precision(.fractionLength(0...1)).locale(Formatters.displayLocale))
+    }
+}
+
+/// Left-aligned row of badges that wraps onto further lines instead of
+/// squeezing its children.
+private struct BadgeFlow: Layout {
+    var spacing: CGFloat = 6
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let rows = arrange(width: proposal.width ?? .infinity, subviews: subviews)
+        let width = rows.map(\.width).max() ?? 0
+        let height = rows.map(\.height).reduce(0, +) + spacing * CGFloat(max(rows.count - 1, 0))
+        return CGSize(width: width, height: height)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        var y = bounds.minY
+        for row in arrange(width: bounds.width, subviews: subviews) {
+            var x = bounds.minX
+            for index in row.indices {
+                let size = subviews[index].sizeThatFits(.unspecified)
+                subviews[index].place(at: CGPoint(x: x, y: y + (row.height - size.height) / 2),
+                                      proposal: ProposedViewSize(size))
+                x += size.width + spacing
+            }
+            y += row.height + spacing
+        }
+    }
+
+    private struct Row { var indices: [Int] = []; var width: CGFloat = 0; var height: CGFloat = 0 }
+
+    private func arrange(width: CGFloat, subviews: Subviews) -> [Row] {
+        var rows: [Row] = [Row()]
+        for index in subviews.indices {
+            let size = subviews[index].sizeThatFits(.unspecified)
+            let needed = rows[rows.count - 1].indices.isEmpty ? size.width : rows[rows.count - 1].width + spacing + size.width
+            if needed > width && !rows[rows.count - 1].indices.isEmpty {
+                rows.append(Row())
+            }
+            var row = rows[rows.count - 1]
+            row.width = row.indices.isEmpty ? size.width : row.width + spacing + size.width
+            row.height = max(row.height, size.height)
+            row.indices.append(index)
+            rows[rows.count - 1] = row
+        }
+        return rows
     }
 }
 
