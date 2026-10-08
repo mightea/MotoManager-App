@@ -121,6 +121,10 @@ final class SDTorqueSpec {
     var variation: Double?
     var toolSize: String?
     var recordDescription: String?
+    /// Formatted twin of `recordDescription` (see `NoteMarkup`). Optional so it
+    /// stays a lightweight SwiftData migration; only honoured while stripping
+    /// it yields the plain text, because older builds edit the plain text only.
+    var descriptionMarkup: String?
     /// Values from an uncertain source; flagged for review. Default keeps this a
     /// lightweight SwiftData migration (see `syncAttempts`).
     var unverified: Bool = false
@@ -147,6 +151,7 @@ final class SDTorqueSpec {
         variation: Double? = nil,
         toolSize: String? = nil,
         recordDescription: String? = nil,
+        descriptionMarkup: String? = nil,
         unverified: Bool = false,
         createdAt: String = "",
         syncState: SyncState = .pendingCreate,
@@ -162,6 +167,7 @@ final class SDTorqueSpec {
         self.variation = variation
         self.toolSize = toolSize
         self.recordDescription = recordDescription
+        self.descriptionMarkup = descriptionMarkup
         self.unverified = unverified
         self.createdAt = createdAt
         self.syncState = syncState

@@ -413,7 +413,7 @@ class MotorcycleDetailViewModel: ObservableObject {
     }
 
     @discardableResult
-    func createTorque(category: String, name: String, torque value: Double, torqueEnd: Double?, variation: Double?, toolSize: String?, description: String?, unverified: Bool) -> Bool {
+    func createTorque(category: String, name: String, torque value: Double, torqueEnd: Double?, variation: Double?, toolSize: String?, description: String?, descriptionMarkup: String? = nil, unverified: Bool) -> Bool {
         let spec = SDTorqueSpec(
             motorcycleId: motorcycle.id,
             category: category,
@@ -423,6 +423,7 @@ class MotorcycleDetailViewModel: ObservableObject {
             variation: variation,
             toolSize: (toolSize?.isEmpty == false) ? toolSize : nil,
             recordDescription: (description?.isEmpty == false) ? description : nil,
+            descriptionMarkup: (descriptionMarkup?.isEmpty == false) ? descriptionMarkup : nil,
             unverified: unverified,
             createdAt: Self.isoDay(Date()),
             syncState: .pendingCreate
@@ -432,7 +433,7 @@ class MotorcycleDetailViewModel: ObservableObject {
     }
 
     @discardableResult
-    func updateTorque(_ spec: SDTorqueSpec, category: String, name: String, torque value: Double, torqueEnd: Double?, variation: Double?, toolSize: String?, description: String?, unverified: Bool) -> Bool {
+    func updateTorque(_ spec: SDTorqueSpec, category: String, name: String, torque value: Double, torqueEnd: Double?, variation: Double?, toolSize: String?, description: String?, descriptionMarkup: String? = nil, unverified: Bool) -> Bool {
         spec.category = category
         spec.name = name
         spec.torque = value
@@ -440,6 +441,7 @@ class MotorcycleDetailViewModel: ObservableObject {
         spec.variation = variation
         spec.toolSize = (toolSize?.isEmpty == false) ? toolSize : nil
         spec.recordDescription = (description?.isEmpty == false) ? description : nil
+        spec.descriptionMarkup = (descriptionMarkup?.isEmpty == false) ? descriptionMarkup : nil
         spec.unverified = unverified
         if spec.syncState != .pendingCreate { spec.syncState = .pendingUpdate }
         spec.updatedAtLocal = Date()

@@ -748,7 +748,7 @@ private struct TorqueRow: View {
                 // Full description on its own line so it wraps and the row
                 // grows vertically instead of truncating.
                 if let description = spec.recordDescription, !description.isEmpty {
-                    Text(description)
+                    Text(NoteBrandPalette.display(description: description, markup: spec.descriptionMarkup))
                         .scaledFont(14)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)

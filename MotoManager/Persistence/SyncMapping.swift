@@ -127,6 +127,7 @@ extension SDTorqueSpec {
         variation = dto.variation
         toolSize = dto.toolSize
         recordDescription = dto.description
+        descriptionMarkup = dto.descriptionMarkup
         unverified = dto.unverified ?? false
         createdAt = dto.createdAt
         serverUpdatedAt = dto.updatedAt
@@ -143,7 +144,11 @@ extension SDTorqueSpec {
         if let torqueEnd { p["torqueEnd"] = torqueEnd }
         if let variation { p["variation"] = variation }
         if let toolSize, !toolSize.isEmpty { p["toolSize"] = toolSize }
-        if let recordDescription, !recordDescription.isEmpty { p["description"] = recordDescription }
+        // Both note fields are always sent: the server treats an absent
+        // `descriptionMarkup` as "derive from the plain text", so an explicit
+        // "" is what clears stale formatting.
+        p["description"] = recordDescription ?? ""
+        p["descriptionMarkup"] = descriptionMarkup ?? ""
         p["unverified"] = unverified
         return p
     }

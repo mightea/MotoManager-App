@@ -12,7 +12,9 @@ struct AddTorqueView: View {
     @State private var torqueEnd: String
     @State private var variation: String
     @State private var toolSize: String
-    @State private var notes: String
+    /// Rich note; converted to plain text + markup on save (see `NoteMarkup`).
+    @State private var notes: AttributedString
+    @State private var notesSelection: AttributedTextSelection
     @State private var unverified: Bool
 
     init(viewModel: MotorcycleDetailViewModel, existingSpec: SDTorqueSpec? = nil) {
@@ -25,7 +27,9 @@ struct AddTorqueView: View {
             _torqueEnd = State(initialValue: s.torqueEnd.map(Self.num) ?? "")
             _variation = State(initialValue: s.variation.map(Self.num) ?? "")
             _toolSize = State(initialValue: s.toolSize ?? "")
-            _notes = State(initialValue: s.recordDescription ?? "")
+            _notes = State(initialValue: NoteMarkup.attributedString(
+                NoteMarkup.resolve(description: s.recordDescription, markup: s.descriptionMarkup)))
+            _notesSelection = State(initialValue: AttributedTextSelection())
             _unverified = State(initialValue: s.unverified)
         } else {
             _category = State(initialValue: "")
@@ -34,7 +38,8 @@ struct AddTorqueView: View {
             _torqueEnd = State(initialValue: "")
             _variation = State(initialValue: "")
             _toolSize = State(initialValue: "")
-            _notes = State(initialValue: "")
+            _notes = State(initialValue: AttributedString())
+            _notesSelection = State(initialValue: AttributedTextSelection())
             _unverified = State(initialValue: false)
         }
     }
@@ -72,9 +77,8 @@ struct AddTorqueView: View {
             FormField("Werkzeug") {
                 TextField("", text: $toolSize, prompt: formPrompt("z. B. 17 mm"))
             }
-            FormField("Notizen") {
-                TextField("", text: $notes, prompt: formPrompt("Optionale Details"), axis: .vertical)
-                    .lineLimit(2...5)
+            FormField("Notizen", hint: "Fett, kursiv und Markenfarben; die Formatierung wird mit dem Web geteilt.") {
+                NoteEditor(text: $notes, selection: $notesSelection)
             }
             // Marks the spec as coming from an uncertain source; surfaced with
             // a warning color in the workshop list (orange = warning).
@@ -97,14 +101,21 @@ struct AddTorqueView: View {
         guard canSave, let torqueValue = Self.parse(torque) else { return false }
         let cat = category.trimmingCharacters(in: .whitespaces)
         let nm = name.trimmingCharacters(in: .whitespaces)
+        let spans = NoteMarkup.spans(from: notes)
+        let plain = NoteMarkup.plainText(spans)
+        let isBlank = plain.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        let description = isBlank ? "" : plain
+        let markup = (!isBlank && NoteMarkup.hasFormatting(spans)) ? NoteMarkup.serialize(spans) : ""
         if let s = existingSpec {
             return viewModel.updateTorque(s, category: cat, name: nm, torque: torqueValue,
                                           torqueEnd: Self.parse(torqueEnd), variation: Self.parse(variation),
-                                          toolSize: toolSize, description: notes, unverified: unverified)
+                                          toolSize: toolSize, description: description,
+                                          descriptionMarkup: markup, unverified: unverified)
         }
         return viewModel.createTorque(category: cat, name: nm, torque: torqueValue,
                                       torqueEnd: Self.parse(torqueEnd), variation: Self.parse(variation),
-                                      toolSize: toolSize, description: notes, unverified: unverified)
+                                      toolSize: toolSize, description: description,
+                                      descriptionMarkup: markup, unverified: unverified)
     }
 
     nonisolated private static func parse(_ s: String) -> Double? {
