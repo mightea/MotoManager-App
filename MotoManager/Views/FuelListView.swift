@@ -213,9 +213,14 @@ struct FuelListView: View {
                 } description: {
                     Text("Erfasse deine erste Tankung – Verbrauch und Kosten werden automatisch berechnet.")
                 } actions: {
-                    Button("Tankung erfassen", systemImage: "plus") { showingAddFuel = true }
-                        .buttonStyle(.borderedProminent)
-                        .tint(Theme.Colors.primary)
+                    Button { showingAddFuel = true } label: {
+                        // The list row tints label icons, which hides the
+                        // plus on the prominent capsule; force white.
+                        Label("Tankung erfassen", systemImage: "plus")
+                            .foregroundStyle(.white)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(Theme.Colors.primary)
                 }
             }
             .listRowBackground(Color.clear)
