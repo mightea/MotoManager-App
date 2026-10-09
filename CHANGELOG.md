@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.14.0](https://github.com/mightea/MotoManager-App/compare/v0.13.0...v0.14.0) (2026-10-09)
+
+
+### Features
+
+* **notes:** rich text for maintenance, issue, part and stock notes ([cb420e2](https://github.com/mightea/MotoManager-App/commit/cb420e2cd776456ec920e9ee15552faace3d4c4d))
+* **torque:** formatted notes with a rich text editor ([1a5bf4b](https://github.com/mightea/MotoManager-App/commit/1a5bf4bec6f84528370673ec0ee327d1fc78196d))
+
+
+### Bug Fixes
+
+* keep loading placeholders up until the first sync has landed ([f668b69](https://github.com/mightea/MotoManager-App/commit/f668b6987e0480684951f6c376358ec488d0badd))
+* show the plus icon on the fuel empty-state button ([3ae932b](https://github.com/mightea/MotoManager-App/commit/3ae932beefe82c153e59d37afa34cf41ac7d7a62))
+* stop in-list empty-state buttons from stretching into a pillar ([3477957](https://github.com/mightea/MotoManager-App/commit/3477957aefb1fcb0f201c25b05ecfdf3661aedf7))
+
 ## [0.13.0](https://github.com/mightea/MotoManager-App/compare/v0.12.0...v0.13.0) (2026-09-28)
 
 
