@@ -18,7 +18,9 @@ struct MainTabView: View {
 
             if let dVM = detailVM {
                 screenStack(dVM: dVM)
-            } else if fleetVM.isLoading {
+            } else if fleetVM.isLoading || !fleetVM.hasLoadedOnce || fleetVM.selectedMotorcycle != nil {
+                // Also covers the frame between the fleet arriving and the
+                // `.task` below creating the detail VM for the selected bike.
                 ProgressView("Garage wird geladen …")
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if let error = fleetVM.errorMessage {

@@ -286,7 +286,14 @@ struct MaintenanceLogsView: View {
 
     @ViewBuilder
     private var issuesContent: some View {
-        if viewModel.issues.isEmpty {
+        if viewModel.showsLoadingPlaceholders && viewModel.issues.isEmpty {
+            Section {
+                ForEach(0..<3, id: \.self) { _ in
+                    IssueRow.placeholder
+                        .redacted(reason: .placeholder)
+                }
+            }
+        } else if viewModel.issues.isEmpty {
             Section {
                 ListEmptyState {
                     Label("Super! Keine Mängel", systemImage: "checkmark.circle.fill")
@@ -370,7 +377,7 @@ struct MaintenanceLogsView: View {
 
     @ViewBuilder
     private var maintenanceContent: some View {
-        if viewModel.isLoading && serviceRecords.isEmpty {
+        if viewModel.showsLoadingPlaceholders && serviceRecords.isEmpty {
             Section {
                 ForEach(0..<4, id: \.self) { _ in
                     MaintenanceGroupRow.placeholder
@@ -421,6 +428,22 @@ struct MaintenanceLogsView: View {
 
 private struct IssueRow: View {
     let issue: SDIssue
+
+    /// Skeleton stand-in for the loading state (rendered `.redacted`).
+    static var placeholder: some View {
+        HStack(alignment: .top, spacing: 12) {
+            RoundedRectangle(cornerRadius: Theme.Radius.controlInner)
+                .fill(.quaternary)
+                .frame(width: 36, height: 36)
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Bremslicht flackert")
+                Text("OFFEN · 15. Aug. 2026 · 12'345 km")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+        }
+    }
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {

@@ -334,7 +334,14 @@ struct PartsView: View {
             scopeSummary
         }
 
-        if filteredParts.isEmpty {
+        if viewModel.parts.isEmpty && detailVM.showsLoadingPlaceholders {
+            // The inventory arrives with the bike's initial sync; skeletons
+            // until then instead of a flashing "Keine Teile erfasst".
+            ForEach(0..<4, id: \.self) { _ in
+                PartCard.placeholder
+                    .redacted(reason: .placeholder)
+            }
+        } else if filteredParts.isEmpty {
             emptyStateRow(title: emptyPartsTitle, message: emptyPartsMessage, icon: "shippingbox.fill")
             if emptyBecauseOfBikeFilter {
                 Button("Alle Teile anzeigen") { filterBySelectedBike = false }
@@ -386,7 +393,12 @@ struct PartsView: View {
 
     @ViewBuilder
     private var locationRows: some View {
-        if filteredLocations.isEmpty {
+        if viewModel.storageLocations.isEmpty && detailVM.showsLoadingPlaceholders {
+            ForEach(0..<3, id: \.self) { _ in
+                StorageLocationCard.placeholder
+                    .redacted(reason: .placeholder)
+            }
+        } else if filteredLocations.isEmpty {
             emptyStateRow(
                 title: viewModel.storageLocations.isEmpty ? "Keine Lagerorte" : "Keine Treffer",
                 message: viewModel.storageLocations.isEmpty
@@ -472,6 +484,23 @@ private struct StorageLocationCard: View {
     /// Parts stocked here or in any nested container — what the big number
     /// shows, so a parent full of stocked boxes never reads "0 Teile".
     let totalCount: Int
+
+    /// Skeleton stand-in for the loading state (rendered `.redacted`).
+    static var placeholder: some View {
+        HStack(spacing: 12) {
+            Circle()
+                .fill(.quaternary)
+                .frame(width: 40, height: 40)
+            VStack(alignment: .leading, spacing: 3) {
+                Text("Regal A · Kiste 3")
+                Text("Garage")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+            Text("4")
+        }
+    }
 
     var body: some View {
         HStack(spacing: 12) {

@@ -6,6 +6,11 @@ class MotorcycleViewModel: ObservableObject {
     @Published var motorcycles: [Motorcycle] = []
     @Published var selectedMotorcycle: Motorcycle?
     @Published var isLoading = false
+    /// False until `loadMotorcycles()` has finished once (success or failure).
+    /// The tab root shows a spinner instead of the empty-garage screen before
+    /// that, since the first frame after login renders before the load task
+    /// has even set `isLoading`.
+    @Published private(set) var hasLoadedOnce = false
     @Published var errorMessage: String?
 
     private let lastSelectedIdKey = "com.motomanager.lastSelectedId"
@@ -41,6 +46,7 @@ class MotorcycleViewModel: ObservableObject {
             }
         }
 
+        hasLoadedOnce = true
         isLoading = false
     }
 
@@ -98,6 +104,7 @@ class MotorcycleViewModel: ObservableObject {
     func clearUserState() {
         motorcycles = []
         selectedMotorcycle = nil
+        hasLoadedOnce = false
         errorMessage = nil
         defaults.removeObject(forKey: lastSelectedIdKey)
         defaults.removeObject(forKey: recentIdsKey)

@@ -38,7 +38,7 @@ struct GarageView: View {
     var body: some View {
         NavigationStack {
             Group {
-                if fleetVM.motorcycles.isEmpty && !fleetVM.isLoading {
+                if fleetVM.motorcycles.isEmpty && !fleetVM.isLoading && fleetVM.hasLoadedOnce {
                     EmptyFleetView(onAdd: { showingAddMotorcycle = true })
                 } else {
                     list

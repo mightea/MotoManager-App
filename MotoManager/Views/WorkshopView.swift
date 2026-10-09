@@ -189,7 +189,7 @@ struct WorkshopView: View {
         List {
             WorkspaceListHeader(searchText: $searchText, prompt: "Technik durchsuchen …")
 
-            if viewModel.isLoading && isEmpty {
+            if viewModel.showsLoadingPlaceholders && isEmpty {
                 Section {
                     ForEach(0..<4, id: \.self) { _ in loadingPlaceholderRow.redacted(reason: .placeholder) }
                 }

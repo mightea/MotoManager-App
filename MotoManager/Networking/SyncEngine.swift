@@ -68,6 +68,9 @@ final class SyncEngine: ObservableObject {
         // Hard upgrade block: skip entirely instead of letting every push
         // fail against the request gate and burn the records' retry budgets.
         guard !NetworkManager.shared.isUpdateBlocked else { refreshStatus(); return }
+        // Nobody is signed in (fresh install / logged out): every request would
+        // fail and the error banner would greet the user right after login.
+        guard net.getToken() != nil else { refreshStatus(); return }
         guard connectivity.isOnline else { refreshStatus(); return }
         guard !isSyncing else { return }
 

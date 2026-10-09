@@ -199,7 +199,7 @@ struct FuelListView: View {
 
     @ViewBuilder
     private var content: some View {
-        if viewModel.isLoading && fuelRecords.isEmpty {
+        if viewModel.showsLoadingPlaceholders && fuelRecords.isEmpty {
             Section {
                 ForEach(0..<4, id: \.self) { _ in
                     FuelRow.placeholder

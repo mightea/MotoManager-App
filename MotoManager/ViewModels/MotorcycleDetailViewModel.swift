@@ -39,6 +39,19 @@ class MotorcycleDetailViewModel: ObservableObject {
     @Published var userLocations: [Location] = []
     
     @Published var isLoading = false
+    /// False until the first `reconnect()` for this bike has finished — including
+    /// the sync pull that actually fills the SwiftData-backed lists. `isLoading`
+    /// only spans the auxiliary requests, so on a fresh install the lists would
+    /// otherwise flash their empty states between those finishing and the pull
+    /// landing. Also false before `reconnect()` has even started (the first
+    /// frame renders before the `.task` runs).
+    @Published private(set) var hasCompletedInitialLoad = false
+    /// Set when the initial load finished while another sync (e.g. the
+    /// connectivity-triggered one at launch) was still running — the lists
+    /// stay in the loading state until that one completes.
+    private var awaitsInFlightSync = false
+    /// Lists show skeleton rows instead of an empty state while this is true.
+    var showsLoadingPlaceholders: Bool { isLoading || !hasCompletedInitialLoad }
     /// Blocking error — set only when there is nothing cached to show.
     @Published var errorMessage: String?
     /// Non-blocking flag: a refresh failed but cached data is still on screen.
@@ -61,7 +74,14 @@ class MotorcycleDetailViewModel: ObservableObject {
         SyncEngine.shared.$status
             .scan((SyncStatus.idle, SyncStatus.idle)) { pair, next in (pair.1, next) }
             .filter { pair in pair.0 == .syncing && pair.1 != .syncing }
-            .sink { [weak self] _ in self?.reloadLocal() }
+            .sink { [weak self] _ in
+                guard let self else { return }
+                self.reloadLocal()
+                if self.awaitsInFlightSync {
+                    self.awaitsInFlightSync = false
+                    self.hasCompletedInitialLoad = true
+                }
+            }
             .store(in: &cancellables)
     }
     
@@ -82,6 +102,13 @@ class MotorcycleDetailViewModel: ObservableObject {
             await loadAllData()
             await SyncEngine.shared.sync(motorcycleIds: [motorcycle.id])
             reloadLocal()
+            // `sync` returns immediately when another run is in flight; keep
+            // the placeholders up until that run's status change arrives.
+            if SyncEngine.shared.status == .syncing {
+                awaitsInFlightSync = true
+            } else {
+                hasCompletedInitialLoad = true
+            }
             if errorMessage != nil {
                 switch SyncEngine.shared.status {
                 case .idle, .pending:
