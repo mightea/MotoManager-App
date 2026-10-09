@@ -156,7 +156,7 @@ struct ApiTokensView: View {
             } else if viewModel.tokens.isEmpty, let error = viewModel.loadError {
                 errorState(error)
             } else if viewModel.tokens.isEmpty {
-                ContentUnavailableView {
+                ListEmptyState {
                     Label("Keine Tokens", systemImage: "key.horizontal")
                 } description: {
                     Text("Erstelle einen Token, um einen KI-Assistenten mit deiner Garage zu verbinden.")
@@ -190,7 +190,7 @@ struct ApiTokensView: View {
     }
 
     private func errorState(_ message: String) -> some View {
-        ContentUnavailableView {
+        ListEmptyState {
             Label(
                 viewModel.isOffline ? "Offline" : "Laden fehlgeschlagen",
                 systemImage: viewModel.isOffline ? "wifi.slash" : "exclamationmark.triangle"

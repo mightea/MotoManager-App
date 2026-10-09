@@ -288,7 +288,7 @@ struct MaintenanceLogsView: View {
     private var issuesContent: some View {
         if viewModel.issues.isEmpty {
             Section {
-                ContentUnavailableView {
+                ListEmptyState {
                     Label("Super! Keine Mängel", systemImage: "checkmark.circle.fill")
                         .foregroundStyle(.green)
                 } description: {
@@ -382,7 +382,7 @@ struct MaintenanceLogsView: View {
                 if !searchText.isEmpty {
                     ContentUnavailableView.search(text: searchText)
                 } else {
-                    ContentUnavailableView {
+                    ListEmptyState {
                         Label(
                             historyFilter == .standort ? "Keine Standortwechsel" : "Keine Wartung erfasst",
                             systemImage: historyFilter == .standort ? "mappin.and.ellipse" : "wrench.and.screwdriver.fill"

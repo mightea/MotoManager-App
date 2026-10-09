@@ -208,13 +208,14 @@ struct FuelListView: View {
             }
         } else if fuelRecords.isEmpty {
             Section {
-                ContentUnavailableView {
+                ListEmptyState {
                     Label("Keine Tankungen erfasst", systemImage: "fuelpump.slash")
                 } description: {
                     Text("Erfasse deine erste Tankung – Verbrauch und Kosten werden automatisch berechnet.")
                 } actions: {
                     Button("Tankung erfassen", systemImage: "plus") { showingAddFuel = true }
                         .buttonStyle(.borderedProminent)
+                        .tint(Theme.Colors.primary)
                 }
             }
             .listRowBackground(Color.clear)
