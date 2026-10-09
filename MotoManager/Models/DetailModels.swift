@@ -13,6 +13,8 @@ nonisolated struct MaintenanceRecord: Codable, Identifiable {
     let partsCost: Double?
     let currency: String?
     let description: String?
+    /// Formatted twin of `description` (backend migration 055).
+    let descriptionMarkup: String?
     let recordType: String // "oil", "fuel", "tire", etc.
     let brand: String?
     let model: String?
@@ -43,7 +45,7 @@ nonisolated struct MaintenanceRecord: Codable, Identifiable {
     let deletedAt: String?
 
     enum CodingKeys: String, CodingKey {
-        case id, date, odo, motorcycleId, cost, normalizedCost, partsCost, currency, description, summary
+        case id, date, odo, motorcycleId, cost, normalizedCost, partsCost, currency, description, descriptionMarkup, summary
         case recordType = "type"
         case brand, model, tirePosition, tireSize, dotCode, batteryType, fluidType, viscosity, oilType, inspectionLocation, locationId, fuelType, fuelAmount, pricePerUnit, latitude, longitude, locationName, fuelConsumption, tripDistance, fuelAdditiveAdded, leadSubstituteAdded, parentId
         case clientId, updatedAt, deletedAt

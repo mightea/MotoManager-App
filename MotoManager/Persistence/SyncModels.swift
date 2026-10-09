@@ -26,6 +26,9 @@ final class SDMaintenanceRecord {
     var partsCost: Double?
     var currency: String?
     var recordDescription: String?
+    /// Formatted twin of `recordDescription` (backend migration 055); nil
+    /// keeps the SwiftData migration lightweight. See `NoteMarkup`.
+    var descriptionMarkup: String?
     var summary: String?
     var brand: String?
     var model: String?
@@ -225,6 +228,8 @@ final class SDIssue {
     var odo: Int
     var title: String
     var recordDescription: String?
+    /// Formatted twin of `recordDescription` (backend migration 055).
+    var descriptionMarkup: String?
     var priority: String
     var status: String
     var date: String

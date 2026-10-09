@@ -7,6 +7,8 @@ struct Issue: Codable, Identifiable {
     let odo: Int
     let title: String
     let description: String?
+    /// Formatted twin of `description` (backend migration 055).
+    let descriptionMarkup: String?
     let priority: String   // "low" | "medium" | "high"
     let status: String     // "new" | "in_progress" | "done" | ...
     let date: String

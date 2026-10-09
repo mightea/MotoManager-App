@@ -169,7 +169,7 @@ struct MaintenanceDetailView: View {
 
         if let notes = record.recordDescription ?? record.summary, !notes.isEmpty {
             DetailSection("Notizen") {
-                Text(notes)
+                Text(NoteBrandPalette.display(description: notes, markup: record.descriptionMarkup))
                     .scaledFont(14)
             }
         }

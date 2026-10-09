@@ -185,7 +185,10 @@ struct PartsSyncMappingTests {
         let payload = stock.toPayload(partServerId: 1, storageLocationServerId: nil)
         #expect(payload["price"] == nil)
         #expect(payload["storageLocationId"] == nil)
-        #expect(payload["notes"] == nil)
+        // Notes and their markup twin are always sent: "" is what clears stale
+        // formatting server-side (an absent key keeps it).
+        #expect(payload["notes"] as? String == "")
+        #expect(payload["notesMarkup"] as? String == "")
     }
 
     @Test func consumptionPayloadCarriesMaintenanceLink() {

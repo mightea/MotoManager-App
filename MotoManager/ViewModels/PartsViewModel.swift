@@ -251,7 +251,7 @@ class PartsViewModel: ObservableObject {
     @discardableResult
     func createPart(
         partNumber: String, name: String, manufacturer: String,
-        description: String?, isPublic: Bool, seriesIds: [Int]
+        description: String?, descriptionMarkup: String? = nil, isPublic: Bool, seriesIds: [Int]
     ) -> SDPart? {
         let part = SDPart(
             partNumber: partNumber,
@@ -262,6 +262,7 @@ class PartsViewModel: ObservableObject {
             seriesIds: seriesIds,
             syncState: .pendingCreate
         )
+        part.descriptionMarkup = Self.nonBlank(descriptionMarkup)
         modelContext.insert(part)
         return persistAndSync() ? part : nil
     }
@@ -272,7 +273,7 @@ class PartsViewModel: ObservableObject {
     @discardableResult
     func createPartWithInitialStock(
         partNumber: String, name: String, manufacturer: String,
-        description: String?, isPublic: Bool, seriesIds: [Int],
+        description: String?, descriptionMarkup: String? = nil, isPublic: Bool, seriesIds: [Int],
         oemPartNumber: String? = nil, importImageUrl: String? = nil,
         quantity: Int, price: Double?, currency: String?, purchaseDate: Date,
         storageLocation: SDStorageLocation?, newLocationName: String
@@ -286,6 +287,7 @@ class PartsViewModel: ObservableObject {
             seriesIds: seriesIds,
             syncState: .pendingCreate
         )
+        part.descriptionMarkup = Self.nonBlank(descriptionMarkup)
         part.oemPartNumber = Self.nonBlank(oemPartNumber)
         part.pendingImageUrl = importImageUrl
         modelContext.insert(part)
@@ -323,7 +325,7 @@ class PartsViewModel: ObservableObject {
     func updatePart(
         _ part: SDPart,
         partNumber: String, name: String, manufacturer: String,
-        description: String?, isPublic: Bool, seriesIds: [Int],
+        description: String?, descriptionMarkup: String? = nil, isPublic: Bool, seriesIds: [Int],
         oemPartNumber: String?, importImageUrl: String? = nil
     ) -> Bool {
         part.oemPartNumber = Self.nonBlank(oemPartNumber)
@@ -332,6 +334,7 @@ class PartsViewModel: ObservableObject {
         part.name = name
         part.manufacturer = manufacturer.isEmpty ? "BMW" : manufacturer
         part.partDescription = (description?.isEmpty == false) ? description : nil
+        part.descriptionMarkup = Self.nonBlank(descriptionMarkup)
         part.isPublic = isPublic
         part.seriesIds = seriesIds
         if part.syncState != .pendingCreate { part.syncState = .pendingUpdate }
@@ -365,7 +368,7 @@ class PartsViewModel: ObservableObject {
     func addStock(
         part: SDPart, quantity: Int, price: Double?, currency: String?,
         purchaseDate: Date, storageLocation: SDStorageLocation?, notes: String?,
-        isUsed: Bool = false
+        notesMarkup: String? = nil, isUsed: Bool = false
     ) -> SDPartStock? {
         let stock = SDPartStock(
             partClientId: part.clientId,
@@ -379,6 +382,7 @@ class PartsViewModel: ObservableObject {
         stock.storageLocationClientId = storageLocation?.clientId
         stock.storageLocationServerId = storageLocation?.serverId
         stock.notes = (notes?.isEmpty == false) ? notes : nil
+        stock.notesMarkup = Self.nonBlank(notesMarkup)
         stock.isUsed = isUsed
         modelContext.insert(stock)
         return persistAndSync() ? stock : nil
@@ -388,7 +392,7 @@ class PartsViewModel: ObservableObject {
     func updateStock(
         _ stock: SDPartStock, quantity: Int, price: Double?, currency: String?,
         purchaseDate: Date, storageLocation: SDStorageLocation?, notes: String?,
-        isUsed: Bool = false
+        notesMarkup: String? = nil, isUsed: Bool = false
     ) -> Bool {
         stock.quantity = max(1, quantity)
         stock.price = price
@@ -397,6 +401,7 @@ class PartsViewModel: ObservableObject {
         stock.storageLocationClientId = storageLocation?.clientId
         stock.storageLocationServerId = storageLocation?.serverId
         stock.notes = (notes?.isEmpty == false) ? notes : nil
+        stock.notesMarkup = Self.nonBlank(notesMarkup)
         stock.isUsed = isUsed
         if stock.syncState != .pendingCreate { stock.syncState = .pendingUpdate }
         stock.updatedAtLocal = Date()

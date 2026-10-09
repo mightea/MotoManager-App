@@ -26,6 +26,8 @@ nonisolated struct Part: Codable, Identifiable {
     /// BMW part number an aftermarket part corresponds to (backend migration
     /// 053). Defaulted so older backends and memberwise call sites still work.
     var oemPartNumber: String? = nil
+    /// Formatted twin of `description` (backend migration 055).
+    var descriptionMarkup: String? = nil
 }
 
 /// `GET /api/part-imports/bmwbike/{partNumber}` — BMWBike catalog data for a
@@ -56,6 +58,8 @@ struct PartStock: Codable, Identifiable {
     let purchaseDate: String?
     let storageLocationId: Int?
     let notes: String?
+    /// Formatted twin of `notes` (backend migration 055).
+    var notesMarkup: String? = nil
     /// Used/salvaged piece. Optional so decoding tolerates a backend that
     /// predates the column; treat nil as false.
     let isUsed: Bool?
@@ -223,6 +227,8 @@ nonisolated struct PublicPart: Codable, Identifiable {
     let name: String
     let manufacturer: String
     let description: String?
+    /// Formatted twin of `description` (backend migration 055).
+    var descriptionMarkup: String? = nil
     /// Absolutized by NetworkManager (server sends "/images/<uuid>.jpg").
     var image: String?
     let seriesIds: [Int]

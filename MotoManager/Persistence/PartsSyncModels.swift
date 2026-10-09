@@ -20,6 +20,8 @@ final class SDPart {
     var name: String
     var manufacturer: String
     var partDescription: String?
+    /// Formatted twin of `partDescription` (backend migration 055).
+    var descriptionMarkup: String?
     var isPublic: Bool
     var seriesIds: [Int]
     /// Server-managed photo URL (uploads happen via the web client for now);
@@ -79,6 +81,8 @@ final class SDPartStock {
     var storageLocationClientId: UUID?
     var storageLocationServerId: Int?
     var notes: String?
+    /// Formatted twin of `notes` (backend migration 055).
+    var notesMarkup: String?
     /// Used/salvaged piece (e.g. pulled from a donor motorcycle). Default
     /// keeps existing stores migrating lightweight.
     var isUsed: Bool = false

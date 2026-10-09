@@ -336,6 +336,8 @@ class MotorcycleDetailViewModel: ObservableObject {
         var cost: Double
         var currency: String
         var description: String?
+        /// Markup twin of `description`; "" or nil when unformatted.
+        var descriptionMarkup: String? = nil
         var brand: String?
         var model: String?
         var tirePosition: String?
@@ -378,6 +380,7 @@ class MotorcycleDetailViewModel: ObservableObject {
         record.cost = draft.cost > 0 ? draft.cost : nil
         record.currency = draft.cost > 0 ? draft.currency : record.currency
         record.recordDescription = (draft.description?.isEmpty == false) ? draft.description : nil
+        record.descriptionMarkup = (draft.descriptionMarkup?.isEmpty == false) ? draft.descriptionMarkup : nil
         record.brand = (draft.brand?.isEmpty == false) ? draft.brand : nil
         record.model = (draft.model?.isEmpty == false) ? draft.model : nil
         record.tirePosition = draft.tirePosition
@@ -521,7 +524,7 @@ class MotorcycleDetailViewModel: ObservableObject {
     }
 
     @discardableResult
-    func createIssue(odo: Int, title: String, description: String?, priority: String, status: String, date: Date) -> Bool {
+    func createIssue(odo: Int, title: String, description: String?, descriptionMarkup: String? = nil, priority: String, status: String, date: Date) -> Bool {
         let issue = SDIssue(
             motorcycleId: motorcycle.id,
             odo: odo,
@@ -532,15 +535,17 @@ class MotorcycleDetailViewModel: ObservableObject {
             date: Self.isoDay(date),
             syncState: .pendingCreate
         )
+        issue.descriptionMarkup = (descriptionMarkup?.isEmpty == false) ? descriptionMarkup : nil
         modelContext.insert(issue)
         return persistAndSync()
     }
 
     @discardableResult
-    func updateIssue(_ issue: SDIssue, odo: Int, title: String, description: String?, priority: String, status: String, date: Date) -> Bool {
+    func updateIssue(_ issue: SDIssue, odo: Int, title: String, description: String?, descriptionMarkup: String? = nil, priority: String, status: String, date: Date) -> Bool {
         issue.odo = odo
         issue.title = title
         issue.recordDescription = (description?.isEmpty == false) ? description : nil
+        issue.descriptionMarkup = (descriptionMarkup?.isEmpty == false) ? descriptionMarkup : nil
         issue.priority = priority
         issue.status = status
         issue.date = Self.isoDay(date)

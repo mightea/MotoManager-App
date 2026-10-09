@@ -101,11 +101,7 @@ struct AddTorqueView: View {
         guard canSave, let torqueValue = Self.parse(torque) else { return false }
         let cat = category.trimmingCharacters(in: .whitespaces)
         let nm = name.trimmingCharacters(in: .whitespaces)
-        let spans = NoteMarkup.spans(from: notes)
-        let plain = NoteMarkup.plainText(spans)
-        let isBlank = plain.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        let description = isBlank ? "" : plain
-        let markup = (!isBlank && NoteMarkup.hasFormatting(spans)) ? NoteMarkup.serialize(spans) : ""
+        let (description, markup) = NoteMarkup.storageForm(notes)
         if let s = existingSpec {
             return viewModel.updateTorque(s, category: cat, name: nm, torque: torqueValue,
                                           torqueEnd: Self.parse(torqueEnd), variation: Self.parse(variation),

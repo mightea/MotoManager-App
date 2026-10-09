@@ -37,6 +37,7 @@ extension SDMaintenanceRecord {
         partsCost = dto.partsCost
         currency = dto.currency
         recordDescription = dto.description
+        descriptionMarkup = dto.descriptionMarkup
         summary = dto.summary
         brand = dto.brand
         model = dto.model
@@ -76,7 +77,11 @@ extension SDMaintenanceRecord {
         if let pricePerUnit { p["pricePerUnit"] = pricePerUnit }
         if let fuelAmount { p["fuelAmount"] = fuelAmount }
         if let fuelType { p["fuelType"] = fuelType }
-        if let recordDescription, !recordDescription.isEmpty { p["description"] = recordDescription }
+        // Both always sent (see the torque payload): the server reads an
+        // absent `descriptionMarkup` as "derive from the plain text", so an
+        // explicit "" is what clears stale formatting.
+        p["description"] = recordDescription ?? ""
+        p["descriptionMarkup"] = descriptionMarkup ?? ""
         if let summary, !summary.isEmpty { p["summary"] = summary }
         if let locationName, !locationName.isEmpty { p["locationName"] = locationName }
         if let brand { p["brand"] = brand }
@@ -217,6 +222,7 @@ extension SDIssue {
         odo = dto.odo
         title = dto.title
         recordDescription = dto.description
+        descriptionMarkup = dto.descriptionMarkup
         priority = dto.priority
         status = dto.status
         date = dto.date
@@ -233,7 +239,9 @@ extension SDIssue {
             "status": status,
             "date": date,
         ]
-        if let recordDescription, !recordDescription.isEmpty { p["description"] = recordDescription }
+        // Both always sent so "" clears stale formatting (see maintenance).
+        p["description"] = recordDescription ?? ""
+        p["descriptionMarkup"] = descriptionMarkup ?? ""
         return p
     }
 }

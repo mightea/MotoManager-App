@@ -67,6 +67,30 @@ struct NoteMarkupTests {
         }
     }
 
+    @Test func storageFormTrimsLikeTheServer() {
+        // Outer whitespace is trimmed across spans (the server trims the plain
+        // text), inner whitespace stays, and the markup still strips to it.
+        var text = AttributedString("  ")
+        var bold = AttributedString("Achtung ")
+        bold.inlinePresentationIntent = .stronglyEmphasized
+        text += bold
+        text += AttributedString("kalt  \n")
+        let stored = NoteMarkup.storageForm(text)
+        #expect(stored.description == "Achtung kalt")
+        #expect(NoteMarkup.resolve(description: stored.description, markup: stored.markup) == [
+            NoteMarkup.Span(text: "Achtung ", bold: true),
+            NoteMarkup.Span(text: "kalt"),
+        ])
+
+        let plain = NoteMarkup.storageForm(AttributedString(" nur Text "))
+        #expect(plain.description == "nur Text")
+        #expect(plain.markup == "")
+
+        let blank = NoteMarkup.storageForm(AttributedString(" \n "))
+        #expect(blank.description == "")
+        #expect(blank.markup == "")
+    }
+
     @Test func resolveHonoursMarkupOnlyWhileConsistent() {
         let ok = NoteMarkup.resolve(description: "Achtung: kalt", markup: "[red]**Achtung:**[/red] kalt")
         #expect(NoteMarkup.hasFormatting(ok))

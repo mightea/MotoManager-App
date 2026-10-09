@@ -10,7 +10,9 @@ struct AddPartView: View {
     @State private var name: String
     @State private var manufacturer: String
     @State private var oemPartNumber: String
-    @State private var notes: String
+    /// Rich description; converted to plain text + markup on save (see `NoteMarkup`).
+    @State private var notes: AttributedString
+    @State private var notesSelection: AttributedTextSelection
     @State private var isPublic: Bool
     @State private var selectedSeriesIds: Set<Int>
     @State private var showingSeriesPicker = false
@@ -40,7 +42,9 @@ struct AddPartView: View {
             _name = State(initialValue: p.name)
             _manufacturer = State(initialValue: p.manufacturer)
             _oemPartNumber = State(initialValue: p.oemPartNumber ?? "")
-            _notes = State(initialValue: p.partDescription ?? "")
+            _notes = State(initialValue: NoteMarkup.attributedString(
+                NoteMarkup.resolve(description: p.partDescription, markup: p.descriptionMarkup)))
+            _notesSelection = State(initialValue: AttributedTextSelection())
             _isPublic = State(initialValue: p.isPublic)
             _selectedSeriesIds = State(initialValue: Set(p.seriesIds))
         } else {
@@ -48,7 +52,8 @@ struct AddPartView: View {
             _name = State(initialValue: "")
             _manufacturer = State(initialValue: "BMW")
             _oemPartNumber = State(initialValue: "")
-            _notes = State(initialValue: "")
+            _notes = State(initialValue: AttributedString())
+            _notesSelection = State(initialValue: AttributedTextSelection())
             _isPublic = State(initialValue: false)
             _selectedSeriesIds = State(initialValue: [])
         }
@@ -95,11 +100,9 @@ struct AddPartView: View {
                 }
                 .buttonStyle(.plain)
             }
-            FormField("Beschreibung") {
-                TextField("", text: $notes,
-                          prompt: formPrompt("z. B. passt auch für Ölkühler-Variante"),
-                          axis: .vertical)
-                    .lineLimit(2...5)
+            FormField("Beschreibung", hint: "Fett, kursiv und Markenfarben; die Formatierung wird mit dem Web geteilt.") {
+                NoteEditor(text: $notes, selection: $notesSelection,
+                           prompt: "z. B. passt auch für Ölkühler-Variante")
             }
             FormToggleRow(
                 title: "Öffentlich teilen",
@@ -209,9 +212,9 @@ struct AddPartView: View {
             name = result.name
             added.append("Name")
         }
-        if notes.trimmingCharacters(in: .whitespaces).isEmpty,
+        if NoteMarkup.storageForm(notes).description.isEmpty,
            let description = result.description, !description.isEmpty {
-            notes = description
+            notes = AttributedString(description)
             added.append("Beschreibung")
         }
         let newSeries = Set(result.seriesIds).subtracting(selectedSeriesIds)
@@ -273,18 +276,19 @@ struct AddPartView: View {
         }
 
         let ids = Array(selectedSeriesIds).sorted()
+        let (description, markup) = NoteMarkup.storageForm(notes)
         let saved: Bool
         if let p = existingPart {
             saved = viewModel.updatePart(
                 p, partNumber: trimmedNumber, name: trimmedName,
                 manufacturer: manufacturer.trimmingCharacters(in: .whitespaces),
-                description: notes, isPublic: isPublic, seriesIds: ids,
+                description: description, descriptionMarkup: markup, isPublic: isPublic, seriesIds: ids,
                 oemPartNumber: oemPartNumber, importImageUrl: importImageUrl)
         } else {
             saved = viewModel.createPartWithInitialStock(
                 partNumber: trimmedNumber, name: trimmedName,
                 manufacturer: manufacturer.trimmingCharacters(in: .whitespaces),
-                description: notes, isPublic: isPublic, seriesIds: ids,
+                description: description, descriptionMarkup: markup, isPublic: isPublic, seriesIds: ids,
                 oemPartNumber: oemPartNumber, importImageUrl: importImageUrl,
                 quantity: stockQuantity, price: CurrencyField.parse(stockPrice),
                 currency: stockCurrency.trimmingCharacters(in: .whitespaces),

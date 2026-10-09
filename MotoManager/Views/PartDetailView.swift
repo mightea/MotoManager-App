@@ -219,7 +219,7 @@ struct PartDetailView: View {
             }
 
             if let description = part.partDescription, !description.isEmpty {
-                Text(description)
+                Text(NoteBrandPalette.display(description: description, markup: part.descriptionMarkup))
                     .scaledFont(13)
                     .foregroundStyle(.secondary)
             }
@@ -351,7 +351,7 @@ struct PartDetailView: View {
                     .foregroundStyle(.tertiary)
                 }
                 if let notes = stock.notes, !notes.isEmpty {
-                    Text(notes)
+                    Text(NoteBrandPalette.display(description: notes, markup: stock.notesMarkup))
                         .scaledFont(11)
                         .foregroundStyle(.tertiary)
                         .lineLimit(1)
@@ -459,7 +459,9 @@ struct PartDetailView: View {
                     HStack(spacing: 4) {
                         Image(systemName: "wrench.and.screwdriver.fill")
                             .scaledFont(9)
-                        Text(repair.recordDescription ?? repair.summary ?? repair.recordType)
+                        Text(NoteBrandPalette.display(
+                            description: repair.recordDescription ?? repair.summary ?? repair.recordType,
+                            markup: repair.descriptionMarkup))
                             .lineLimit(1)
                         if cachedMotorcycle(id: repair.motorcycleId) != nil {
                             Image(systemName: "chevron.right")
@@ -523,7 +525,9 @@ struct AddPartStockView: View {
     @State private var purchaseDate: Date
     @State private var selectedLocation: SDStorageLocation?
     @State private var newLocationName: String
-    @State private var notes: String
+    /// Rich note; converted to plain text + markup on save (see `NoteMarkup`).
+    @State private var notes: AttributedString
+    @State private var notesSelection: AttributedTextSelection
     @State private var isUsed: Bool
     @State private var errorMessage: String?
 
@@ -541,7 +545,9 @@ struct AddPartStockView: View {
             // Resolved here (not onAppear) so the unsaved-changes snapshot
             // starts from the stored location.
             _selectedLocation = State(initialValue: viewModel.storageLocation(clientId: s.storageLocationClientId))
-            _notes = State(initialValue: s.notes ?? "")
+            _notes = State(initialValue: NoteMarkup.attributedString(
+                NoteMarkup.resolve(description: s.notes, markup: s.notesMarkup)))
+            _notesSelection = State(initialValue: AttributedTextSelection())
             _isUsed = State(initialValue: s.isUsed)
         } else {
             _quantity = State(initialValue: 1)
@@ -549,7 +555,8 @@ struct AddPartStockView: View {
             _currency = State(initialValue: "CHF")
             _purchaseDate = State(initialValue: Date())
             _selectedLocation = State(initialValue: nil)
-            _notes = State(initialValue: "")
+            _notes = State(initialValue: AttributedString())
+            _notesSelection = State(initialValue: AttributedTextSelection())
             _isUsed = State(initialValue: false)
         }
     }
@@ -577,11 +584,9 @@ struct AddPartStockView: View {
                 selection: $selectedLocation,
                 newLocationName: $newLocationName
             )
-            FormField("Notizen") {
-                TextField("", text: $notes,
-                          prompt: formPrompt("z. B. Kauf bei Motorradteile Meyer"),
-                          axis: .vertical)
-                    .lineLimit(2...4)
+            FormField("Notizen", hint: "Fett, kursiv und Markenfarben; die Formatierung wird mit dem Web geteilt.") {
+                NoteEditor(text: $notes, selection: $notesSelection,
+                           prompt: "z. B. Kauf bei Motorradteile Meyer")
             }
             FormToggleRow(
                 title: "Gebrauchtteil",
@@ -612,17 +617,18 @@ struct AddPartStockView: View {
         }
         let priceValue = CurrencyField.parse(price)
         let trimmedCurrency = currency.trimmingCharacters(in: .whitespaces)
+        let (noteText, noteMarkup) = NoteMarkup.storageForm(notes)
         let saved: Bool
         if let s = existingStock {
             saved = viewModel.updateStock(
                 s, quantity: quantity, price: priceValue, currency: trimmedCurrency,
-                purchaseDate: purchaseDate, storageLocation: location, notes: notes,
-                isUsed: isUsed)
+                purchaseDate: purchaseDate, storageLocation: location, notes: noteText,
+                notesMarkup: noteMarkup, isUsed: isUsed)
         } else {
             saved = viewModel.addStock(
                 part: part, quantity: quantity, price: priceValue, currency: trimmedCurrency,
-                purchaseDate: purchaseDate, storageLocation: location, notes: notes,
-                isUsed: isUsed) != nil
+                purchaseDate: purchaseDate, storageLocation: location, notes: noteText,
+                notesMarkup: noteMarkup, isUsed: isUsed) != nil
         }
         if !saved { errorMessage = "Speichern fehlgeschlagen." }
         return saved

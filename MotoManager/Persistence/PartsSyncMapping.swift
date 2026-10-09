@@ -28,6 +28,7 @@ extension SDPart {
         name = dto.name
         manufacturer = dto.manufacturer
         partDescription = dto.description
+        descriptionMarkup = dto.descriptionMarkup
         isPublic = dto.isPublic
         seriesIds = dto.seriesIds
         image = dto.image
@@ -45,7 +46,9 @@ extension SDPart {
             "isPublic": isPublic,
             "seriesIds": seriesIds,
         ]
-        if let partDescription, !partDescription.isEmpty { p["description"] = partDescription }
+        // Both always sent so "" clears stale formatting (see SyncMapping).
+        p["description"] = partDescription ?? ""
+        p["descriptionMarkup"] = descriptionMarkup ?? ""
         // Always sent: on update an empty string is what clears it server-side
         // (an absent key keeps the stored value).
         p["oemPartNumber"] = oemPartNumber ?? ""
@@ -81,6 +84,7 @@ extension SDPartStock {
         purchaseDate = dto.purchaseDate
         storageLocationServerId = dto.storageLocationId
         notes = dto.notes
+        notesMarkup = dto.notesMarkup
         isUsed = dto.isUsed ?? false
         serverUpdatedAt = dto.updatedAt
         syncState = .synced
@@ -98,7 +102,9 @@ extension SDPartStock {
         if let normalizedPrice { p["normalizedPrice"] = normalizedPrice }
         if let purchaseDate, !purchaseDate.isEmpty { p["purchaseDate"] = purchaseDate }
         if let storageLocationServerId { p["storageLocationId"] = storageLocationServerId }
-        if let notes, !notes.isEmpty { p["notes"] = notes }
+        // Both always sent so "" clears stale formatting (see SyncMapping).
+        p["notes"] = notes ?? ""
+        p["notesMarkup"] = notesMarkup ?? ""
         return p
     }
 }

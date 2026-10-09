@@ -7,7 +7,9 @@ struct AddIssueView: View {
     let existingIssue: SDIssue?
 
     @State private var title: String
-    @State private var notes: String
+    /// Rich note; converted to plain text + markup on save (see `NoteMarkup`).
+    @State private var notes: AttributedString
+    @State private var notesSelection: AttributedTextSelection
     @State private var odo: String
     @State private var priority: String
     @State private var status: String
@@ -22,7 +24,9 @@ struct AddIssueView: View {
         self.existingIssue = existingIssue
         if let issue = existingIssue {
             _title = State(initialValue: issue.title)
-            _notes = State(initialValue: issue.recordDescription ?? "")
+            _notes = State(initialValue: NoteMarkup.attributedString(
+                NoteMarkup.resolve(description: issue.recordDescription, markup: issue.descriptionMarkup)))
+            _notesSelection = State(initialValue: AttributedTextSelection())
             _odo = State(initialValue: "\(issue.odo)")
             _priority = State(initialValue: issue.priority)
             _status = State(initialValue: issue.status)
@@ -30,7 +34,8 @@ struct AddIssueView: View {
             _date = State(initialValue: f.date(from: issue.date) ?? Date())
         } else {
             _title = State(initialValue: "")
-            _notes = State(initialValue: "")
+            _notes = State(initialValue: AttributedString())
+            _notesSelection = State(initialValue: AttributedTextSelection())
             _odo = State(initialValue: "\(viewModel.motorcycle.latestOdo ?? viewModel.motorcycle.initialOdo)")
             _priority = State(initialValue: "medium")
             _status = State(initialValue: "new")
@@ -84,9 +89,8 @@ struct AddIssueView: View {
                     .tint(Theme.Colors.primary)
             }
 
-            FormField("Notizen") {
-                TextField("", text: $notes, prompt: formPrompt("Optionale Details"), axis: .vertical)
-                    .lineLimit(3...6)
+            FormField("Notizen", hint: "Fett, kursiv und Markenfarben; die Formatierung wird mit dem Web geteilt.") {
+                NoteEditor(text: $notes, selection: $notesSelection, prompt: "Optionale Details")
             }
         }
     }
@@ -110,11 +114,14 @@ struct AddIssueView: View {
         errorMessage = nil
         let trimmed = title.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty, let odoValue = parsedOdo else { return false }
+        let (description, markup) = NoteMarkup.storageForm(notes)
         let saved: Bool
         if let issue = existingIssue {
-            saved = viewModel.updateIssue(issue, odo: odoValue, title: trimmed, description: notes, priority: priority, status: status, date: date)
+            saved = viewModel.updateIssue(issue, odo: odoValue, title: trimmed, description: description,
+                                          descriptionMarkup: markup, priority: priority, status: status, date: date)
         } else {
-            saved = viewModel.createIssue(odo: odoValue, title: trimmed, description: notes, priority: priority, status: status, date: date)
+            saved = viewModel.createIssue(odo: odoValue, title: trimmed, description: description,
+                                          descriptionMarkup: markup, priority: priority, status: status, date: date)
         }
         if !saved { errorMessage = "Speichern fehlgeschlagen." }
         return saved

@@ -59,7 +59,9 @@ struct AddMaintenanceView: View {
     @State private var odo: String
     @State private var cost: String
     @State private var currency: String
-    @State private var notes: String
+    /// Rich note; converted to plain text + markup on save (see `NoteMarkup`).
+    @State private var notes: AttributedString
+    @State private var notesSelection: AttributedTextSelection
     @State private var date: Date
     @State private var showingOdoScanner = false
     /// Why the last save failed; shown as a banner at the top of the form.
@@ -105,7 +107,11 @@ struct AddMaintenanceView: View {
             _odo = State(initialValue: "\(r.odo)")
             _cost = State(initialValue: r.cost.map { String($0) } ?? "")
             _currency = State(initialValue: r.currency ?? viewModel.motorcycle.currencyCode ?? "CHF")
-            _notes = State(initialValue: r.recordDescription ?? r.summary ?? "")
+            // Legacy records carry their text in `summary`; markup never
+            // matches that, so `resolve` falls back to plain text there.
+            _notes = State(initialValue: NoteMarkup.attributedString(
+                NoteMarkup.resolve(description: r.recordDescription ?? r.summary, markup: r.descriptionMarkup)))
+            _notesSelection = State(initialValue: AttributedTextSelection())
             let f = ISO8601DateFormatter(); f.formatOptions = [.withFullDate]
             _date = State(initialValue: f.date(from: r.date) ?? Date())
         } else {
@@ -124,7 +130,8 @@ struct AddMaintenanceView: View {
             _odo = State(initialValue: "\(viewModel.motorcycle.latestOdo ?? viewModel.motorcycle.initialOdo)")
             _cost = State(initialValue: "")
             _currency = State(initialValue: viewModel.motorcycle.currencyCode ?? "CHF")
-            _notes = State(initialValue: "")
+            _notes = State(initialValue: AttributedString())
+            _notesSelection = State(initialValue: AttributedTextSelection())
             _date = State(initialValue: Date())
         }
     }
@@ -193,9 +200,8 @@ struct AddMaintenanceView: View {
                     .labelsHidden()
                     .tint(Theme.Colors.primary)
             }
-            FormField("Beschreibung") {
-                TextField("", text: $notes, prompt: formPrompt("z. B. Ölwechsel + Filter"), axis: .vertical)
-                    .lineLimit(2...5)
+            FormField("Beschreibung", hint: "Fett, kursiv und Markenfarben; die Formatierung wird mit dem Web geteilt.") {
+                NoteEditor(text: $notes, selection: $notesSelection, prompt: "z. B. Ölwechsel + Filter")
             }
 
             usedPartsSection
@@ -471,9 +477,11 @@ struct AddMaintenanceView: View {
         let type = submittedType
         let category = MaintenanceCategory.normalize(type: type, fluidType: nil).category
 
+        let (description, markup) = NoteMarkup.storageForm(notes)
         var draft = MotorcycleDetailViewModel.MaintenanceDraft(
             type: type, odo: odoValue, date: date,
-            cost: costValue, currency: currencyValue, description: notes
+            cost: costValue, currency: currencyValue, description: description,
+            descriptionMarkup: markup
         )
         switch category {
         case .tire:

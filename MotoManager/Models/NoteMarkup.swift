@@ -212,6 +212,37 @@ nonisolated enum NoteMarkup {
         spans.contains { $0.bold || $0.italic || $0.color != nil }
     }
 
+    /// Strip leading/trailing whitespace the way the server trims plain text,
+    /// so the stored markup still strips to the stored description. Emptied
+    /// spans are dropped; inner whitespace is untouched.
+    static func trim(_ spans: [Span]) -> [Span] {
+        var out = spans
+        while let first = out.first {
+            let text = String(first.text.drop(while: \.isWhitespace))
+            if text.isEmpty { out.removeFirst(); continue }
+            out[0].text = text
+            break
+        }
+        while let last = out.last {
+            var text = last.text
+            while let c = text.last, c.isWhitespace { text.removeLast() }
+            if text.isEmpty { out.removeLast(); continue }
+            out[out.count - 1].text = text
+            break
+        }
+        return out
+    }
+
+    /// What an edited note persists as: the plain `description` (compatibility
+    /// surface older builds read) and its markup twin, "" when unformatted or
+    /// blank. Both are "" for an empty note.
+    static func storageForm(_ text: AttributedString) -> (description: String, markup: String) {
+        let spans = trim(spans(from: text))
+        let plain = plainText(spans)
+        if plain.isEmpty { return ("", "") }
+        return (plain, hasFormatting(spans) ? serialize(spans) : "")
+    }
+
     /// Spans to display for a record: the markup when it is consistent with the
     /// plain description (an older build may have edited the text since), else
     /// the plain text as a single unstyled span.

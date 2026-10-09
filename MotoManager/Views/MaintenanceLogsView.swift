@@ -442,7 +442,7 @@ private struct IssueRow: View {
                     .foregroundStyle(.primary)
                     .lineLimit(2)
                 if let notes = issue.recordDescription, !notes.isEmpty {
-                    Text(notes)
+                    Text(NoteBrandPalette.display(description: notes, markup: issue.descriptionMarkup))
                         .scaledFont(12)
                         .foregroundStyle(.secondary)
                         .lineLimit(2)
