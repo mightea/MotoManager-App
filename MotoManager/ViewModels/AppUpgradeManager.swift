@@ -20,14 +20,14 @@ enum AppUpgradeStatus: Equatable {
 }
 
 /// Checks the backend's app-upgrade requirements after login and drives the
-/// two consequences: an update-reminder toast (soft) and the full request
+/// two consequences: an update prompt (soft) and the full request
 /// block plus blocking screen (hard).
 @MainActor
 final class AppUpgradeManager: ObservableObject {
     static let shared = AppUpgradeManager()
 
-    /// Transient update reminder; auto-dismissed by the toast view.
-    @Published var showUpdateToast = false
+    /// Soft-upgrade prompt with a TestFlight link; dismissed by the user.
+    @Published var showUpdatePrompt = false
     /// Hard block: the app is out of support and must be updated.
     @Published var isBlocked = false
 
@@ -65,7 +65,7 @@ final class AppUpgradeManager: ObservableObject {
         )
         isBlocked = status == .unsupported
         NetworkManager.shared.isUpdateBlocked = isBlocked
-        showUpdateToast = status == .updateRecommended
+        showUpdatePrompt = status == .updateRecommended
         if status != .supported {
             AppLog.error("App upgrade check: build \(Self.currentBuild) is \(status == .unsupported ? "unsupported (hard \(info.hardUpgradeBuild))" : "below soft requirement \(info.softUpgradeBuild)")")
         }

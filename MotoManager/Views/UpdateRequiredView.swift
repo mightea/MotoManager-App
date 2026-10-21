@@ -1,4 +1,25 @@
 import SwiftUI
+import UIKit
+
+/// Where users get a newer build. The app ships through TestFlight only, so
+/// this opens MotoManager's page in the TestFlight app; if TestFlight isn't
+/// installed, the web page that offers to install it.
+enum AppUpdateLink {
+    /// App Store Connect → App Information → Apple ID.
+    static let appleID = "6789194231"
+
+    static let testFlightApp = URL(string: "itms-beta://beta.itunes.apple.com/v1/app/\(appleID)")!
+    static let testFlightWeb = URL(string: "https://beta.itunes.apple.com/v1/app/\(appleID)")!
+
+    @MainActor
+    static func open() {
+        UIApplication.shared.open(testFlightApp) { opened in
+            if !opened {
+                UIApplication.shared.open(testFlightWeb)
+            }
+        }
+    }
+}
 
 /// Full-screen hard block shown when the backend declared this build out of
 /// support: the app makes no further backend requests until it is updated.
@@ -22,7 +43,7 @@ struct UpdateRequiredView: View {
                 Text("Update erforderlich")
                     .scaledFont(24, weight: .black)
 
-                Text("Diese App-Version wird nicht mehr unterstützt und kann sich nicht mehr mit dem Server verbinden. Bitte installiere die neueste Version über TestFlight bzw. den App Store.")
+                Text("Diese App-Version wird nicht mehr unterstützt und kann sich nicht mehr mit dem Server verbinden. Bitte installiere die neueste Version über TestFlight.")
                     .scaledFont(15)
                     .multilineTextAlignment(.center)
                     .foregroundStyle(.secondary)
@@ -30,26 +51,39 @@ struct UpdateRequiredView: View {
 
                 Spacer()
 
-                Button {
-                    guard !isChecking else { return }
-                    isChecking = true
-                    Task {
-                        await upgradeManager.check()
-                        isChecking = false
-                    }
-                } label: {
-                    HStack(spacing: 8) {
-                        if isChecking {
-                            ProgressView().controlSize(.small)
-                        }
-                        Text("Erneut prüfen")
+                VStack(spacing: Theme.Spacing.s) {
+                    Button {
+                        AppUpdateLink.open()
+                    } label: {
+                        Label("Jetzt aktualisieren", systemImage: "arrow.down.circle.fill")
                             .scaledFont(15, weight: .semibold)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 14)
                     }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 14)
+                    .buttonStyle(.borderedProminent)
+                    .tint(Theme.Colors.primary)
+
+                    Button {
+                        guard !isChecking else { return }
+                        isChecking = true
+                        Task {
+                            await upgradeManager.check()
+                            isChecking = false
+                        }
+                    } label: {
+                        HStack(spacing: 8) {
+                            if isChecking {
+                                ProgressView().controlSize(.small)
+                            }
+                            Text("Erneut prüfen")
+                                .scaledFont(15, weight: .semibold)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(Theme.Colors.primary)
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(Theme.Colors.primary)
                 .padding(.horizontal, Theme.Spacing.l)
                 .padding(.bottom, Theme.Spacing.xl)
             }
@@ -57,41 +91,59 @@ struct UpdateRequiredView: View {
     }
 }
 
-/// Transient reminder shown after login when the build is at or below the
-/// soft upgrade requirement. Auto-dismisses; tapping dismisses immediately.
-struct AppUpdateToast: View {
-    @ObservedObject private var upgradeManager = AppUpgradeManager.shared
+/// Update prompt shown once per launch (after the post-login check) when the
+/// build is at or below the soft upgrade requirement. Stays until the user
+/// picks "Jetzt aktualisieren" or "Später".
+struct AppUpdatePromptView: View {
+    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        if upgradeManager.showUpdateToast {
-            HStack(spacing: 10) {
-                Image(systemName: "arrow.down.circle.fill")
-                    .scaledFont(16, weight: .semibold)
-                    .foregroundStyle(Theme.Colors.primary)
-                Text("Eine neue App-Version ist verfügbar – bitte aktualisiere die App.")
-                    .scaledFont(13, weight: .semibold)
-                    .lineLimit(2)
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
-            .background(.regularMaterial, in: Capsule())
-            .overlay(Capsule().strokeBorder(Theme.Colors.glassBorder))
-            .padding(.horizontal, Theme.Spacing.l)
-            .transition(.move(edge: .top).combined(with: .opacity))
-            .onTapGesture {
-                withAnimation(.spring(duration: 0.3)) {
-                    upgradeManager.showUpdateToast = false
+        VStack(spacing: Theme.Spacing.m) {
+            Spacer()
+
+            Image(systemName: "arrow.down.app.fill")
+                .scaledFont(56, weight: .semibold)
+                .foregroundStyle(Theme.Colors.primary)
+
+            Text("Neue Version verfügbar")
+                .scaledFont(22, weight: .black)
+
+            Text("Für MotoManager gibt es ein Update mit Verbesserungen und Fehlerbehebungen. Installiere die neueste Version über TestFlight.")
+                .scaledFont(15)
+                .multilineTextAlignment(.center)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Spacer()
+
+            VStack(spacing: Theme.Spacing.s) {
+                Button {
+                    AppUpdateLink.open()
+                    dismiss()
+                } label: {
+                    Label("Jetzt aktualisieren", systemImage: "arrow.down.circle.fill")
+                        .scaledFont(15, weight: .semibold)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
                 }
-            }
-            .task {
-                try? await Task.sleep(for: .seconds(6))
-                withAnimation(.spring(duration: 0.3)) {
-                    upgradeManager.showUpdateToast = false
+                .buttonStyle(.borderedProminent)
+                .tint(Theme.Colors.primary)
+
+                Button {
+                    dismiss()
+                } label: {
+                    Text("Später")
+                        .scaledFont(15, weight: .semibold)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
                 }
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
+                .contentShape(Rectangle())
             }
-            .accessibilityElement(children: .combine)
-            .accessibilityAddTraits(.isButton)
-            .accessibilityHint("Tippen zum Schließen")
         }
+        .padding(.horizontal, Theme.Spacing.l)
+        .padding(.bottom, Theme.Spacing.xl)
+        .glassSheet()
     }
 }

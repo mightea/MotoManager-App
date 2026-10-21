@@ -29,11 +29,13 @@ struct ContentView: View {
                     .transition(.opacity)
             }
         }
-        // Soft upgrade reminder, shown after the post-login check.
-        .overlay(alignment: .top) {
-            AppUpdateToast()
-                .opacity(showSplash ? 0 : 1)
-                .animation(.spring(duration: 0.3), value: upgradeManager.showUpdateToast)
+        // Soft upgrade prompt, shown after the post-login check — held back
+        // until the splash is gone so it doesn't pop up over it.
+        .sheet(isPresented: Binding(
+            get: { upgradeManager.showUpdatePrompt && !showSplash },
+            set: { if !$0 { upgradeManager.showUpdatePrompt = false } }
+        )) {
+            AppUpdatePromptView()
         }
         // The launch-time fleet load is skipped while hard-blocked, so reload
         // once the block lifts ("Erneut prüfen" after an update or a lowered
