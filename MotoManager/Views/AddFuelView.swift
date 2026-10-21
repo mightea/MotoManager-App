@@ -532,19 +532,21 @@ struct AddFuelView: View {
                 Image(systemName: "xmark.circle.fill").foregroundStyle(Theme.Glass.mutedText)
             }
         case .suggestCreate:
+            // No known station nearby: it is created automatically on save
+            // (see `save()`), so the name stays editable until then. The
+            // xmark opts out.
             VStack(alignment: .leading, spacing: 2) {
-                FormLabel("Neue Tankstelle")
+                FormLabel("Neue Tankstelle · wird beim Speichern angelegt")
                 TextField("Name der Tankstelle", text: $stationName)
                     .scaledFont(14, weight: .semibold)
                     .foregroundStyle(.primary)
                     .textFieldStyle(.plain)
             }
             Spacer(minLength: 0)
-            Button { Task { await createStation() } } label: {
-                Text("Anlegen").scaledFont(13, weight: .heavy)
-                    .foregroundStyle(Theme.Colors.primary)
+            Button { clearStation() } label: {
+                Image(systemName: "xmark.circle.fill").foregroundStyle(Theme.Glass.mutedText)
             }
-            .disabled(stationName.trimmingCharacters(in: .whitespaces).isEmpty)
+            .accessibilityLabel("Keine Tankstelle anlegen")
         case .denied:
             Text("Standortzugriff verweigert")
                 .scaledFont(13).foregroundStyle(Theme.Glass.mutedText)
@@ -604,22 +606,32 @@ struct AddFuelView: View {
         }
     }
 
-    private func createStation() async {
-        guard let coord = stationCoord else { return }
+    /// Creates the unmatched station on the backend so the fuel record gets
+    /// linked by `locationId`. Best effort: capped at a few seconds so saving
+    /// never hangs offline — on failure the record still keeps the name and
+    /// coordinates, just without a station link.
+    private func createPendingStation() async {
+        guard existingRecord == nil, locationId == nil, stationState == .suggestCreate,
+              let coord = stationCoord else { return }
         let name = stationName.trimmingCharacters(in: .whitespaces)
         guard !name.isEmpty else { return }
-        stationState = .detecting
-        let watchdog = stationWatchdog()
-        defer { watchdog.cancel() }
-        do {
-            let created = try await NetworkManager.shared.createLocation(
-                name: name, latitude: coord.latitude, longitude: coord.longitude)
-            locationId = created.id
-            stationName = created.name
-            stationState = .matched
-        } catch {
-            if stationState == .detecting { stationState = .suggestCreate }
+        let created = await withTaskGroup(of: Location?.self) { group in
+            group.addTask {
+                try? await NetworkManager.shared.createLocation(
+                    name: name, latitude: coord.latitude, longitude: coord.longitude)
+            }
+            group.addTask {
+                try? await Task.sleep(for: .seconds(5))
+                return nil
+            }
+            let first = await group.next() ?? nil
+            group.cancelAll()
+            return first
         }
+        guard let created else { return }
+        locationId = created.id
+        stationName = created.name
+        stationState = .matched
     }
 
     private func clearStation() {
@@ -727,6 +739,7 @@ struct AddFuelView: View {
                 leadSubstituteAdded: leadSubstituteAdded
             )
         } else {
+            await createPendingStation()
             saved = viewModel.createFuelRecord(
                 odo: odoValue, amount: litersValue, cost: totalCost, pricePerUnit: pricePerLiter,
                 currency: currency, date: date, fuelType: fuelType,
