@@ -527,10 +527,7 @@ struct AddFuelView: View {
                     .foregroundStyle(.primary).lineLimit(1)
             }
             Spacer(minLength: 0)
-            Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
-            Button { clearStation() } label: {
-                Image(systemName: "xmark.circle.fill").foregroundStyle(Theme.Glass.mutedText)
-            }
+            stationClearButton(label: "Tankstelle entfernen")
         case .suggestCreate:
             // No known station nearby: it is created automatically on save
             // (see `save()`), so the name stays editable until then. The
@@ -543,10 +540,7 @@ struct AddFuelView: View {
                     .textFieldStyle(.plain)
             }
             Spacer(minLength: 0)
-            Button { clearStation() } label: {
-                Image(systemName: "xmark.circle.fill").foregroundStyle(Theme.Glass.mutedText)
-            }
-            .accessibilityLabel("Keine Tankstelle anlegen")
+            stationClearButton(label: "Keine Tankstelle anlegen")
         case .denied:
             Text("Standortzugriff verweigert")
                 .scaledFont(13).foregroundStyle(Theme.Glass.mutedText)
@@ -559,6 +553,22 @@ struct AddFuelView: View {
                 Image(systemName: "arrow.clockwise").foregroundStyle(Theme.Colors.primary)
             }
         }
+    }
+
+    /// Clear button for the station row: a larger glyph with a full 44pt tap
+    /// target. The negative padding keeps the row from growing to 44pt.
+    private func stationClearButton(label: String) -> some View {
+        Button { clearStation() } label: {
+            Image(systemName: "xmark.circle.fill")
+                .scaledFont(22)
+                .foregroundStyle(Theme.Glass.mutedText)
+                .frame(width: 44, height: 44)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .padding(.vertical, -7)
+        .padding(.trailing, -10)
+        .accessibilityLabel(label)
     }
 
     /// Watchdog against an endless "Tankstelle wird gesucht…" spinner: offline
