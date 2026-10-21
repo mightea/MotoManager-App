@@ -51,6 +51,9 @@ class AuthViewModel: NSObject, ObservableObject {
             let credentials = LoginRequest(identifier: identifier, password: password)
             _ = try await NetworkManager.shared.login(credentials: credentials)
             isAuthenticated = true
+        } catch APIError.unauthorized {
+            errorMessage = "Benutzername oder Passwort ist falsch."
+            isAuthenticated = false
         } catch {
             errorMessage = message(for: error, prefix: "Anmeldung fehlgeschlagen")
             isAuthenticated = false

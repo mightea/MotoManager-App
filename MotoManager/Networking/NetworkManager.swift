@@ -177,7 +177,12 @@ class NetworkManager {
         }
 
         if httpResponse.statusCode == 401 {
-            NotificationCenter.default.post(name: NetworkManager.unauthorizedNotification, object: nil)
+            // Only a rejected token means the session is gone. A 401 on an
+            // unauthenticated request (e.g. login with a wrong password) must
+            // not trigger the logout, which would also wipe the login error.
+            if request.value(forHTTPHeaderField: "Authorization") != nil {
+                NotificationCenter.default.post(name: NetworkManager.unauthorizedNotification, object: nil)
+            }
             throw APIError.unauthorized
         }
 
