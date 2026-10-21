@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.15.0](https://github.com/mightea/MotoManager-App/compare/v0.14.0...v0.15.0) (2026-10-21)
+
+
+### Features
+
+* automatically save a new fuel station when no nearby one matches ([54e630b](https://github.com/mightea/MotoManager-App/commit/54e630bb0580d1e52738ca0fa2b83c9bca008b5c))
+
+
+### Bug Fixes
+
+* show an error when logging in with a wrong username or password ([615ae59](https://github.com/mightea/MotoManager-App/commit/615ae59183fbca6041f49496740947eb86c039c5))
+
 ## [0.14.0](https://github.com/mightea/MotoManager-App/compare/v0.13.0...v0.14.0) (2026-10-09)
 
 
