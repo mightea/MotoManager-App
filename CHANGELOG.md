@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.16.0](https://github.com/mightea/MotoManager-App/compare/v0.15.0...v0.16.0) (2026-10-21)
+
+
+### Features
+
+* show a persistent update prompt with a TestFlight link for outdated builds ([07ed99d](https://github.com/mightea/MotoManager-App/commit/07ed99d3887d3c602746784939ed996b0eda2053))
+
+
+### Bug Fixes
+
+* drop the station checkmark and enlarge the clear button on the fuel sheet ([cac537f](https://github.com/mightea/MotoManager-App/commit/cac537f8bfc0aaa9e72111d961df0da70edaa3f1))
+
 ## [0.15.0](https://github.com/mightea/MotoManager-App/compare/v0.14.0...v0.15.0) (2026-10-21)
 
 
