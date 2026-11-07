@@ -48,7 +48,12 @@ class AuthViewModel: NSObject, ObservableObject {
         errorMessage = nil
         
         do {
-            let credentials = LoginRequest(identifier: identifier, password: password)
+            // Autofill and keyboard suggestions can leave an invisible trailing
+            // space, which the backend would treat as a different username.
+            let credentials = LoginRequest(
+                identifier: identifier.trimmingCharacters(in: .whitespacesAndNewlines),
+                password: password
+            )
             _ = try await NetworkManager.shared.login(credentials: credentials)
             isAuthenticated = true
         } catch APIError.unauthorized {

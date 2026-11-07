@@ -369,7 +369,8 @@ struct LoginView: View {
         Button {
             applyServerURL()
             Task {
-                await authVM.loginWithPasskey(username: identifier.isEmpty ? nil : identifier)
+                let username = identifier.trimmingCharacters(in: .whitespacesAndNewlines)
+                await authVM.loginWithPasskey(username: username.isEmpty ? nil : username)
             }
         } label: {
             HStack(spacing: 10) {
