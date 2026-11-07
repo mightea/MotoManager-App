@@ -26,6 +26,9 @@ struct MotorcycleSummaryHeader<Actions: View>: View {
     /// Narrow phones: settings live in the switcher menu and the year drops
     /// out of the caption, so the km reading stays whole.
     var isNarrow = false
+    /// Tab-specific secondary actions, listed in the switcher menu while
+    /// narrow (the workspace shows them as buttons otherwise).
+    var menuActions: [WorkspaceMenuAction] = []
     @ObservedObject var metrics: WorkspaceHeaderMetrics
     @ObservedObject var scroll: WorkspaceScrollProgress
     @ViewBuilder var actions: () -> Actions
@@ -162,6 +165,13 @@ struct MotorcycleSummaryHeader<Actions: View>: View {
         Group {
             if isNarrow {
                 Menu {
+                    if !menuActions.isEmpty {
+                        ForEach(menuActions) { item in
+                            Button(item.title, systemImage: item.systemImage, action: item.action)
+                                .disabled(item.isDisabled)
+                        }
+                        Divider()
+                    }
                     Button("Motorrad wechseln", systemImage: "arrow.left.arrow.right", action: chrome.openGarage)
                     Button("Motorrad bearbeiten", systemImage: "pencil", action: chrome.editMotorcycle)
                     Divider()

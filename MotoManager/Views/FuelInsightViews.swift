@@ -153,6 +153,7 @@ struct FuelSummaryCard: View {
         }
         .padding(.horizontal, Theme.Spacing.m - 2)
         .padding(.vertical, Theme.Spacing.m - 4)
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("fuel.summary")
     }
 

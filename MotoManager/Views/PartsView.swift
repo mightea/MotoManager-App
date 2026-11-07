@@ -18,6 +18,12 @@ struct PartsView: View {
     /// inventory instead of narrowing it. Inert when the bike has no linked
     /// model series (`filteredParts` ignores it then, and the toggle is hidden).
     @State private var filterBySelectedBike = true
+    /// Only parts with one piece or none left.
+    @State private var lowStockOnly = false
+    /// Only parts stocked at this place (or anywhere inside it).
+    @State private var placeFilter: SDStorageLocation?
+    /// Phones keep the search behind an icon in the chip row.
+    @State private var showingSearch = false
     @State private var showingAddPart = false
     enum Destination: Hashable { case part(SDPart), location(SDStorageLocation) }
     @State private var selection: Destination?
@@ -35,11 +41,10 @@ struct PartsView: View {
     @Environment(\.horizontalSizeClass) private var sizeClass
 
     var body: some View {
-        MotorcycleWorkspace(motorcycle: detailVM.motorcycle, type: .parts) {
-            WorkspaceAction("Etikett scannen", systemImage: "qrcode.viewfinder", showsTitle: false) {
-                showingScanner = true
-            }
-            .disabled(tab == .publicParts)
+        MotorcycleWorkspace(motorcycle: detailVM.motorcycle, type: .parts, menuActions: [
+            WorkspaceMenuAction(title: "Etikett scannen", systemImage: "qrcode.viewfinder",
+                                isDisabled: tab == .publicParts) { showingScanner = true }
+        ]) {
             WorkspaceAction(addLabel, systemImage: "plus", action: addAction)
                 .disabled(tab == .publicParts)
                 .keyboardShortcut("n", modifiers: .command)
@@ -145,17 +150,16 @@ struct PartsView: View {
         }
     }
 
+    private var searchVisible: Bool { sizeClass == .regular || tab != .mine || showingSearch }
+
     private var partsList: some View {
         List {
-            WorkspaceListHeader(searchText: $searchText, prompt: tab == .locations ? "Lagerort suchen …" : "Name oder Teilenummer …")
-            // Wide layouts show the stats in the overview beside the list.
-            if sizeClass != .regular {
-                Section { StatStrip(statTiles).listRowInsets(EdgeInsets()) }
-            }
+            WorkspaceListHeader(searchText: searchVisible ? $searchText : nil,
+                                prompt: tab == .locations ? "Lagerort suchen …" : "Name oder Teilenummer …")
             Section {
                 GlassSegmentedControl(
                     segments: [
-                        .init(value: PartsTab.mine, label: "Meine Teile", count: viewModel.parts.count),
+                        .init(value: PartsTab.mine, label: "Teile", count: viewModel.parts.count),
                         .init(value: PartsTab.locations, label: "Lagerorte", count: viewModel.storageLocations.count),
                         .init(value: PartsTab.publicParts, label: "Öffentlich")
                     ],
@@ -166,18 +170,13 @@ struct PartsView: View {
             .listRowBackground(Color.clear)
             .listRowSeparator(.hidden)
 
-            // One stable section whose *rows* switch with the segment — swapping
-            // whole sections made the list rebuild its section chrome on every
-            // switch, which showed as brief content flashes.
-            Section {
-                switch tab {
-                case .mine:
-                    mineRows
-                case .locations:
-                    locationRows
-                case .publicParts:
-                    publicRows
-                }
+            switch tab {
+            case .mine:
+                mineSections
+            case .locations:
+                locationSections
+            case .publicParts:
+                Section { publicRows }
             }
             WorkspaceListFooter()
         }
@@ -395,6 +394,13 @@ struct PartsView: View {
                     partSeriesIds: $0.seriesIds, bikeSeriesId: seriesId, in: viewModel.series)
             }
         }
+        if lowStockOnly {
+            result = result.filter { viewModel.onHand(for: $0) <= 1 }
+        }
+        if let placeFilter {
+            let ids = viewModel.stockedPartIds(under: placeFilter)
+            result = result.filter { ids.contains($0.clientId) }
+        }
         let query = searchText.trimmingCharacters(in: .whitespaces).lowercased()
         if !query.isEmpty {
             result = result.filter {
@@ -408,7 +414,7 @@ struct PartsView: View {
     /// True when the empty list is caused by the default bike filter alone —
     /// the message must then point at the toggle, not at a search query.
     private var emptyBecauseOfBikeFilter: Bool {
-        filterBySelectedBike && motorcycle?.seriesId != nil
+        filterBySelectedBike && motorcycle?.seriesId != nil && !lowStockOnly && placeFilter == nil
             && searchText.trimmingCharacters(in: .whitespaces).isEmpty
             && !viewModel.parts.isEmpty
     }
@@ -430,73 +436,184 @@ struct PartsView: View {
         return "Kein Teil passt zu Suche oder Filter."
     }
 
-    private var scopeSummary: some View {
-        Text("\(filteredParts.count) angezeigt · \(viewModel.parts.count) insgesamt")
-            .font(.footnote)
-            .foregroundStyle(.secondary)
-            .accessibilityIdentifier("parts.scopeSummary")
+    private var lowStockCount: Int {
+        viewModel.parts.filter { viewModel.onHand(for: $0) <= 1 }.count
     }
 
     @ViewBuilder
-    private var mineRows: some View {
-        // Filter and its result count share one row instead of two.
-        // The switch sits beside (not around) the texts so the count stays
-        // its own accessibility element (`parts.scopeSummary`).
-        if let moto = motorcycle, moto.seriesId != nil {
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Passend für \(moto.make) \(moto.model)")
-                        .scaledFont(13, weight: .semibold)
-                        .accessibilityHidden(true)
-                    scopeSummary
-                }
-                Spacer(minLength: Theme.Spacing.s)
-                Toggle("Passend für \(moto.make) \(moto.model)", isOn: $filterBySelectedBike)
-                    .labelsHidden()
-                    .tint(Theme.Colors.primary)
-            }
-        } else {
-            scopeSummary
-        }
+    private var mineSections: some View {
+        Section { chipBar }
+            .cardRow()
 
         if viewModel.parts.isEmpty && detailVM.showsLoadingPlaceholders {
             // The inventory arrives with the bike's initial sync; skeletons
             // until then instead of a flashing "Keine Teile erfasst".
-            ForEach(0..<4, id: \.self) { _ in
-                PartCard.placeholder
-                    .redacted(reason: .placeholder)
+            Section {
+                ForEach(0..<4, id: \.self) { _ in
+                    PartCard.placeholder.redacted(reason: .placeholder)
+                }
             }
         } else if filteredParts.isEmpty {
-            emptyStateRow(title: emptyPartsTitle, message: emptyPartsMessage, icon: "shippingbox.fill")
-            if emptyBecauseOfBikeFilter {
-                Button("Alle Teile anzeigen") { filterBySelectedBike = false }
-            } else if viewModel.parts.isEmpty {
-                Button("Erstes Teil hinzufügen", systemImage: "plus") { showingAddPart = true }
-            } else {
-                Button("Suche und Filter zurücksetzen") {
-                    searchText = ""
-                    filterBySelectedBike = false
+            Section {
+                emptyStateRow(title: emptyPartsTitle, message: emptyPartsMessage, icon: "shippingbox.fill")
+                if emptyBecauseOfBikeFilter {
+                    Button("Alle Teile anzeigen") { filterBySelectedBike = false }
+                } else if viewModel.parts.isEmpty {
+                    Button("Erstes Teil hinzufügen", systemImage: "plus") { showingAddPart = true }
+                } else {
+                    Button("Suche und Filter zurücksetzen") {
+                        searchText = ""
+                        filterBySelectedBike = false
+                        lowStockOnly = false
+                        placeFilter = nil
+                    }
                 }
             }
         } else {
-            ForEach(filteredParts, id: \.clientId) { part in
-                Button {
-                    selection = .part(part)
-                } label: {
-                    PartCard(part: part, onHand: viewModel.onHand(for: part), viewModel: viewModel)
-                }
-                .buttonStyle(.plain)
-                .selectedRecord(selection == .part(part))
-                .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                    Button(role: .destructive) {
-                        partPendingDeletion = part
-                    } label: {
-                        Label("Löschen", systemImage: "trash")
-                    }
-                    .tint(.red)
+            let low = filteredParts.filter { viewModel.onHand(for: $0) <= 1 }
+            let stocked = filteredParts.filter { viewModel.onHand(for: $0) > 1 }
+            if !low.isEmpty {
+                Section {
+                    ForEach(low, id: \.clientId) { partRow($0) }
+                } header: {
+                    groupHeader("Knapp im Lager", count: low.count, tint: .orange)
                 }
             }
+            if !stocked.isEmpty {
+                Section {
+                    ForEach(stocked, id: \.clientId) { partRow($0) }
+                } header: {
+                    groupHeader("Auf Lager", count: stocked.count, tint: nil)
+                }
+            }
+            if sizeClass != .regular {
+                Section { scopeSummary }
+                    .cardRow()
+            }
         }
+    }
+
+    /// Count and stock value under the list; the stats strip lives in the
+    /// wide overview only.
+    private var scopeSummary: some View {
+        var text = "\(filteredParts.count) von \(viewModel.parts.count) Teilen"
+        if inventoryValue > 0 {
+            text += " · Lagerwert " + Formatters.currency(inventoryValue, code: "CHF", fractionDigits: 0)
+        }
+        return Text(text)
+            .font(.footnote)
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, Theme.Spacing.s)
+            .accessibilityIdentifier("parts.scopeSummary")
+    }
+
+    private func groupHeader(_ title: String, count: Int, tint: Color?) -> some View {
+        HStack {
+            Text(title).foregroundStyle(tint.map { AnyShapeStyle($0) } ?? AnyShapeStyle(.secondary))
+            Spacer()
+            Text("\(count)").monospacedDigit()
+        }
+    }
+
+    private func partRow(_ part: SDPart) -> some View {
+        Button {
+            selection = .part(part)
+        } label: {
+            PartCard(part: part, onHand: viewModel.onHand(for: part),
+                     place: viewModel.stockLocationNames(for: part).first, viewModel: viewModel)
+        }
+        .buttonStyle(.plain)
+        .selectedRecord(selection == .part(part))
+        .accessibilityIdentifier("parts.row.\(part.clientId)")
+        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+            Button(role: .destructive) {
+                partPendingDeletion = part
+            } label: {
+                Label("Löschen", systemImage: "trash")
+            }
+            .tint(.red)
+        }
+    }
+
+    /// Fit, low-stock and place filters as chips, search behind an icon on
+    /// phones.
+    private var chipBar: some View {
+        HStack(spacing: 6) {
+            ScrollView(.horizontal) {
+                HStack(spacing: 6) {
+                    if let moto = motorcycle, moto.seriesId != nil {
+                        chip(filterBySelectedBike ? "Passend für \(moto.model)" : "Alle Motorräder",
+                             systemImage: filterBySelectedBike ? "checkmark" : nil,
+                             active: filterBySelectedBike) { filterBySelectedBike.toggle() }
+                            .accessibilityIdentifier("parts.filter.fit")
+                    }
+                    chip("Knapp", count: lowStockCount, active: lowStockOnly) { lowStockOnly.toggle() }
+                        .accessibilityIdentifier("parts.filter.low")
+                    if !topLevelLocations.isEmpty {
+                        Menu {
+                            Button("Alle Orte") { placeFilter = nil }
+                            ForEach(topLevelLocations, id: \.clientId) { location in
+                                Button(location.name) { placeFilter = location }
+                            }
+                        } label: {
+                            chipLabel(placeFilter?.name ?? "Alle Orte", systemImage: nil, count: nil,
+                                      trailing: "chevron.down", active: placeFilter != nil)
+                        }
+                        .accessibilityIdentifier("parts.filter.place")
+                    }
+                }
+            }
+            .scrollIndicators(.hidden)
+            .scrollClipDisabled()
+
+            if sizeClass != .regular {
+                Button {
+                    withAnimation(.easeOut(duration: 0.18)) {
+                        showingSearch.toggle()
+                        if !showingSearch { searchText = "" }
+                    }
+                } label: {
+                    Image(systemName: showingSearch ? "xmark" : "magnifyingglass")
+                        .scaledFont(13, weight: .semibold)
+                        .foregroundStyle(.secondary)
+                        .frame(width: 32, height: 32)
+                        .background(Circle().fill(Theme.Colors.backgroundElevated))
+                        .frame(minWidth: 44, minHeight: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(showingSearch ? "Suche schliessen" : "Teile durchsuchen")
+                .accessibilityIdentifier("parts.search")
+            }
+        }
+        .sensoryFeedback(.selection, trigger: lowStockOnly)
+    }
+
+    private func chip(_ title: String, systemImage: String? = nil, count: Int? = nil,
+                      active: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            chipLabel(title, systemImage: systemImage, count: count, trailing: nil, active: active)
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(active ? .isSelected : [])
+    }
+
+    private func chipLabel(_ title: String, systemImage: String?, count: Int?, trailing: String?,
+                           active: Bool) -> some View {
+        HStack(spacing: 4) {
+            if let systemImage { Image(systemName: systemImage).scaledFont(11, weight: .bold) }
+            Text(title)
+            if let count { Text("\(count)").monospacedDigit().opacity(0.7) }
+            if let trailing { Image(systemName: trailing).scaledFont(9, weight: .bold) }
+        }
+        .scaledFont(13, weight: .semibold)
+        .lineLimit(1)
+        .foregroundStyle(active ? AnyShapeStyle(Theme.Colors.primary) : AnyShapeStyle(.primary))
+        .padding(.horizontal, 11)
+        .frame(minHeight: 32)
+        .background(Capsule().fill(active ? Theme.Colors.primary.opacity(0.15) : Theme.Colors.backgroundElevated))
+        .frame(minHeight: 44)
+        .contentShape(Rectangle())
     }
 
     // MARK: - Storage locations
@@ -514,6 +631,68 @@ struct PartsView: View {
         return result.sorted {
             (viewModel.locationPath($0) ?? $0.name) < (viewModel.locationPath($1) ?? $1.name)
         }
+    }
+
+    /// Places (garage, workshop) with their storage locations nested below,
+    /// so a box is found by walking the shelf. Searching flattens the tree
+    /// and shows each hit's path instead.
+    @ViewBuilder
+    private var locationSections: some View {
+        let query = searchText.trimmingCharacters(in: .whitespaces)
+        if !query.isEmpty || filteredLocations.isEmpty || viewModel.storageLocations.isEmpty {
+            Section { locationRows }
+        } else {
+            ForEach(placeGroups, id: \.name) { group in
+                Section {
+                    ForEach(group.rows, id: \.location.clientId) { row in
+                        locationButton(row.location, depth: row.depth)
+                    }
+                } header: {
+                    Label(group.name, systemImage: group.isPlace ? "mappin.and.ellipse" : "archivebox")
+                }
+            }
+        }
+    }
+
+    /// Root locations grouped by the place they belong to, each flattened
+    /// with its descendants in tree order.
+    private var placeGroups: [(name: String, isPlace: Bool, rows: [(location: SDStorageLocation, depth: Int)])] {
+        var order: [String] = []
+        var groups: [String: [(location: SDStorageLocation, depth: Int)]] = [:]
+        var places: Set<String> = []
+        for root in topLevelLocations {
+            let place = detailVM.location(id: root.locationId)?.name
+            let name = place ?? "Ohne Ort"
+            if place != nil { places.insert(name) }
+            if groups[name] == nil { order.append(name) }
+            groups[name, default: []].append(contentsOf: flatten(root, depth: 0))
+        }
+        // Places first, the unassigned group last.
+        order.sort { ($0 == "Ohne Ort" ? 1 : 0, $0) < ($1 == "Ohne Ort" ? 1 : 0, $1) }
+        return order.map { (name: $0, isPlace: places.contains($0), rows: groups[$0] ?? []) }
+    }
+
+    private func flatten(_ location: SDStorageLocation, depth: Int) -> [(location: SDStorageLocation, depth: Int)] {
+        guard depth < 8 else { return [] }
+        return [(location, depth)] + viewModel.children(of: location).flatMap { flatten($0, depth: depth + 1) }
+    }
+
+    private func locationButton(_ location: SDStorageLocation, depth: Int?) -> some View {
+        Button {
+            selection = .location(location)
+        } label: {
+            StorageLocationCard(
+                location: location,
+                parentPath: depth == nil ? viewModel.locationParentPath(location) : nil,
+                placeName: depth == nil ? detailVM.location(id: location.locationId)?.name : nil,
+                directCount: viewModel.stockedParts(at: location).count,
+                totalCount: viewModel.totalStockedPartCount(at: location),
+                depth: depth ?? 0
+            )
+        }
+        .buttonStyle(.plain)
+        .selectedRecord(selection == .location(location))
+        .accessibilityIdentifier("parts.location.\(location.clientId)")
     }
 
     @ViewBuilder
@@ -536,19 +715,7 @@ struct PartsView: View {
             }
         } else {
             ForEach(filteredLocations, id: \.clientId) { location in
-                Button {
-                    selection = .location(location)
-                } label: {
-                    StorageLocationCard(
-                        location: location,
-                        parentPath: viewModel.locationParentPath(location),
-                        placeName: detailVM.location(id: location.locationId)?.name,
-                        directCount: viewModel.stockedParts(at: location).count,
-                        totalCount: viewModel.totalStockedPartCount(at: location)
-                    )
-                }
-                .buttonStyle(.plain)
-                .selectedRecord(selection == .location(location))
+                locationButton(location, depth: nil)
             }
         }
     }
@@ -609,6 +776,8 @@ private struct StorageLocationCard: View {
     /// Parts stocked here or in any nested container — what the big number
     /// shows, so a parent full of stocked boxes never reads "0 Teile".
     let totalCount: Int
+    /// Nesting level in the tree; nested rows indent and use a smaller icon.
+    var depth: Int = 0
 
     /// Skeleton stand-in for the loading state (rendered `.redacted`).
     static var placeholder: some View {
@@ -629,11 +798,13 @@ private struct StorageLocationCard: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            Image(systemName: "archivebox.fill")
-                .scaledFont(17, weight: .semibold)
-                .foregroundStyle(Theme.Colors.primary)
-                .frame(width: 40, height: 40)
-                .background(Circle().fill(Theme.Colors.primary.opacity(0.15)))
+            Image(systemName: depth == 0 ? "archivebox.fill" : "shippingbox")
+                .scaledFont(depth == 0 ? 16 : 14, weight: .semibold)
+                .foregroundStyle(depth == 0 ? AnyShapeStyle(Theme.Colors.primary) : AnyShapeStyle(.secondary))
+                .frame(width: depth == 0 ? 36 : 30, height: depth == 0 ? 36 : 30)
+                .background(RoundedRectangle(cornerRadius: Theme.Radius.badge)
+                    .fill(depth == 0 ? Theme.Colors.primary.opacity(0.15) : Color.primary.opacity(0.06)))
+                .padding(.leading, CGFloat(min(depth, 4)) * 22)
                 .overlay(alignment: .topTrailing) {
                     if location.syncState.isPending { PendingBadge().offset(x: 5, y: -5) }
                 }
@@ -797,6 +968,8 @@ private struct AddStorageLocationView: View {
 private struct PartCard: View {
     let part: SDPart
     let onHand: Int
+    /// Where the part is stocked (first place), shown after the number.
+    var place: String? = nil
     @ObservedObject var viewModel: PartsViewModel
 
     /// Skeleton stand-in for the loading state (rendered `.redacted`).
@@ -804,10 +977,10 @@ private struct PartCard: View {
         HStack(spacing: 12) {
             RoundedRectangle(cornerRadius: Theme.Radius.controlInner)
                 .fill(.quaternary)
-                .frame(width: 40, height: 40)
+                .frame(width: 44, height: 44)
             VStack(alignment: .leading, spacing: 4) {
                 Text("Bremsbeläge vorn")
-                Text("07BB37.SA")
+                Text("07BB37.SA · Regal A")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
@@ -817,22 +990,31 @@ private struct PartCard: View {
         .padding(.vertical, 4)
     }
 
+    /// Orange at one piece, red at none.
+    private var stockTint: Color {
+        onHand <= 0 ? Theme.Colors.accent : onHand == 1 ? .orange : Theme.Colors.primary
+    }
+
     var body: some View {
         HStack(spacing: 12) {
-            if let imageURL = part.image {
-                RemoteImageView(url: imageURL, maxPixelWidth: 160)
-                    .frame(width: 40, height: 40)
-                    .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.controlInner))
-            } else {
-                Image(systemName: "shippingbox.fill")
-                    .scaledFont(17, weight: .semibold)
-                    .foregroundStyle(Theme.Colors.primary)
-                    .frame(width: 40, height: 40)
-                    .background(Circle().fill(Theme.Colors.primary.opacity(0.15)))
+            ZStack {
+                RoundedRectangle(cornerRadius: Theme.Radius.controlInner)
+                    .fill(Theme.Colors.primary.opacity(0.10))
+                if let imageURL = part.image {
+                    RemoteImageView(url: imageURL, maxPixelWidth: 160)
+                        .aspectRatio(contentMode: .fill)
+                } else {
+                    Image(systemName: "shippingbox")
+                        .scaledFont(18, weight: .semibold)
+                        .foregroundStyle(Theme.Colors.primary)
+                }
             }
+            .frame(width: 44, height: 44)
+            .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.controlInner))
+            .accessibilityHidden(true)
 
-            VStack(alignment: .leading, spacing: 3) {
-                HStack(alignment: .top, spacing: 6) {
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
                     // Two lines: similar parts often differ only in the tail
                     // of the name, which a one-line clamp cuts off.
                     Text(part.name)
@@ -844,39 +1026,30 @@ private struct PartCard: View {
                         Image(systemName: "globe")
                             .scaledFont(10, weight: .bold)
                             .foregroundStyle(.tertiary)
+                            .accessibilityLabel("Öffentlich")
                     }
                 }
-                Text(part.partNumber)
-                    .scaledFont(11, weight: .semibold)
-                    .monospaced()
-                    .foregroundStyle(.secondary)
-                if !part.seriesIds.isEmpty {
-                    Text(seriesSummary)
-                        .scaledFont(10, weight: .semibold)
-                        .foregroundStyle(.tertiary)
-                        .lineLimit(1)
+                HStack(spacing: 0) {
+                    Text(part.partNumber).monospaced()
+                    if let place { Text(" · \(place)") }
                 }
+                .scaledFont(12, weight: .medium)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
             }
             Spacer(minLength: 0)
 
-            VStack(alignment: .trailing, spacing: 2) {
-                Text("\(onHand)")
-                    .scaledFont(17, weight: .heavy)
-                    .monospacedDigit()
-                    .foregroundStyle(onHand > 0 ? AnyShapeStyle(Theme.Colors.primary) : AnyShapeStyle(.tertiary))
-                Text("Bestand")
-                    .scaledFont(9, weight: .heavy)
-                    .tracking(1)
-                    .foregroundStyle(.tertiary)
-            }
+            Text("\(onHand)")
+                .scaledFont(16, weight: .heavy)
+                .monospacedDigit()
+                .foregroundStyle(stockTint)
+                .padding(.horizontal, 8)
+                .frame(minWidth: 40, minHeight: 34)
+                .background(stockTint.opacity(0.15), in: RoundedRectangle(cornerRadius: Theme.Radius.controlInner))
+                .accessibilityLabel("Bestand \(onHand)")
         }
-        .padding(.vertical, 4)
-    }
-
-    private var seriesSummary: String {
-        let names = part.seriesIds.prefix(3).map { viewModel.seriesName($0) }
-        let more = part.seriesIds.count - names.count
-        return names.joined(separator: " · ") + (more > 0 ? " +\(more)" : "")
+        .padding(.vertical, 2)
+        .contentShape(Rectangle())
     }
 }
 

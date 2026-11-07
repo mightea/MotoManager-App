@@ -155,6 +155,11 @@ class PartsViewModel: ObservableObject {
     /// locations. A parent container showing "0 Teile" while its boxes hold
     /// parts reads as empty, so list rows display this rolled-up count.
     func totalStockedPartCount(at location: SDStorageLocation) -> Int {
+        stockedPartIds(under: location).count
+    }
+
+    /// Parts stocked at a location or anywhere inside it.
+    func stockedPartIds(under location: SDStorageLocation) -> Set<UUID> {
         var partIds = Set<UUID>()
         var queue = [location]
         var visited = Set<UUID>()
@@ -163,7 +168,31 @@ class PartsViewModel: ObservableObject {
             partIds.formUnion(stockQuantitiesByLocation[current.clientId, default: [:]].keys)
             queue.append(contentsOf: childrenByLocation[current.clientId, default: []])
         }
-        return partIds.count
+        return partIds
+    }
+
+    /// Stock entries placed at exactly this location.
+    func stocks(at location: SDStorageLocation) -> [SDPartStock] {
+        liveStocks.filter { stock in
+            stock.storageLocationClientId == location.clientId
+                || (stock.storageLocationClientId == nil && location.serverId != nil
+                    && stock.storageLocationServerId == location.serverId)
+        }
+    }
+
+    /// Direct child locations, sorted by name.
+    func children(of location: SDStorageLocation) -> [SDStorageLocation] {
+        childrenByLocation[location.clientId, default: []].sorted {
+            $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
+        }
+    }
+
+    /// Names of the locations a part is stocked at, sorted.
+    func stockLocationNames(for part: SDPart) -> [String] {
+        Set(stocks(for: part).compactMap { stock in
+            (stock.storageLocationClientId.flatMap { locationsByClientId[$0] }
+                ?? stock.storageLocationServerId.flatMap { locationsByServerId[$0] })?.name
+        }).sorted()
     }
 
     /// Ancestors only ("Garage › Regal A" for "Kiste 3"); nil for roots.

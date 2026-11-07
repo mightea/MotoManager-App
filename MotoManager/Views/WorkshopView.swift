@@ -1,5 +1,6 @@
 import SwiftUI
 import UniformTypeIdentifiers
+import VisionKit
 
 /// The "Technik" tab: one overview of the bike's reference data — tire
 /// pressure, details, torque specs and documents — instead of a category
@@ -28,6 +29,12 @@ struct WorkshopView: View {
     @State private var documentUploadError: String?
     @State private var pendingTorqueDelete: SDTorqueSpec?
     @State private var pendingDetailDelete: SDMotorcycleDetail?
+    /// The document library: pushed on phones, swapped into the list
+    /// column on wide layouts.
+    @State private var showingLibrary = false
+    @State private var showingScanner = false
+    // Read the workspace width before NavigationSplitView narrows its columns.
+    @Environment(\.horizontalSizeClass) private var sizeClass
 
     /// Rows a collapsed section shows before "Alle … anzeigen".
     private static let torquePreviewCount = 3
@@ -38,13 +45,6 @@ struct WorkshopView: View {
 
     private func matchesSearch(_ text: String) -> Bool {
         !isSearching || text.localizedStandardContains(query)
-    }
-
-    private var motoLabel: String {
-        let make = viewModel.motorcycle.make
-        let model = viewModel.motorcycle.model
-        let full = "\(make) \(model)"
-        return full.count > 14 ? make : full
     }
 
     private var filteredDetails: [SDMotorcycleDetail] {
@@ -106,6 +106,9 @@ struct WorkshopView: View {
                 Button("Detail hinzufügen", systemImage: "list.bullet.rectangle") { showingAddDetail = true }
                 Button("Drehmoment hinzufügen", systemImage: "wrench.and.screwdriver") { showingAddTorque = true }
                 Button("Dokument hochladen", systemImage: "doc.badge.plus") { showingDocumentImporter = true }
+                if VNDocumentCameraViewController.isSupported {
+                    Button("Dokument scannen", systemImage: "doc.viewfinder") { showingScanner = true }
+                }
             } label: {
                 Image(systemName: "plus")
                     .font(.headline)
@@ -119,7 +122,11 @@ struct WorkshopView: View {
             RecordBrowser(selection: $presentedDocument, title: "Technische Daten",
                           emptyTitle: "Dokument auswählen", systemImage: "doc.text",
                           overview: AnyView(referenceOverview)) {
-                referenceList
+                if showingLibrary && sizeClass == .regular {
+                    library(onBack: { showingLibrary = false })
+                } else {
+                    referenceList
+                }
             } detail: { document in
                 DocumentViewerView(document: document)
             }
@@ -151,6 +158,15 @@ struct WorkshopView: View {
         .sheet(isPresented: $showingTirePressure) {
             AddTirePressureView(viewModel: viewModel)
                 .glassSheet()
+        }
+        .fullScreenCover(isPresented: $showingScanner) {
+            DocumentScannerView { pdf in
+                showingScanner = false
+                guard let pdf else { return }
+                let stamp = Date().formatted(.dateTime.day().month(.twoDigits).year().locale(Formatters.displayLocale))
+                upload(title: "Scan \(stamp)", fileName: "Scan.pdf", mimeType: "application/pdf") { pdf }
+            }
+            .ignoresSafeArea()
         }
         .fileImporter(
             isPresented: $showingDocumentImporter,
@@ -204,15 +220,22 @@ struct WorkshopView: View {
                         .listRowBackground(Color.clear)
                 }
             } else {
+                documentsSection
                 vehicleSection
                 tirePressureSection
                 detailsSection
                 torqueSection
-                documentsSection
             }
             WorkspaceListFooter()
         }
         .accessibilityIdentifier("workshop.references")
+        .alignsWorkspaceColumn(.list)
+        .navigationDestination(isPresented: Binding(
+            get: { showingLibrary && sizeClass != .regular },
+            set: { showingLibrary = $0 }
+        )) {
+            library(onBack: nil)
+        }
         .tracksWorkspaceHeader()
         .workspaceListStyle()
         .scrollContentBackground(.hidden)
@@ -225,6 +248,7 @@ struct WorkshopView: View {
     /// already shows every section, so this only summarises.
     private var referenceOverview: some View {
         List {
+            OverviewTitle("Technik im Blick")
             Section { StatStrip(statTiles).listRowInsets(EdgeInsets()) }
             Section {
                 Label("Öffne ein Dokument, um es neben den technischen Daten zu lesen.", systemImage: "doc.text.magnifyingglass")
@@ -233,11 +257,11 @@ struct WorkshopView: View {
             }
         }
         .accessibilityIdentifier("workshop.overview")
+        .alignsWorkspaceColumn(.overview)
         .workspaceListStyle()
         .scrollContentBackground(.hidden)
         .background(Theme.Colors.background)
-        .navigationTitle("Technik im Blick")
-        .navigationBarTitleDisplayMode(.inline)
+        .toolbar(.hidden, for: .navigationBar)
     }
 
     private var loadingPlaceholderRow: some View {
@@ -508,112 +532,90 @@ struct WorkshopView: View {
 
     // MARK: - Documents
 
+    /// Not searching: the three latest documents and the way into the
+    /// library, first thing in Technik. Searching: every matching file.
     @ViewBuilder
     private var documentsSection: some View {
-        let bike = bikeDocuments
-        let common = commonDocuments
-        if !(isSearching && bike.isEmpty && common.isEmpty) {
-            Section {
-                if viewModel.documents.isEmpty && viewModel.commonDocuments.isEmpty && !isUploadingDocument {
-                    emptySectionRow(
-                        "Keine Dokumente erfasst",
-                        icon: "doc",
-                        actionLabel: "Dokument hochladen"
-                    ) { showingDocumentImporter = true }
-                } else {
-                    if !bike.isEmpty {
-                        documentStrip(title: common.isEmpty ? nil : motoLabel, documents: bike)
-                    }
-                    if !common.isEmpty {
-                        documentStrip(title: "Allgemein", documents: common)
-                    }
-                    if isUploadingDocument {
-                        HStack(spacing: Theme.Spacing.s) {
-                            ProgressView()
-                            Text("Dokument wird hochgeladen …")
-                                .scaledFont(13, weight: .semibold)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                }
-            } header: {
-                let count = isSearching ? bike.count + common.count : documentCount
-                sectionHeader("Dokumente", count: count, unit: count == 1 ? "Datei" : "Dateien")
-            }
-        }
-    }
-
-    /// Horizontally scrolling row of document cards — keeps a long document
-    /// list to one row of height instead of a grid that pushes everything
-    /// else off screen.
-    private func documentStrip(title: String?, documents: [Document]) -> some View {
-        VStack(alignment: .leading, spacing: Theme.Spacing.s) {
-            if let title { FormLabel(title) }
-            ScrollView(.horizontal, showsIndicators: false) {
-                LazyHStack(spacing: 10) {
-                    ForEach(documents) { doc in
-                        Button {
-                            presentedDocument = doc
-                        } label: {
-                            DocumentTile(document: doc, offlineStatus: offlineStore.status(of: doc))
-                                .frame(width: 132)
+        let all = (viewModel.documents + viewModel.commonDocuments).sorted { $0.createdAt > $1.createdAt }
+        if isSearching {
+            let matches = bikeDocuments + commonDocuments
+            if !matches.isEmpty {
+                Section {
+                    ForEach(matches) { document in
+                        Button { presentedDocument = document } label: {
+                            HStack(spacing: Theme.Spacing.m - 4) {
+                                DocumentPreview(document: document)
+                                Text(document.title).font(.subheadline.weight(.semibold)).lineLimit(1)
+                                Spacer(minLength: 0)
+                                DocumentOfflineMark(status: offlineStore.status(of: document)).font(.subheadline)
+                            }
+                            .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
-                        .contextMenu { offlineMenu(for: doc) }
+                        .contextMenu { DocumentOfflineMenu(document: document, store: offlineStore) }
+                    }
+                } header: {
+                    sectionHeader("Dokumente", count: matches.count, unit: matches.count == 1 ? "Datei" : "Dateien")
+                }
+            }
+        } else if all.isEmpty && !isUploadingDocument {
+            Section {
+                emptySectionRow("Keine Dokumente erfasst", icon: "doc", actionLabel: "Dokument hochladen") {
+                    showingDocumentImporter = true
+                }
+            } header: {
+                sectionHeader("Dokumente", count: 0, unit: "Dateien")
+            }
+        } else {
+            Section {
+                RecentDocumentsCard(documents: all, total: all.count,
+                                    onOpen: { presentedDocument = $0 },
+                                    onShowAll: { showingLibrary = true })
+                if isUploadingDocument {
+                    HStack(spacing: Theme.Spacing.s) {
+                        ProgressView()
+                        Text("Dokument wird hochgeladen …")
+                            .scaledFont(13, weight: .semibold)
+                            .foregroundStyle(.secondary)
                     }
                 }
-                .padding(.vertical, 2)
             }
-            .scrollClipDisabled()
         }
-        .listRowInsets(EdgeInsets(top: Theme.Spacing.s, leading: Theme.Spacing.m,
-                                  bottom: Theme.Spacing.s, trailing: Theme.Spacing.m))
-        .listRowBackground(Color.clear)
-        .listRowSeparator(.hidden)
     }
 
-    @ViewBuilder
-    private func offlineMenu(for doc: Document) -> some View {
-        switch offlineStore.status(of: doc) {
-        case .available:
-            Button(role: .destructive) {
-                offlineStore.removeOffline(doc)
-            } label: {
-                Label("Offline-Kopie entfernen", systemImage: "xmark.icloud")
+    private func library(onBack: (() -> Void)?) -> some View {
+        DocumentLibraryView(viewModel: viewModel, offlineStore: offlineStore, selection: $presentedDocument,
+                            isUploading: isUploadingDocument,
+                            onUpload: { showingDocumentImporter = true },
+                            onScan: { showingScanner = true },
+                            onBack: onBack)
+    }
+
+    /// Uploads one file and reports failures in the shared alert.
+    private func upload(title: String, fileName: String, mimeType: String,
+                        data: @escaping @Sendable () throws -> Data) {
+        isUploadingDocument = true
+        Task {
+            defer { isUploadingDocument = false }
+            do {
+                let bytes = try await Task.detached(priority: .userInitiated) { try data() }.value
+                try await viewModel.uploadDocument(title: title, fileName: fileName, mimeType: mimeType, data: bytes)
+            } catch {
+                documentUploadError = error.localizedDescription
             }
-        case .notAvailable:
-            Button {
-                offlineStore.makeAvailableOffline(doc)
-            } label: {
-                Label("Offline verfügbar machen", systemImage: "arrow.down.circle")
-            }
-        case .downloading:
-            Label("Wird geladen …", systemImage: "arrow.down.circle.dotted")
         }
     }
 
     private func handleDocumentSelection(_ result: Result<[URL], Error>) {
         do {
             guard let url = try result.get().first else { return }
-            isUploadingDocument = true
-            Task {
-                defer { isUploadingDocument = false }
+            let type = UTType(filenameExtension: url.pathExtension)
+            upload(title: url.deletingPathExtension().lastPathComponent,
+                   fileName: url.lastPathComponent,
+                   mimeType: type?.preferredMIMEType ?? "application/octet-stream") {
                 let hasAccess = url.startAccessingSecurityScopedResource()
                 defer { if hasAccess { url.stopAccessingSecurityScopedResource() } }
-                do {
-                    let data = try await Task.detached(priority: .userInitiated) {
-                        try Data(contentsOf: url, options: .mappedIfSafe)
-                    }.value
-                    let type = UTType(filenameExtension: url.pathExtension)
-                    try await viewModel.uploadDocument(
-                        title: url.deletingPathExtension().lastPathComponent,
-                        fileName: url.lastPathComponent,
-                        mimeType: type?.preferredMIMEType ?? "application/octet-stream",
-                        data: data
-                    )
-                } catch {
-                    documentUploadError = error.localizedDescription
-                }
+                return try Data(contentsOf: url, options: .mappedIfSafe)
             }
         } catch {
             documentUploadError = error.localizedDescription
@@ -919,98 +921,6 @@ private struct BadgeFlow: Layout {
             rows[rows.count - 1] = row
         }
         return rows
-    }
-}
-
-// MARK: - Document tile
-
-/// Width : height of every card in the documents grid. Both tile types use
-/// it, so all cells end up the same size no matter what they contain.
-private let documentCardAspect: CGFloat = 0.74
-
-private struct DocumentTile: View {
-    let document: Document
-    let offlineStatus: DocumentOfflineStore.Status
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            ZStack(alignment: .topLeading) {
-                // The preview fills whatever space the fixed card shape leaves
-                // above the text block. `Color.clear` owns the layout so an
-                // oddly-proportioned thumbnail (e.g. a landscape wiring
-                // diagram) can never inflate the card — the image covers and
-                // gets cropped instead.
-                Color.clear
-                    .overlay(DocumentThumbnailView(document: document))
-                    .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.controlInner))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: Theme.Radius.controlInner)
-                            .stroke(Theme.Glass.strongBorder, lineWidth: 0.5)
-                    )
-
-                Text(fileBadge)
-                    .scaledFont(9, weight: .black)
-                    .tracking(0.4)
-                    .foregroundStyle(Theme.Colors.accent)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 3)
-                    .background(
-                        RoundedRectangle(cornerRadius: 4)
-                            .fill(Theme.Colors.accent.opacity(0.22))
-                    )
-                    .padding(8)
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text(document.title)
-                    .scaledFont(13, weight: .bold)
-                    .foregroundStyle(.primary)
-                    .lineLimit(2, reservesSpace: true)
-                    .multilineTextAlignment(.leading)
-                HStack(spacing: 6) {
-                    Text(Formatters.mediumDate(String(document.createdAt.prefix(10))))
-                        .scaledFont(10, weight: .medium)
-                        .foregroundStyle(.secondary)
-                    Spacer(minLength: 0)
-                    offlineBadge
-                }
-            }
-        }
-        .padding(12)
-        .frame(maxWidth: .infinity, alignment: .topLeading)
-        .aspectRatio(documentCardAspect, contentMode: .fit)
-        .background(
-            RoundedRectangle(cornerRadius: Theme.Radius.field)
-                .fill(Color(.secondarySystemGroupedBackground))
-        )
-    }
-
-    @ViewBuilder
-    private var offlineBadge: some View {
-        switch offlineStatus {
-        case .available:
-            Image(systemName: "arrow.down.circle.fill")
-                .scaledFont(11, weight: .semibold)
-                .foregroundStyle(.green.opacity(0.85))
-                .accessibilityLabel("Offline verfügbar")
-        case .downloading:
-            ProgressView()
-                .controlSize(.mini)
-                .accessibilityLabel("Wird für offline geladen")
-        case .notAvailable:
-            EmptyView()
-        }
-    }
-
-    private var fileBadge: String {
-        let ext = (document.filePath as NSString).pathExtension.lowercased()
-        switch ext {
-        case "pdf": return "PDF"
-        case "jpg", "jpeg", "png", "heic", "heif": return "IMG"
-        case "": return "DOC"
-        default: return ext.uppercased()
-        }
     }
 }
 

@@ -39,17 +39,33 @@ struct PartDetailView: View {
     }
 
     var body: some View {
-        DetailPage(
-            accent: Theme.Colors.primary,
-            eyebrow: part.syncState.isPending ? "TEIL · NICHT SYNCHRON" : "TEIL",
-            title: part.name,
-            subtitle: part.partNumber,
-            body: {
-                catalogSection
-                stockSection
-                consumptionSection
+        List {
+            heroSection
+            stockCardSection
+            placesSection
+            if let description = part.partDescription, !description.isEmpty {
+                Section("Beschreibung") {
+                    Text(NoteBrandPalette.display(description: description, markup: part.descriptionMarkup))
+                        .scaledFont(13)
+                        .foregroundStyle(.secondary)
+                }
             }
-        )
+            historySection
+        }
+        .workspaceListStyle()
+        .scrollContentBackground(.hidden)
+        .frame(maxWidth: 800)
+        .frame(maxWidth: .infinity)
+        .background(Theme.Colors.background.ignoresSafeArea())
+        .toolbar(.visible, for: .navigationBar)
+        .navigationTitle(part.name)
+        .navigationBarTitleDisplayMode(.inline)
+        // The header below already shows the name; the bar keeps it only
+        // for the back button's history menu.
+        .toolbar {
+            ToolbarItem(placement: .principal) { Color.clear.frame(width: 1, height: 1).accessibilityHidden(true) }
+        }
+        .accessibilityIdentifier("part.detail")
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
                 Button { showingPrintLabel = true } label: {
@@ -162,175 +178,273 @@ struct PartDetailView: View {
         )
     }
 
-    // MARK: - Catalog
+    // MARK: - Hero
 
-    private var catalogSection: some View {
+    private var heroSection: some View {
         Section {
-            if let imageURL = part.image {
-                RemoteImageView(url: imageURL, maxPixelWidth: 800)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 160)
-                    .listRowInsets(EdgeInsets())
-            }
-            HStack(spacing: 8) {
-                infoPill(part.manufacturer, icon: "building.2.fill")
-                if part.isPublic {
-                    infoPill("Öffentlich", icon: "globe")
+            HStack(alignment: .center, spacing: Theme.Spacing.m - 4) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: Theme.Radius.field)
+                        .fill(Theme.Colors.primary.opacity(0.10))
+                    if let imageURL = part.image {
+                        RemoteImageView(url: imageURL, maxPixelWidth: 400)
+                            .aspectRatio(contentMode: .fill)
+                    } else {
+                        Image(systemName: "shippingbox")
+                            .scaledFont(28, weight: .semibold)
+                            .foregroundStyle(Theme.Colors.primary)
+                    }
                 }
-                Spacer()
-                VStack(alignment: .trailing, spacing: 0) {
-                    Text("\(onHand)")
-                        .scaledFont(26, weight: .heavy)
-                        .monospacedDigit()
-                        .foregroundStyle(onHand > 0 ? AnyShapeStyle(Theme.Colors.primary) : AnyShapeStyle(.tertiary))
-                    Text("AUF LAGER")
-                        .scaledFont(8, weight: .heavy).tracking(1.2)
-                        .foregroundStyle(.tertiary)
-                    if totalStockValue > 0 {
-                        Text(Formatters.currency(totalStockValue, code: "CHF"))
-                            .scaledFont(12, weight: .bold)
-                            .monospacedDigit()
-                            .foregroundStyle(.secondary)
-                            .padding(.top, 6)
-                        Text("EINKAUFSWERT")
-                            .scaledFont(8, weight: .heavy).tracking(1.2)
-                            .foregroundStyle(.tertiary)
+                .frame(width: 76, height: 76)
+                .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.field))
+                .accessibilityHidden(true)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(part.name)
+                        .font(.title2.weight(.bold))
+                        .fixedSize(horizontal: false, vertical: true)
+                    HStack(spacing: 0) {
+                        if !part.manufacturer.isEmpty { Text("\(part.manufacturer) · ") }
+                        Text(part.partNumber).monospaced().textSelection(.enabled)
+                    }
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    if let oem = part.oemPartNumber, !oem.isEmpty {
+                        HStack(spacing: 0) {
+                            Text("BMW-Nr. ")
+                            Text(oem).monospaced().textSelection(.enabled)
+                        }
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                    }
+                    if part.syncState.isPending {
+                        Label("Noch nicht synchronisiert", systemImage: "arrow.triangle.2.circlepath")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.orange)
                     }
                 }
             }
-            .padding(.vertical, 2)
+            if !part.seriesIds.isEmpty || part.isPublic {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 6) {
+                        ForEach(part.seriesIds, id: \.self) { id in
+                            Text(viewModel.seriesName(id))
+                                .scaledFont(11.5, weight: .bold)
+                                .foregroundStyle(Theme.Colors.primary)
+                                .padding(.horizontal, 8).padding(.vertical, 4)
+                                .background(Capsule().fill(Theme.Colors.primary.opacity(0.14)))
+                        }
+                        if part.isPublic {
+                            Label("Öffentlich", systemImage: "globe")
+                                .scaledFont(11.5, weight: .semibold)
+                                .foregroundStyle(.secondary)
+                                .padding(.horizontal, 8).padding(.vertical, 4)
+                                .background(Capsule().fill(Color.primary.opacity(0.08)))
+                        }
+                    }
+                }
+                .scrollClipDisabled()
+            }
+        }
+        .listRowInsets(EdgeInsets(top: Theme.Spacing.s, leading: Theme.Spacing.xs,
+                                  bottom: Theme.Spacing.xs, trailing: Theme.Spacing.xs))
+        .listRowBackground(Color.clear)
+        .listRowSeparator(.hidden)
+    }
 
-            if let oem = part.oemPartNumber, !oem.isEmpty {
-                HStack(spacing: 8) {
-                    Text("BMW-NR.")
-                        .scaledFont(10, weight: .heavy).tracking(1.4)
-                        .foregroundStyle(.tertiary)
-                    Text(oem)
-                        .scaledFont(13, weight: .semibold)
-                        .monospaced()
-                        .foregroundStyle(.primary)
-                        .textSelection(.enabled)
+    // MARK: - Stock card
+
+    /// Orange at one piece, red at none.
+    private var stockTint: Color {
+        onHand <= 0 ? Theme.Colors.accent : onHand == 1 ? .orange : Theme.Colors.primary
+    }
+
+    private var stockCardSection: some View {
+        Section {
+            HStack(spacing: Theme.Spacing.m - 4) {
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(onHand <= 1 ? "Knapp · \(onHand) auf Lager" : "Auf Lager")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(onHand <= 1 ? AnyShapeStyle(stockTint) : AnyShapeStyle(.secondary))
+                    HStack(alignment: .firstTextBaseline, spacing: 5) {
+                        Text("\(onHand)")
+                            .font(.system(size: 30, weight: .heavy))
+                            .monospacedDigit()
+                            .foregroundStyle(stockTint)
+                        Text(totalStockValue > 0
+                             ? "Stk. · Einkauf \(Formatters.currency(totalStockValue, code: "CHF", fractionDigits: 0))"
+                             : "Stk.")
+                            .font(.footnote.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                    }
                 }
                 .accessibilityElement(children: .combine)
-            }
-
-            if !part.seriesIds.isEmpty {
-                seriesChips
-            }
-
-            if let description = part.partDescription, !description.isEmpty {
-                Text(NoteBrandPalette.display(description: description, markup: part.descriptionMarkup))
-                    .scaledFont(13)
-                    .foregroundStyle(.secondary)
-            }
-        }
-    }
-
-    private var seriesChips: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 6) {
-                ForEach(part.seriesIds, id: \.self) { id in
-                    Text(viewModel.seriesName(id))
-                        .scaledFont(11, weight: .semibold)
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal, 9).padding(.vertical, 4)
-                        .background(Capsule().fill(Color.primary.opacity(0.10)))
+                Spacer(minLength: 0)
+                Button { showingAddConsumption = true } label: {
+                    Image(systemName: "minus")
+                        .font(.title3.weight(.bold))
+                        .frame(width: 44, height: 44)
+                        .background(Circle().fill(Color.primary.opacity(0.08)))
                 }
+                .buttonStyle(.plain)
+                .disabled(onHand < 1)
+                .accessibilityLabel("Verbrauch erfassen")
+                .accessibilityIdentifier("part.consume")
+                Button { showingAddStock = true } label: {
+                    Image(systemName: "plus")
+                        .font(.title3.weight(.bold))
+                        .foregroundStyle(.white)
+                        .frame(width: 44, height: 44)
+                        .background(Circle().fill(Theme.Colors.primary))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Bestand hinzufügen")
+                .accessibilityIdentifier("part.addStock")
             }
+            .padding(.vertical, 2)
         }
     }
 
-    private func infoPill(_ text: String, icon: String) -> some View {
-        HStack(spacing: 4) {
-            Image(systemName: icon).scaledFont(9, weight: .bold)
-            Text(text).scaledFont(11, weight: .semibold)
+    // MARK: - Places
+
+    /// Stocked pieces summed per storage location (consumptions aren't tied
+    /// to a place, so this is what was put there).
+    private var places: [(location: SDStorageLocation?, quantity: Int)] {
+        var order: [UUID?] = []
+        var totals: [UUID?: Int] = [:]
+        for stock in stocks {
+            let id = viewModel.storageLocation(clientId: stock.storageLocationClientId)?.clientId
+            if totals[id] == nil { order.append(id) }
+            totals[id, default: 0] += stock.quantity
         }
-        .foregroundStyle(.secondary)
-        .padding(.horizontal, 9).padding(.vertical, 4)
-        .background(Capsule().fill(Color.primary.opacity(0.10)))
+        return order.map { id in
+            (location: id.flatMap { viewModel.storageLocation(clientId: $0) }, quantity: totals[id] ?? 0)
+        }
     }
 
-    // MARK: - Stock
-
-    private var stockSection: some View {
-        Section {
-            if stocks.isEmpty {
-                Text("Noch kein Bestand erfasst.")
-                    .scaledFont(13)
-                    .foregroundStyle(.secondary)
-            } else {
-                ForEach(stocks, id: \.clientId) { stock in
-                    Button { editingStock = stock } label: {
-                        stockRow(stock)
-                    }
-                    .buttonStyle(.plain)
-                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                        // No destructive role: that animates the row away
-                        // before the confirmation is answered.
-                        Button {
-                            pendingStockDelete = stock
-                        } label: {
-                            Label("Löschen", systemImage: "trash")
+    @ViewBuilder
+    private var placesSection: some View {
+        if !stocks.isEmpty {
+            Section {
+                ForEach(Array(places.enumerated()), id: \.offset) { _, place in
+                    HStack(spacing: 12) {
+                        Text("\(place.quantity)×")
+                            .scaledFont(15, weight: .heavy)
+                            .monospacedDigit()
+                            .foregroundStyle(Theme.Colors.primary)
+                            .frame(width: 34, alignment: .leading)
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(place.location?.name ?? "Ohne Lagerort")
+                                .scaledFont(14.5, weight: .semibold)
+                            if let location = place.location, let parent = viewModel.locationParentPath(location) {
+                                Text(parent)
+                                    .scaledFont(12)
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(1)
+                            }
                         }
-                        .tint(.red)
+                        Spacer(minLength: 0)
                     }
+                    .accessibilityElement(children: .combine)
                     .contextMenu {
-                        if let location = viewModel.storageLocation(clientId: stock.storageLocationClientId),
-                           location.serverId != nil {
+                        if let location = place.location, location.serverId != nil {
                             Button {
                                 printingLocation = location
                             } label: {
                                 Label("Lagerort-Etikett drucken", systemImage: "printer")
                             }
                         }
-                        Button(role: .destructive) {
-                            pendingStockDelete = stock
-                        } label: {
-                            Label("Löschen", systemImage: "trash")
-                        }
                     }
                 }
+            } header: {
+                Text("Lagerorte")
             }
-
-            Button { showingAddStock = true } label: {
-                Label("Bestand hinzufügen", systemImage: "plus")
-                    .scaledFont(13, weight: .semibold)
-            }
-            .tint(Theme.Colors.primary)
-        } header: {
-            sectionHeader("Bestand", count: stocks.count)
         }
     }
 
+    // MARK: - History
+
+    private enum HistoryEntry {
+        case stock(SDPartStock)
+        case consumption(SDPartConsumption)
+
+        var date: String {
+            switch self {
+            case .stock(let stock): stock.purchaseDate ?? ""
+            case .consumption(let consumption): consumption.date
+            }
+        }
+
+        var id: UUID {
+            switch self {
+            case .stock(let stock): stock.clientId
+            case .consumption(let consumption): consumption.clientId
+            }
+        }
+    }
+
+    /// Purchases and uses in one list, newest first.
+    private var history: [HistoryEntry] {
+        (stocks.map(HistoryEntry.stock) + consumptions.map(HistoryEntry.consumption))
+            .sorted { $0.date > $1.date }
+    }
+
+    private var historySection: some View {
+        Section {
+            if history.isEmpty {
+                Text("Noch nichts gekauft oder verbraucht. Teile lassen sich auch direkt beim Erfassen einer Wartung verbuchen.")
+                    .scaledFont(13)
+                    .foregroundStyle(.secondary)
+            }
+            ForEach(history, id: \.id) { entry in
+                switch entry {
+                case .stock(let stock):
+                    Button { editingStock = stock } label: { stockRow(stock) }
+                        .buttonStyle(.plain)
+                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                            // No destructive role: that animates the row away
+                            // before the confirmation is answered.
+                            Button { pendingStockDelete = stock } label: {
+                                Label("Löschen", systemImage: "trash")
+                            }
+                            .tint(.red)
+                        }
+                        .contextMenu {
+                            Button(role: .destructive) { pendingStockDelete = stock } label: {
+                                Label("Löschen", systemImage: "trash")
+                            }
+                        }
+                case .consumption(let consumption):
+                    consumptionRowLinked(consumption)
+                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                            Button { pendingConsumptionDelete = consumption } label: {
+                                Label("Zurückbuchen", systemImage: "arrow.uturn.backward")
+                            }
+                            .tint(.red)
+                        }
+                        .contextMenu {
+                            Button(role: .destructive) { pendingConsumptionDelete = consumption } label: {
+                                Label("Löschen (Bestand zurückbuchen)", systemImage: "arrow.uturn.backward")
+                            }
+                        }
+                }
+            }
+        } header: {
+            sectionHeader("Verlauf", count: history.count)
+        }
+    }
+
+    /// A purchase: "+N", price per piece, date and place.
     private func stockRow(_ stock: SDPartStock) -> some View {
         HStack(spacing: 12) {
-            Text("\(stock.quantity)×")
-                .scaledFont(16, weight: .heavy)
-                .monospacedDigit()
-                .foregroundStyle(Theme.Colors.primary)
-                .frame(width: 44, alignment: .leading)
-
+            quantityBadge("+\(stock.quantity)", tint: .green)
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 6) {
                     if let price = stock.price {
                         let unit = price / Double(max(1, stock.quantity))
-                        Text("\(Formatters.currency(unit, code: stock.currency ?? "CHF")) / Stk.")
-                            .scaledFont(13, weight: .bold)
-                            .foregroundStyle(.primary)
-                        if stock.quantity > 1 {
-                            Text("· \(Formatters.currency(price, code: stock.currency ?? "CHF")) gesamt")
-                                .scaledFont(12)
-                                .foregroundStyle(.secondary)
-                        }
+                        Text("Gekauft · \(Formatters.currency(unit, code: stock.currency ?? "CHF"))/Stk.")
                     } else {
-                        Text("Ohne Preis")
-                            .scaledFont(13, weight: .semibold)
-                            .foregroundStyle(.tertiary)
-                    }
-                    if let date = stock.purchaseDate {
-                        Text("· \(Formatters.mediumDate(date))")
-                            .scaledFont(12)
-                            .foregroundStyle(.secondary)
+                        Text("Eingelagert")
                     }
                     if stock.isUsed {
                         Text("GEBRAUCHT")
@@ -340,16 +454,13 @@ struct PartDetailView: View {
                             .background(Capsule().fill(Color.orange.opacity(0.16)))
                     }
                 }
-                if let path = viewModel.locationPath(viewModel.storageLocation(clientId: stock.storageLocationClientId)) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "archivebox.fill")
-                            .scaledFont(9)
-                        Text(path)
-                            .lineLimit(1)
-                    }
-                    .scaledFont(11, weight: .semibold)
-                    .foregroundStyle(.tertiary)
-                }
+                .scaledFont(14, weight: .semibold)
+                Text([stock.purchaseDate.map(Formatters.mediumDate),
+                      viewModel.storageLocation(clientId: stock.storageLocationClientId)?.name]
+                    .compactMap { $0 }.joined(separator: " · "))
+                    .scaledFont(12)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
                 if let notes = stock.notes, !notes.isEmpty {
                     Text(NoteBrandPalette.display(description: notes, markup: stock.notesMarkup))
                         .scaledFont(11)
@@ -358,52 +469,18 @@ struct PartDetailView: View {
                 }
             }
             Spacer(minLength: 0)
-            Image(systemName: "chevron.right")
-                .scaledFont(11, weight: .semibold)
-                .foregroundStyle(.tertiary)
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, 2)
         .contentShape(Rectangle())
     }
 
-    // MARK: - Consumption
-
-    private var consumptionSection: some View {
-        Section {
-            if consumptions.isEmpty {
-                Text("Noch kein Verbrauch erfasst. Teile lassen sich auch direkt beim Erfassen einer Wartung verbuchen.")
-                    .scaledFont(13)
-                    .foregroundStyle(.secondary)
-            } else {
-                ForEach(consumptions, id: \.clientId) { consumption in
-                    consumptionRowLinked(consumption)
-                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                            Button {
-                                pendingConsumptionDelete = consumption
-                            } label: {
-                                Label("Zurückbuchen", systemImage: "arrow.uturn.backward")
-                            }
-                            .tint(.red)
-                        }
-                        .contextMenu {
-                            Button(role: .destructive) {
-                                pendingConsumptionDelete = consumption
-                            } label: {
-                                Label("Löschen (Bestand zurückbuchen)", systemImage: "arrow.uturn.backward")
-                            }
-                        }
-                }
-            }
-
-            Button { showingAddConsumption = true } label: {
-                Label("Verbrauch erfassen", systemImage: "minus")
-                    .scaledFont(13, weight: .semibold)
-            }
-            .tint(Theme.Colors.primary)
-            .disabled(onHand < 1)
-        } header: {
-            sectionHeader("Verbrauch", count: consumptions.count)
-        }
+    private func quantityBadge(_ text: String, tint: Color) -> some View {
+        Text(text)
+            .scaledFont(13, weight: .heavy)
+            .monospacedDigit()
+            .foregroundStyle(tint)
+            .frame(width: 34, height: 32)
+            .background(tint.opacity(0.15), in: RoundedRectangle(cornerRadius: Theme.Radius.badge))
     }
 
     /// The bike a consumption was booked on, preferring the context the server
@@ -445,47 +522,28 @@ struct PartDetailView: View {
     private func consumptionRow(_ consumption: SDPartConsumption) -> some View {
         let repair = viewModel.maintenanceRecord(for: consumption)
         return HStack(spacing: 12) {
-            Text("−\(consumption.quantity)")
-                .scaledFont(16, weight: .heavy)
-                .monospacedDigit()
-                .foregroundStyle(Theme.Colors.accent)
-                .frame(width: 44, alignment: .leading)
-
+            quantityBadge("−\(consumption.quantity)", tint: .orange)
             VStack(alignment: .leading, spacing: 2) {
-                Text(Formatters.mediumDate(consumption.date))
-                    .scaledFont(13, weight: .bold)
-                    .foregroundStyle(.primary)
-                if let repair {
-                    HStack(spacing: 4) {
-                        Image(systemName: "wrench.and.screwdriver.fill")
-                            .scaledFont(9)
+                Group {
+                    if let repair {
                         Text(NoteBrandPalette.display(
                             description: repair.recordDescription ?? repair.summary ?? repair.recordType,
                             markup: repair.descriptionMarkup))
-                            .lineLimit(1)
-                        if cachedMotorcycle(id: repair.motorcycleId) != nil {
-                            Image(systemName: "chevron.right")
-                                .scaledFont(8)
-                        }
+                    } else if consumption.maintenanceClientId != nil || consumption.maintenanceServerId != nil {
+                        Text("Verknüpfte Wartung")
+                    } else {
+                        Text("Verbraucht")
                     }
-                    .scaledFont(11, weight: .semibold)
-                    .foregroundStyle(.tertiary)
-                } else if consumption.maintenanceClientId != nil || consumption.maintenanceServerId != nil {
-                    Text("Verknüpfte Wartung")
-                        .scaledFont(11, weight: .semibold)
-                        .foregroundStyle(.tertiary)
                 }
-                // Which bike the part went into — the whole point of the link,
-                // and the one thing the repair's own description never says.
-                if let motorcycle = motorcycleLabel(consumption) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "bicycle")
-                            .scaledFont(9)
-                        Text(motorcycle).lineLimit(1)
-                    }
-                    .scaledFont(11, weight: .semibold)
-                    .foregroundStyle(Theme.Colors.primary.opacity(0.8))
-                }
+                .scaledFont(14, weight: .semibold)
+                .lineLimit(1)
+                // Which bike the part went into — the one thing the repair's
+                // own description never says.
+                Text((["Verbraucht", Formatters.mediumDate(consumption.date)] + [motorcycleLabel(consumption)].compactMap { $0 })
+                    .joined(separator: " · "))
+                    .scaledFont(12)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
                 if let notes = consumption.notes, !notes.isEmpty {
                     Text(notes)
                         .scaledFont(11)
@@ -495,7 +553,7 @@ struct PartDetailView: View {
             }
             Spacer(minLength: 0)
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, 2)
         .contentShape(Rectangle())
     }
 

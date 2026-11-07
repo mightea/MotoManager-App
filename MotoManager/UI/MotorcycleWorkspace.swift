@@ -10,6 +10,9 @@ import SwiftUI
 struct MotorcycleWorkspace<Actions: View, Content: View>: View {
     let motorcycle: Motorcycle
     let type: HeaderType
+    /// Secondary actions: header buttons where there is room, entries in
+    /// the switcher menu on narrow and short headers.
+    var menuActions: [WorkspaceMenuAction] = []
     @ViewBuilder var actions: () -> Actions
     @ViewBuilder var content: () -> Content
     @Environment(\.chromeActions) private var chrome
@@ -75,9 +78,16 @@ struct MotorcycleWorkspace<Actions: View, Content: View>: View {
     private func header(condensed: Bool, compactChrome: Bool) -> some View {
         WorkspaceHeaderSlot(metrics: metrics) {
             MotorcycleSummaryHeader(motorcycle: motorcycle, type: type, isCondensed: condensed,
-                                    isNarrow: compactChrome,
+                                    isNarrow: compactChrome, menuActions: menuActions,
                                     metrics: metrics, scroll: scroll) {
                 HStack(spacing: Theme.Spacing.s) {
+                    if !compactChrome {
+                        ForEach(menuActions) { item in
+                            WorkspaceAction(item.title, systemImage: item.systemImage, showsTitle: false,
+                                            action: item.action)
+                                .disabled(item.isDisabled)
+                        }
+                    }
                     actions()
                     if !compactChrome {
                         WorkspaceAction("Einstellungen", systemImage: "gearshape", showsTitle: false) {
@@ -88,6 +98,15 @@ struct MotorcycleWorkspace<Actions: View, Content: View>: View {
             }
         }
     }
+}
+
+/// A secondary workspace action (see `MotorcycleWorkspace.menuActions`).
+struct WorkspaceMenuAction: Identifiable {
+    var id: String { title }
+    let title: String
+    let systemImage: String
+    var isDisabled = false
+    let action: () -> Void
 }
 
 struct WorkspaceAction: View {
