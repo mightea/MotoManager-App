@@ -2,57 +2,31 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<!-- Brother label printer (PT-E550W) discovery & printing over Wi-Fi.
-	     Merged with the generated Info.plist (GENERATE_INFOPLIST_FILE stays YES). -->
-	<key>NSLocalNetworkUsageDescription</key>
-	<string>MotoManager nutzt das lokale Netzwerk, um deinen Brother-Etikettendrucker zu finden und Etiketten zu drucken.</string>
-	<!-- Required by App Store validation (ITMS-90683): the Brother printer
-	     SDK (BRLMPrinterKit) references CoreBluetooth for Bluetooth-capable
-	     printer models, even though the app only prints over Wi-Fi. -->
-	<key>NSBluetoothAlwaysUsageDescription</key>
-	<string>MotoManager kann Bluetooth verwenden, um einen Brother-Etikettendrucker in der Nähe zu finden und mit ihm zu drucken.</string>
+	<key>MMDefaultBaseURL</key>
+	<string>$(MM_DEFAULT_BASE_URL)</string>
 	<key>NSBonjourServices</key>
 	<array>
 		<string>_pdl-datastream._tcp</string>
 		<string>_printer._tcp</string>
 		<string>_ipp._tcp</string>
 	</array>
-	<!-- Detect the fuel station when logging a fill-up, to match or create it. -->
-	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>MotoManager nutzt deinen Standort, um beim Erfassen einer Tankung die passende Tankstelle zu finden oder anzulegen.</string>
-	<!-- Odometer OCR when logging a fill-up or service, and QR scanning of
-	     printed part/storage-location labels. -->
-	<key>NSCameraUsageDescription</key>
-	<string>MotoManager nutzt die Kamera, um den Kilometerstand vom Kombiinstrument abzulesen und Etiketten von Teilen und Lagerorten zu scannen.</string>
-	<!-- Only standard HTTPS is used — exempt from export-compliance review,
-	     so TestFlight builds skip the manual encryption question. -->
-	<key>ITSAppUsesNonExemptEncryption</key>
-	<false/>
-	<!-- Pre-filled server URL on the login screen. Empty in repo builds
-	     (users enter their own server); CI injects the production URL via
-	     the MM_DEFAULT_BASE_URL build setting from a GitHub secret. -->
-	<key>MMDefaultBaseURL</key>
-	<string>$(MM_DEFAULT_BASE_URL)</string>
-	<!-- Home-screen quick actions (long-press on the app icon). Static so
-	     they exist before the first launch; `QuickActionSceneDelegate`
-	     routes the types through `QuickActionRouter`. -->
 	<key>UIApplicationShortcutItems</key>
 	<array>
 		<dict>
-			<key>UIApplicationShortcutItemType</key>
-			<string>ltd.herrmann.MotoManager.addFuel</string>
-			<key>UIApplicationShortcutItemTitle</key>
-			<string>Tankung erfassen</string>
 			<key>UIApplicationShortcutItemIconSymbolName</key>
 			<string>fuelpump.fill</string>
+			<key>UIApplicationShortcutItemTitle</key>
+			<string>Tankung erfassen</string>
+			<key>UIApplicationShortcutItemType</key>
+			<string>ltd.herrmann.MotoManager.addFuel</string>
 		</dict>
 		<dict>
-			<key>UIApplicationShortcutItemType</key>
-			<string>ltd.herrmann.MotoManager.scanPart</string>
-			<key>UIApplicationShortcutItemTitle</key>
-			<string>Etikett scannen</string>
 			<key>UIApplicationShortcutItemIconSymbolName</key>
 			<string>qrcode.viewfinder</string>
+			<key>UIApplicationShortcutItemTitle</key>
+			<string>Etikett scannen</string>
+			<key>UIApplicationShortcutItemType</key>
+			<string>ltd.herrmann.MotoManager.scanPart</string>
 		</dict>
 	</array>
 </dict>

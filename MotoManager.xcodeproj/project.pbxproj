@@ -409,6 +409,11 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Supporting/Info.plist;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
+				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "MotoManager kann Bluetooth verwenden, um einen Brother-Etikettendrucker in der Nähe zu finden und mit ihm zu drucken.";
+				INFOPLIST_KEY_NSCameraUsageDescription = "MotoManager nutzt die Kamera, um den Kilometerstand vom Kombiinstrument abzulesen und Etiketten von Teilen und Lagerorten zu scannen.";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "MotoManager nutzt das lokale Netzwerk, um deinen Brother-Etikettendrucker zu finden und Etiketten zu drucken.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "MotoManager nutzt deinen Standort, um beim Erfassen einer Tankung die passende Tankstelle zu finden oder anzulegen.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -444,6 +449,11 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Supporting/Info.plist;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
+				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "MotoManager kann Bluetooth verwenden, um einen Brother-Etikettendrucker in der Nähe zu finden und mit ihm zu drucken.";
+				INFOPLIST_KEY_NSCameraUsageDescription = "MotoManager nutzt die Kamera, um den Kilometerstand vom Kombiinstrument abzulesen und Etiketten von Teilen und Lagerorten zu scannen.";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "MotoManager nutzt das lokale Netzwerk, um deinen Brother-Etikettendrucker zu finden und Etiketten zu drucken.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "MotoManager nutzt deinen Standort, um beim Erfassen einer Tankung die passende Tankstelle zu finden oder anzulegen.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
