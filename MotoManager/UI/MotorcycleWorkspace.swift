@@ -182,18 +182,19 @@ struct RecordBrowser<Selection: Hashable, Content: View, Detail: View>: View {
             NavigationStack {
                 if let selection {
                     detail(selection).id(selection)
-                        .safeAreaInset(edge: .top, spacing: 0) {
-                            HStack {
-                                Button("Zur Übersicht", systemImage: "arrow.left") {
+                        // The way back to the overview shares the record's
+                        // own bar instead of taking a row of its own.
+                        .toolbar {
+                            ToolbarItem(placement: .topBarLeading) {
+                                Button {
                                     self.selection = nil
+                                } label: {
+                                    Label("Übersicht", systemImage: "chevron.left")
+                                        .labelStyle(.titleAndIcon)
                                 }
-                                .font(.subheadline.weight(.semibold))
-                                .frame(minHeight: 44)
+                                .accessibilityLabel("Zur Übersicht")
                                 .accessibilityIdentifier("workspace.overview")
-                                Spacer()
                             }
-                            .padding(.horizontal, Theme.Spacing.m)
-                            .background(Theme.Colors.background)
                         }
                 } else if let overview {
                     overview
