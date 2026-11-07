@@ -13,13 +13,17 @@ struct ContentView: View {
                     // Hard upgrade requirement: out of support — no further
                     // backend requests until the app is updated.
                     UpdateRequiredView()
-                } else if authVM.isAuthenticated {
+                } else if authVM.isAuthenticated && !authVM.isAwaitingGarage {
                     MainTabView()
                         .environmentObject(authVM)
                         .environmentObject(fleetVM)
+                        .transition(.opacity)
                 } else {
+                    // Also shown right after a login, with "Garage wird
+                    // geladen…", until the first garage load is done.
                     LoginView()
                         .environmentObject(authVM)
+                        .transition(.opacity)
                 }
             }
             .opacity(showSplash ? 0 : 1)
@@ -48,12 +52,22 @@ struct ContentView: View {
         // not cancel the in-flight fetch. Re-runs on login/logout transitions.
         .task(id: authVM.isAuthenticated) {
             if authVM.isAuthenticated {
+                // After a fresh login, hand over to the app once the garage is
+                // loaded — or after a few seconds at most, so a slow load never
+                // traps the user on the login screen (the app shows its own
+                // loading state until the data arrives).
+                let handOver = Task {
+                    guard (try? await Task.sleep(for: .seconds(8))) != nil else { return }
+                    finishLogin()
+                }
                 // Upgrade check first: a hard-blocked build must not fire the
                 // fleet fetch (or any other request) anymore.
                 await upgradeManager.check()
                 if !upgradeManager.isBlocked {
                     await fleetVM.loadMotorcycles()
                 }
+                handOver.cancel()
+                finishLogin()
             } else {
                 // Logout wipes every cache; the fleet VM's in-memory state and
                 // persisted selection/recents belong to that wipe too.
@@ -66,6 +80,16 @@ struct ContentView: View {
                     showSplash = false
                 }
             }
+        }
+    }
+}
+
+extension ContentView {
+    /// Fades from the login screen to the app (no-op when not logging in).
+    private func finishLogin() {
+        guard authVM.isAwaitingGarage else { return }
+        withAnimation(.easeInOut(duration: 0.35)) {
+            authVM.finishLogin()
         }
     }
 }

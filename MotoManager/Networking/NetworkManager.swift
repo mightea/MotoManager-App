@@ -161,12 +161,15 @@ class NetworkManager {
 
     /// Executes a request, mapping transport and HTTP errors to `APIError`.
     /// Posts `unauthorizedNotification` on 401 so the session can be cleared.
-    private func performRequest(_ request: URLRequest) async throws -> Data {
+    /// Login requests pass `mapsConnectivityErrors: false` to get the raw
+    /// `URLError`, so the login screen can tell "no internet" from "server
+    /// unreachable" instead of a blanket "Offline".
+    private func performRequest(_ request: URLRequest, mapsConnectivityErrors: Bool = true) async throws -> Data {
         let data: Data
         let response: URLResponse
         do {
             (data, response) = try await URLSession.shared.data(for: request)
-        } catch let urlError as URLError where Self.isOffline(urlError) {
+        } catch let urlError as URLError where mapsConnectivityErrors && Self.isOffline(urlError) {
             // No connection or the backend is unreachable — surface as "Offline"
             // rather than leaking Foundation's raw transport message.
             throw APIError.offline
@@ -245,10 +248,34 @@ class NetworkManager {
 
     // MARK: - Auth
 
+    /// Login requests give up after this long without a response, instead of
+    /// URLSession's 60 s default, so a wrong server address fails quickly.
+    private static let loginTimeout: TimeInterval = 15
+
+    private func makeLoginRequest(path: String, method: String = "GET", jsonBody: Data? = nil) throws -> URLRequest {
+        var request = try makeRequest(path: path, method: method, authorized: false, jsonBody: jsonBody)
+        request.timeoutInterval = Self.loginTimeout
+        return request
+    }
+
+    /// First login step: checks that the server address answers and runs a
+    /// MotoManager API. A web page answering instead (e.g. the webapp's
+    /// address) fails to decode and surfaces as `APIError.decoding`. A 404 is
+    /// accepted, so servers that predate the upgrade endpoint still work.
+    func checkServer() async throws {
+        let request = try makeLoginRequest(path: Self.appUpgradePath)
+        do {
+            let data = try await performRequest(request, mapsConnectivityErrors: false)
+            _ = try Self.decode(AppUpgradeInfo.self, from: data)
+        } catch APIError.http(status: 404, _) {
+            return
+        }
+    }
+
     func login(credentials: LoginRequest) async throws -> String {
         let body = try JSONEncoder().encode(credentials)
-        let request = try makeRequest(path: "/api/auth/login", method: "POST", authorized: false, jsonBody: body)
-        let data = try await performRequest(request)
+        let request = try makeLoginRequest(path: "/api/auth/login", method: "POST", jsonBody: body)
+        let data = try await performRequest(request, mapsConnectivityErrors: false)
         let loginResponse = try Self.decode(LoginResponse.self, from: data)
         saveToken(loginResponse.token)
         return loginResponse.token
@@ -800,13 +827,15 @@ class NetworkManager {
            let encoded = username.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) {
             path += "?username=\(encoded)"
         }
-        return try await get(path, authorized: false)
+        let request = try makeLoginRequest(path: path)
+        let data = try await performRequest(request, mapsConnectivityErrors: false)
+        return try Self.decode(PasskeyOptionsResponse.self, from: data)
     }
 
     func verifyPasskeyLogin(challengeId: String, response: PasskeyResponse) async throws -> String {
         let body = try JSONEncoder().encode(PasskeyVerifyRequest(challengeId: challengeId, response: response))
-        let request = try makeRequest(path: "/api/auth/passkey/login-verify", method: "POST", authorized: false, jsonBody: body)
-        let data = try await performRequest(request)
+        let request = try makeLoginRequest(path: "/api/auth/passkey/login-verify", method: "POST", jsonBody: body)
+        let data = try await performRequest(request, mapsConnectivityErrors: false)
         let loginResponse = try Self.decode(LoginResponse.self, from: data)
         saveToken(loginResponse.token)
         return loginResponse.token

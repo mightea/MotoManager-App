@@ -5,9 +5,22 @@ import AuthenticationServices
 @MainActor
 class AuthViewModel: NSObject, ObservableObject {
     @Published var isAuthenticated = false
-    @Published var isLoading = false
+    /// The current login step; `.idle` when no login is running.
+    @Published private(set) var phase: LoginPhase = .idle
+    /// Which login the user started, so only that button shows a spinner.
+    @Published private(set) var activeMethod: LoginMethod?
     @Published var errorMessage: String?
-    
+    /// True after a login until the first garage load is done: the root view
+    /// keeps showing the login screen ("Garage wird geladen…") meanwhile.
+    /// Phase and spinner are left as they are when this turns false, so the
+    /// login screen fades out unchanged instead of flashing back to idle.
+    @Published private(set) var isAwaitingGarage = false
+
+    /// True from tapping a login button until the garage is on screen (or the
+    /// attempt failed). Fields and buttons are locked meanwhile. Stays true
+    /// behind the app after a login; reset by `logout()` or the next attempt.
+    var isBusy: Bool { phase != .idle }
+
     private var cancellables = Set<AnyCancellable>()
     private var currentChallengeId: String?
     
@@ -34,20 +47,41 @@ class AuthViewModel: NSObject, ObservableObject {
         }
     }
 
-    /// A connectivity failure should read as plain "Offline"; other errors keep
-    /// their descriptive prefix (e.g. "Login failed: …") so real problems stay legible.
-    private func message(for error: Error, prefix: String) -> String {
-        if case APIError.offline = error {
-            return APIError.offline.errorDescription ?? "Offline"
-        }
-        return "\(prefix): \(error.localizedDescription)"
+    private func begin(_ method: LoginMethod) {
+        isAwaitingGarage = false
+        activeMethod = method
+        errorMessage = nil
+        phase = .connecting
+    }
+
+    /// Ends a failed attempt. A nil message (user cancelled) shows nothing.
+    private func fail(_ error: Error, method: LoginMethod) {
+        phase = .idle
+        activeMethod = nil
+        currentChallengeId = nil
+        errorMessage = LoginErrorMessage.text(for: error, method: method)
+    }
+
+    /// Logged in: keep the login screen up with "Garage wird geladen…" until
+    /// `finishLogin()` is called once the first garage load is done.
+    private func succeed() {
+        phase = .loadingGarage
+        isAwaitingGarage = true
+        isAuthenticated = true
+    }
+
+    /// Called by the root view once the post-login load is done (or took too
+    /// long); hands over from the login screen to the app.
+    func finishLogin() {
+        isAwaitingGarage = false
     }
     
     func login(identifier: String, password: String) async {
-        isLoading = true
-        errorMessage = nil
-        
+        guard !isBusy else { return }
+        begin(.password)
         do {
+            try await NetworkManager.shared.checkServer()
+            phase = .verifying
             // Autofill and keyboard suggestions can leave an invisible trailing
             // space, which the backend would treat as a different username.
             let credentials = LoginRequest(
@@ -55,23 +89,17 @@ class AuthViewModel: NSObject, ObservableObject {
                 password: password
             )
             _ = try await NetworkManager.shared.login(credentials: credentials)
-            isAuthenticated = true
-        } catch APIError.unauthorized {
-            errorMessage = "Benutzername oder Passwort ist falsch."
-            isAuthenticated = false
+            succeed()
         } catch {
-            errorMessage = message(for: error, prefix: "Anmeldung fehlgeschlagen")
-            isAuthenticated = false
+            fail(error, method: .password)
         }
-        
-        isLoading = false
     }
     
     func loginWithPasskey(username: String?) async {
-        isLoading = true
-        errorMessage = nil
-        
+        guard !isBusy else { return }
+        begin(.passkey)
         do {
+            // Fetching the options doubles as the server check.
             let response = try await NetworkManager.shared.fetchPasskeyLoginOptions(username: username)
             self.currentChallengeId = response.challengeId
             let options = response.options.publicKey
@@ -88,12 +116,12 @@ class AuthViewModel: NSObject, ObservableObject {
             let authController = ASAuthorizationController(authorizationRequests: [request])
             authController.delegate = self
             authController.presentationContextProvider = self
+            phase = .awaitingPasskey
             authController.performRequests()
             
             // The rest of the flow continues in the delegate methods
         } catch {
-            errorMessage = message(for: error, prefix: "Passkey-Anmeldung fehlgeschlagen")
-            isLoading = false
+            fail(error, method: .passkey)
         }
     }
     
@@ -112,6 +140,9 @@ class AuthViewModel: NSObject, ObservableObject {
         // would silently skip the other account's records on first sync).
         SyncEngine.shared.resetLocalState()
         isAuthenticated = false
+        isAwaitingGarage = false
+        phase = .idle
+        activeMethod = nil
     }
     
     func resetSession() {
@@ -124,47 +155,41 @@ class AuthViewModel: NSObject, ObservableObject {
 
 extension AuthViewModel: ASAuthorizationControllerDelegate {
     func authorizationController(controller: ASAuthorizationController, didCompleteWithAuthorization authorization: ASAuthorization) {
-        guard let challengeId = currentChallengeId else {
-            // No challenge in flight — reset so the spinner doesn't hang.
-            isLoading = false
+        guard let challengeId = currentChallengeId,
+              let credential = authorization.credential as? ASAuthorizationPlatformPublicKeyCredentialAssertion
+        else {
+            // No challenge in flight or an unexpected credential type — end
+            // the attempt so the spinner doesn't hang.
+            fail(ASAuthorizationError(.invalidResponse), method: .passkey)
             return
         }
 
-        if let credential = authorization.credential as? ASAuthorizationPlatformPublicKeyCredentialAssertion {
-            Task {
-                do {
-                    let passkeyResponse = PasskeyResponse(
-                        id: credential.credentialID.base64URLEncodedString(),
-                        rawId: credential.credentialID.base64URLEncodedString(),
-                        type: "public-key",
-                        response: AuthenticatorAssertionResponse(
-                            authenticatorData: credential.rawAuthenticatorData.base64URLEncodedString(),
-                            clientDataJSON: credential.rawClientDataJSON.base64URLEncodedString(),
-                            signature: credential.signature.base64URLEncodedString(),
-                            userHandle: credential.userID?.base64URLEncodedString()
-                        )
+        phase = .verifying
+        Task {
+            do {
+                let passkeyResponse = PasskeyResponse(
+                    id: credential.credentialID.base64URLEncodedString(),
+                    rawId: credential.credentialID.base64URLEncodedString(),
+                    type: "public-key",
+                    response: AuthenticatorAssertionResponse(
+                        authenticatorData: credential.rawAuthenticatorData.base64URLEncodedString(),
+                        clientDataJSON: credential.rawClientDataJSON.base64URLEncodedString(),
+                        signature: credential.signature.base64URLEncodedString(),
+                        userHandle: credential.userID?.base64URLEncodedString()
                     )
-                    
-                    _ = try await NetworkManager.shared.verifyPasskeyLogin(challengeId: challengeId, response: passkeyResponse)
-                    self.isAuthenticated = true
-                    self.isLoading = false
-                } catch {
-                    self.errorMessage = self.message(for: error, prefix: "Passkey-Prüfung fehlgeschlagen")
-                    self.isLoading = false
-                }
+                )
+
+                _ = try await NetworkManager.shared.verifyPasskeyLogin(challengeId: challengeId, response: passkeyResponse)
+                self.currentChallengeId = nil
+                self.succeed()
+            } catch {
+                self.fail(error, method: .passkey)
             }
-        } else {
-            // Unexpected credential type — don't leave the spinner running forever.
-            errorMessage = "Unerwartete Anmeldeinformationen."
-            isLoading = false
         }
     }
     
     func authorizationController(controller: ASAuthorizationController, didCompleteWithError error: Error) {
-        isLoading = false
-        if (error as NSError).code != ASAuthorizationError.canceled.rawValue {
-            errorMessage = error.localizedDescription
-        }
+        fail(error, method: .passkey)
     }
 }
 

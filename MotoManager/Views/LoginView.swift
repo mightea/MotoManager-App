@@ -18,6 +18,14 @@ struct LoginView: View {
     @State private var identifier: String = ""
     @State private var password: String = ""
     @State private var showPassword: Bool = false
+    /// Height of the screen area without the keyboard, and of the brand block
+    /// plus form. Used to centre the column once, so the keyboard appearing or
+    /// closing never moves it.
+    @State private var fullHeight: CGFloat = 0
+    @State private var contentHeight: CGFloat = 0
+    /// The shown error belongs to the previous attempt; the user has edited
+    /// the form since. Shown dimmed instead of removed (no layout change).
+    @State private var errorIsStale = false
     @FocusState private var focusedField: Field?
 
     private enum Field {
@@ -50,26 +58,40 @@ struct LoginView: View {
         normalizedServerURL != nil
             && !identifier.trimmingCharacters(in: .whitespaces).isEmpty
             && !password.isEmpty
-            && !authVM.isLoading
+            && !authVM.isBusy
+    }
+
+    /// Centres the column in the keyboard-free screen height. Because neither
+    /// height changes with the keyboard or with status messages, the column
+    /// stays put while logging in.
+    private var topInset: CGFloat {
+        max(40, (fullHeight - contentHeight) / 2)
     }
 
     var body: some View {
-        GeometryReader { geometry in
-            ScrollView {
-                VStack(spacing: 0) {
-                    Spacer(minLength: 40)
-                    brandBlock
-                    form
-                    Spacer(minLength: 40)
-                }
-                // Readable form column on iPad — the hero photo stays
-                // full-bleed, only brand block + form are capped.
-                .frame(maxWidth: AdaptiveLayout.formMaxWidth)
-                .frame(maxWidth: .infinity, minHeight: geometry.size.height)
+        ScrollView {
+            VStack(spacing: 0) {
+                brandBlock
+                form
             }
-            .scrollDismissesKeyboard(.interactively)
+            // Readable form column on iPad — the hero photo stays
+            // full-bleed, only brand block + form are capped.
+            .frame(maxWidth: AdaptiveLayout.formMaxWidth)
+            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { contentHeight = $0 }
+            .padding(.top, topInset)
+            .padding(.bottom, 40)
+            .frame(maxWidth: .infinity)
         }
+        .scrollDismissesKeyboard(.interactively)
+        .scrollBounceBehavior(.basedOnSize)
+        // Hidden until measured, so the first frame doesn't jump into place.
+        .opacity(fullHeight == 0 ? 0 : 1)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background {
+            Color.clear
+                .ignoresSafeArea(.keyboard)
+                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { fullHeight = $0 }
+        }
         .background(alignment: .top) {
             ZStack {
                 heroBackground
@@ -226,17 +248,71 @@ struct LoginView: View {
                 )
             )
 
-            if let error = authVM.errorMessage {
+            statusLine
+
+            primaryButton
+            divider
+            passkeyButton
+        }
+        .padding(16)
+        .onChange(of: identifier) { errorIsStale = true }
+        .onChange(of: password) { errorIsStale = true }
+        .onChange(of: serverURL) { errorIsStale = true }
+        .onChange(of: authVM.errorMessage) { _, message in
+            errorIsStale = false
+            if let message {
+                AccessibilityNotification.Announcement(message).post()
+            }
+        }
+        .onChange(of: authVM.phase) { _, phase in
+            if let status = phase.statusText {
+                AccessibilityNotification.Announcement(status).post()
+            }
+        }
+        .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 26))
+        .shadow(color: .black.opacity(0.5), radius: 24, x: 0, y: 12)
+        .padding(.horizontal, 18)
+        .padding(.bottom, 36)
+    }
+
+    // MARK: - Status line
+
+    /// One fixed-height line under the fields for login progress and errors.
+    /// Its height is reserved even when empty, so a message appearing,
+    /// changing or going away never resizes the card.
+    private var statusLine: some View {
+        ZStack(alignment: .leading) {
+            // Reserves two lines at the current text size.
+            Text("X\nX")
+                .scaledFont(12, weight: .semibold)
+                .padding(.vertical, 8)
+                .hidden()
+                .accessibilityHidden(true)
+
+            if let status = authVM.phase.statusText {
+                HStack(spacing: 8) {
+                    ProgressView()
+                        .controlSize(.small)
+                        .tint(.white)
+                    Text(status)
+                        .contentTransition(.opacity)
+                }
+                .scaledFont(12, weight: .semibold)
+                .foregroundStyle(.white.opacity(0.75))
+                .padding(.horizontal, 12)
+                .transition(.opacity)
+                .accessibilityElement(children: .combine)
+            } else if let error = authVM.errorMessage {
                 HStack(spacing: 6) {
                     Image(systemName: "exclamationmark.triangle.fill")
                     Text(error)
                         .lineLimit(2)
+                        .minimumScaleFactor(0.85)
                 }
                 .scaledFont(12, weight: .semibold)
                 .foregroundStyle(Theme.Colors.accent)
                 .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .frame(maxWidth: .infinity, alignment: .leading)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
                 .background(
                     RoundedRectangle(cornerRadius: 10)
                         .fill(Theme.Colors.accent.opacity(0.12))
@@ -245,17 +321,17 @@ struct LoginView: View {
                     RoundedRectangle(cornerRadius: 10)
                         .stroke(Theme.Colors.accent.opacity(0.3), lineWidth: 0.5)
                 )
+                .opacity(errorIsStale ? 0.5 : 1)
+                .transition(.opacity)
+                .accessibilityElement(children: .combine)
+                .accessibilityIdentifier("login.error")
             }
-
-            primaryButton
-            divider
-            passkeyButton
         }
-        .padding(16)
-        .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 26))
-        .shadow(color: .black.opacity(0.5), radius: 24, x: 0, y: 12)
-        .padding(.horizontal, 18)
-        .padding(.bottom, 36)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .animation(.easeOut(duration: 0.2), value: authVM.phase)
+        .animation(.easeOut(duration: 0.2), value: authVM.errorMessage)
+        .animation(.easeOut(duration: 0.2), value: errorIsStale)
+        .accessibilityIdentifier("login.status")
     }
 
     private func inputField(
@@ -289,6 +365,7 @@ struct LoginView: View {
                     }
                 }
                 .focused($focusedField, equals: field)
+                .disabled(authVM.isBusy)
                 .accessibilityIdentifier(field.accessibilityIdentifier)
                 .textContentType(contentType)
                 .keyboardType(keyboard)
@@ -331,12 +408,15 @@ struct LoginView: View {
     }
 
     private var primaryButton: some View {
-        Button(action: submit) {
+        let spinning = authVM.activeMethod == .password
+        return Button(action: submit) {
+            // The label stays in the layout (just hidden) so the button keeps
+            // its size while the spinner shows.
             ZStack {
-                if authVM.isLoading {
+                Text("Anmelden")
+                    .opacity(spinning ? 0 : 1)
+                if spinning {
                     ProgressView().tint(.white)
-                } else {
-                    Text("Anmelden")
                 }
             }
             .scaledFont(15, weight: .heavy)
@@ -344,7 +424,9 @@ struct LoginView: View {
             .frame(minHeight: 50)
         }
         .glassActionButton(.primary, in: .roundedRectangle(radius: 14))
-        .disabled(!canSubmit)
+        // The running button stays fully opaque; taps are ignored in submit().
+        .disabled(authVM.isBusy ? !spinning : !canSubmit)
+        .accessibilityLabel(spinning ? (authVM.phase.statusText ?? "Anmelden") : "Anmelden")
         .accessibilityIdentifier("login.submit")
         .animation(.easeOut(duration: 0.18), value: canSubmit)
     }
@@ -366,7 +448,10 @@ struct LoginView: View {
     }
 
     private var passkeyButton: some View {
-        Button {
+        let spinning = authVM.activeMethod == .passkey
+        return Button {
+            guard !authVM.isBusy, normalizedServerURL != nil else { return }
+            focusedField = nil
             applyServerURL()
             Task {
                 let username = identifier.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -382,12 +467,19 @@ struct LoginView: View {
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
             }
+            .opacity(spinning ? 0 : 1)
+            .overlay {
+                if spinning {
+                    ProgressView().tint(.white)
+                }
+            }
             .frame(maxWidth: .infinity)
             .frame(minHeight: 50)
             .padding(.vertical, 6)
         }
         .glassActionButton(.secondary, in: .roundedRectangle(radius: 14))
-        .disabled(authVM.isLoading || normalizedServerURL == nil)
+        .disabled(authVM.isBusy ? !spinning : normalizedServerURL == nil)
+        .accessibilityLabel(spinning ? (authVM.phase.statusText ?? "Mit Passkey anmelden") : "Mit Passkey anmelden")
         .accessibilityIdentifier("login.passkey")
     }
 
@@ -399,6 +491,10 @@ struct LoginView: View {
     }
 
     private func submit() {
+        guard canSubmit else { return }
+        // Close the keyboard before the request starts, not at some random
+        // point while the login is running.
+        focusedField = nil
         applyServerURL()
         Task {
             await authVM.login(identifier: identifier, password: password)
