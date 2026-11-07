@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.17.0](https://github.com/mightea/MotoManager-App/compare/v0.16.0...v0.17.0) (2026-11-07)
+
+
+### Features
+
+* edit the motorcycle, open labels via universal links, server intervals with reminders, issue lifecycle ([4fb167b](https://github.com/mightea/MotoManager-App/commit/4fb167bad5838894a4d05891bfb8595ea63efb39))
+* finish the design proposals for fuel rows, header actions and overviews ([af7436a](https://github.com/mightea/MotoManager-App/commit/af7436a982f0cc8b84d74ab0dbcf33d8a781918f))
+* implement the iPad, iPhone and Duo design proposals ([c4bf042](https://github.com/mightea/MotoManager-App/commit/c4bf042c77040cfc4f4f70fad7d838abfb69bce2))
+* keep the focused fuel field above the keyboard and group the options ([a137f53](https://github.com/mightea/MotoManager-App/commit/a137f53f7149e6ca4f3857ef0fb8adb1141e7196))
+* rebuild the Wartung tab as one filtered timeline and tighten list spacing ([9d62f69](https://github.com/mightea/MotoManager-App/commit/9d62f6905b85cf5c5b4888168813f37b3e580b8a))
+* redesign documents and the parts tab ([a93f901](https://github.com/mightea/MotoManager-App/commit/a93f90133bb623ca4fb5c7cab13b745d8343386d))
+* show login progress and clear errors without layout jumps ([eeee5fe](https://github.com/mightea/MotoManager-App/commit/eeee5fee6ef1d2a1de3a701664b7a52d28aa3d72))
+
+
+### Bug Fixes
+
+* put the way back to the overview into the detail's own bar ([be2f35d](https://github.com/mightea/MotoManager-App/commit/be2f35df2bde1b8e527c568686e9cfeb8ff52bd6))
+* trim whitespace around the username before logging in ([c259714](https://github.com/mightea/MotoManager-App/commit/c259714af9cb43a225f88d744dbc50a343540ab4))
+
 ## [0.16.0](https://github.com/mightea/MotoManager-App/compare/v0.15.0...v0.16.0) (2026-10-21)
 
 
