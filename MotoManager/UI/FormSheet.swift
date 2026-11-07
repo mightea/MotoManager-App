@@ -38,6 +38,9 @@ struct FormSheet<Content: View>: View {
     var delete: FormSheetDelete? = nil
     /// Sheets with their own keyboard toolbar (field chaining) opt out.
     var showsKeyboardDone = true
+    /// The focused field's id: the form scrolls it clear of the keyboard and
+    /// its floating bar whenever it changes (fields carry `.id(...)`).
+    var scrollTarget: AnyHashable? = nil
     let onSave: () async -> Bool
     @ViewBuilder var content: () -> Content
 
@@ -55,6 +58,7 @@ struct FormSheet<Content: View>: View {
 
     var body: some View {
         NavigationStack {
+            ScrollViewReader { proxy in
             ScrollView {
                 VStack(alignment: .leading, spacing: Theme.Spacing.l) {
                     if let error, !error.isEmpty {
@@ -73,7 +77,22 @@ struct FormSheet<Content: View>: View {
                 .padding(Theme.Spacing.l)
                 .adaptiveFormWidth()
             }
+            // Room below the last field, so it can still scroll above the
+            // keyboard's floating bar.
+            .contentMargins(.bottom, 72, for: .scrollContent)
             .scrollDismissesKeyboard(.interactively)
+            .onChange(of: scrollTarget) { _, target in
+                guard let target else { return }
+                Task {
+                    // Let the keyboard settle first, or the target lands
+                    // where the keyboard is about to be.
+                    try? await Task.sleep(for: .milliseconds(320))
+                    withAnimation(.easeOut(duration: 0.2)) {
+                        proxy.scrollTo(target, anchor: UnitPoint(x: 0.5, y: 0.25))
+                    }
+                }
+            }
+            }
             .navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

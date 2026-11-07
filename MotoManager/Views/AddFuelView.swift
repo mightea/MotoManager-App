@@ -153,16 +153,17 @@ struct AddFuelView: View {
             },
             // Own keyboard toolbar with field chaining (see `fieldStack`).
             showsKeyboardDone: false,
+            scrollTarget: focused,
             onSave: save
         ) {
             fieldStack
-            dateRow
             if existingRecord == nil {
                 stationRow
             }
-            fullTankSection
-            FormToggleRow(title: "Additiv", isOn: $fuelAdditiveAdded)
-            FormToggleRow(title: "Bleiersatz", isOn: $leadSubstituteAdded)
+            optionsGroup
+            if let l100 = derivedConsumption {
+                consumptionChip(l100)
+            }
         }
         .sheet(isPresented: $showingOdoScanner) {
             OdometerScanSheet(onResult: { value in
@@ -328,7 +329,7 @@ struct AddFuelView: View {
         @ViewBuilder accessory: () -> Accessory
     ) -> some View {
         let accessoryView = accessory()
-        return FormField(title, unit: unit, hint: hint) {
+        return FormField(title, unit: unit, hint: hint, isComputed: hint == "Berechnet" && focused != field) {
             HStack(spacing: Theme.Spacing.s) {
                 TextField("", text: text, prompt: formPrompt("0"))
                     .scaledFont(20, weight: .bold)
@@ -342,6 +343,7 @@ struct AddFuelView: View {
                 accessoryView
             }
         }
+        .id(field)
     }
 
     private func moveFocus(by offset: Int) {
@@ -352,16 +354,6 @@ struct AddFuelView: View {
         }
         let next = index + offset
         self.focused = fields.indices.contains(next) ? fields[next] : nil
-    }
-
-    /// "Voll getankt" plus the derived consumption for this fill-up.
-    private var fullTankSection: some View {
-        VStack(alignment: .leading, spacing: Theme.Spacing.s) {
-            FormToggleRow(title: "Voll getankt", isOn: $fullTank)
-            if let l100 = derivedConsumption {
-                consumptionChip(l100)
-            }
-        }
     }
 
     // MARK: - Currency
@@ -484,15 +476,36 @@ struct AddFuelView: View {
 
     /// Compact date row so a missed fill-up can be backdated right when it's
     /// entered (defaults to today; future dates make no sense for a fill-up).
-    private var dateRow: some View {
-        FormField("Datum") {
-            DatePicker("", selection: $date, in: ...Date(), displayedComponents: .date)
-                .labelsHidden()
-                .environment(\.locale, Formatters.displayLocale)
-                .tint(Theme.Colors.primary)
+    /// Date and the three switches in one grouped card, like a settings
+    /// list, instead of four separate boxes.
+    private var optionsGroup: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Text("Datum").scaledFont(14, weight: .semibold)
+                Spacer(minLength: Theme.Spacing.s)
+                DatePicker("Datum der Tankung", selection: $date, in: ...Date(), displayedComponents: .date)
+                    .labelsHidden()
+                    .environment(\.locale, Formatters.displayLocale)
+                    .tint(Theme.Colors.primary)
+            }
+            .optionRow()
+            Divider().padding(.leading, FormField<EmptyView>.paddingH)
+            optionToggle("Voll getankt", isOn: $fullTank)
+            Divider().padding(.leading, FormField<EmptyView>.paddingH)
+            optionToggle("Additiv", isOn: $fuelAdditiveAdded)
+            Divider().padding(.leading, FormField<EmptyView>.paddingH)
+            optionToggle("Bleiersatz", isOn: $leadSubstituteAdded)
         }
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel("Datum der Tankung")
+        .background(RoundedRectangle(cornerRadius: Theme.Radius.field).fill(Theme.Colors.backgroundElevated))
+        .overlay(RoundedRectangle(cornerRadius: Theme.Radius.field).stroke(Theme.Glass.border, lineWidth: 0.5))
+    }
+
+    private func optionToggle(_ title: String, isOn: Binding<Bool>) -> some View {
+        Toggle(isOn: isOn) {
+            Text(title).scaledFont(14, weight: .semibold)
+        }
+        .tint(Theme.Colors.primary)
+        .optionRow()
     }
 
     // MARK: - Fuel station (GPS detection)
@@ -784,5 +797,13 @@ struct AddFuelView_Previews: PreviewProvider {
                     .presentationCornerRadius(Theme.Radius.sheet)
                     .presentationBackground(.regularMaterial)
             }
+    }
+}
+
+private extension View {
+    /// One row of the grouped options card.
+    func optionRow() -> some View {
+        padding(.horizontal, FormField<EmptyView>.paddingH)
+            .frame(minHeight: 52)
     }
 }

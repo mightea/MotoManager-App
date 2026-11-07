@@ -34,17 +34,22 @@ struct FormField<Content: View>: View {
     let label: String
     var unit: String? = nil
     var hint: String? = nil
+    /// A value the form derived from other fields: drawn as a quiet tile
+    /// instead of an input box, so it reads as calculated.
+    var isComputed = false
     @ViewBuilder var content: () -> Content
 
     init(
         _ label: String,
         unit: String? = nil,
         hint: String? = nil,
+        isComputed: Bool = false,
         @ViewBuilder content: @escaping () -> Content
     ) {
         self.label = label
         self.unit = unit
         self.hint = hint
+        self.isComputed = isComputed
         self.content = content
     }
 
@@ -61,7 +66,7 @@ struct FormField<Content: View>: View {
                         .foregroundStyle(.secondary)
                 }
             }
-            .formFieldBox()
+            .formFieldBox(computed: isComputed)
             if let hint, !hint.isEmpty {
                 Text(hint)
                     .scaledFont(11, weight: .medium)
@@ -75,7 +80,7 @@ struct FormField<Content: View>: View {
 extension View {
     /// The filled rounded box behind a form input. Also used for rows that
     /// aren't a `FormField` (toggle rows, pickers) so they line up.
-    func formFieldBox(tint: Color? = nil) -> some View {
+    func formFieldBox(tint: Color? = nil, computed: Bool = false) -> some View {
         self
             .padding(.horizontal, FormField<EmptyView>.paddingH)
             .padding(.vertical, FormField<EmptyView>.paddingV)
@@ -83,11 +88,13 @@ extension View {
                 RoundedRectangle(cornerRadius: Theme.Radius.field)
                     // Elevated surface (white by day), not a translucent tint:
                     // the system placeholder grey needs that contrast.
-                    .fill(tint.map { $0.opacity(0.16) } ?? Theme.Colors.backgroundElevated)
+                    .fill(computed ? AnyShapeStyle(Color.primary.opacity(0.06))
+                          : AnyShapeStyle(tint.map { $0.opacity(0.16) } ?? Theme.Colors.backgroundElevated))
             )
             .overlay(
                 RoundedRectangle(cornerRadius: Theme.Radius.field)
-                    .stroke(tint.map { $0.opacity(0.35) } ?? Theme.Glass.border, lineWidth: 0.5)
+                    .stroke(computed ? Color.clear : (tint.map { $0.opacity(0.35) } ?? Theme.Glass.border),
+                            lineWidth: 0.5)
             )
     }
 }
