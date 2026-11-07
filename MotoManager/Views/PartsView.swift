@@ -45,7 +45,7 @@ struct PartsView: View {
             WorkspaceMenuAction(title: "Etikett scannen", systemImage: "qrcode.viewfinder",
                                 isDisabled: tab == .publicParts) { showingScanner = true }
         ]) {
-            WorkspaceAction(addLabel, systemImage: "plus", action: addAction)
+            WorkspaceAction(addLabel, systemImage: "plus", prominent: true, action: addAction)
                 .disabled(tab == .publicParts)
                 .keyboardShortcut("n", modifiers: .command)
         } content: {
@@ -301,7 +301,7 @@ struct PartsView: View {
     private var inventoryOverview: some View {
         List {
             OverviewTitle("Lager im Überblick")
-            Section { StatStrip(statTiles).listRowInsets(EdgeInsets()) }
+            Section { StatTileGrid(statTiles).cardRow() }
             if !lowStockParts.isEmpty {
                 Section {
                     ForEach(lowStockParts.prefix(8), id: \.part.clientId) { entry in

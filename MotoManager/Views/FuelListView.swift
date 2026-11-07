@@ -70,7 +70,7 @@ struct FuelListView: View {
 
     var body: some View {
         MotorcycleWorkspace(motorcycle: viewModel.motorcycle, type: .fuel) {
-            WorkspaceAction("Tankung erfassen", systemImage: "plus") { showingAddFuel = true }
+            WorkspaceAction("Tankung erfassen", systemImage: "plus", prominent: true) { showingAddFuel = true }
                 .keyboardShortcut("n", modifiers: .command)
         } content: {
             RecordBrowser(selection: $selectedFuelRecord, title: "Tankverlauf",
@@ -164,7 +164,7 @@ struct FuelListView: View {
     private var fuelOverview: some View {
         List {
             OverviewTitle("Verbrauch & Kosten")
-            Section { StatStrip(overviewTiles).listRowInsets(EdgeInsets()) }
+            Section { StatTileGrid(overviewTiles).cardRow() }
             if fuelRecords.isEmpty {
                 Section {
                     Label("Sobald Tankungen erfasst sind, zeigt diese Seite Verbrauch, Kosten und Preise.",
@@ -295,6 +295,24 @@ struct FuelRow: View {
         .padding(.vertical, 4)
     }
 
+    /// "161 km · CHF 1.87/L": the trip (or the odometer for the oldest
+    /// record) and the price per liter.
+    private var detailLine: String {
+        var parts = [trip.map { "\($0) km" } ?? Formatters.kilometers(record.odo)]
+        if let price = record.pricePerUnit, price > 0 {
+            parts.append("\(Formatters.currency(price, code: currency))/L")
+        }
+        return parts.joined(separator: " · ")
+    }
+
+    /// "günstig" / "teuer" against the recent average price, nil in between.
+    private var priceTag: (label: String, tint: Color)? {
+        guard averagePrice > 0, let price = record.pricePerUnit, price > 0 else { return nil }
+        if price > averagePrice * 1.05 { return ("teuer", .orange) }
+        if price < averagePrice * 0.95 { return ("günstig", Theme.Colors.primary) }
+        return nil
+    }
+
     var body: some View {
         // At accessibility sizes the trailing consumption block no longer fits
         // beside the fill details — stack the row vertically instead of letting
@@ -303,49 +321,37 @@ struct FuelRow: View {
             ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
             : AnyLayout(HStackLayout(alignment: .center, spacing: 12))
         rowLayout {
-            iconBadge
+            dateTile
 
             VStack(alignment: .leading, spacing: 2) {
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    // `.fixedSize()` keeps the amount and its unit glued —
-                    // without it "15.5 L" wraps between the digits.
-                    HStack(alignment: .firstTextBaseline, spacing: 2) {
-                        Text(String(format: "%.1f", record.fuelAmount ?? 0))
-                            .scaledFont(14, weight: .semibold)
-                            .monospacedDigit()
-                        Text("L")
-                            .scaledFont(11, weight: .medium)
+                // Amount and what it cost — the two numbers a fill-up is.
+                HStack(alignment: .firstTextBaseline, spacing: 0) {
+                    Text(String(format: "%.1f L", record.fuelAmount ?? 0))
+                        .scaledFont(14.5, weight: .bold)
+                    if let cost = record.cost {
+                        Text(" · \(Formatters.currency(cost, code: currency))")
+                            .scaledFont(14.5, weight: .medium)
                             .foregroundStyle(.secondary)
                     }
-                    .fixedSize()
-                    if let pricePerUnit = record.pricePerUnit, pricePerUnit > 0 {
-                        Text("·")
-                            .foregroundStyle(.tertiary)
-                        Text("\(Formatters.currency(pricePerUnit, code: currency))/L")
-                            .scaledFont(12, weight: .medium)
-                            .foregroundStyle(priceStyle(pricePerUnit))
-                            .monospacedDigit()
-                    }
                 }
-                // Year lives in the section header; the trip beats the raw
+                .monospacedDigit()
+                .lineLimit(1)
+                // Year and month live in the tile; the trip beats the raw
                 // odometer for at-a-glance value (odometer is on the detail).
                 HStack(spacing: 6) {
-                    Text(Formatters.dayMonthName(record.date))
-                    Text("·")
-                    if let trip {
-                        Text("\(trip) km").monospacedDigit()
-                    } else {
-                        Text("\(record.odo) km").monospacedDigit()
-                    }
-                    if let station = record.locationName, !station.isEmpty {
-                        Text("·")
-                        Text(station)
-                            .lineLimit(1)
-                            .truncationMode(.tail)
+                    Text(detailLine)
+                    .scaledFont(12, weight: .medium)
+                    .foregroundStyle(.secondary)
+                    .monospacedDigit()
+                    if let priceTag {
+                        Text(priceTag.label)
+                            .scaledFont(10.5, weight: .bold)
+                            .foregroundStyle(priceTag.tint)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(priceTag.tint.opacity(0.15), in: RoundedRectangle(cornerRadius: 6))
                     }
                 }
-                .scaledFont(11, weight: .medium)
-                .foregroundStyle(.secondary)
                 .lineLimit(1)
             }
 
@@ -354,41 +360,62 @@ struct FuelRow: View {
             }
 
             // Consumption leads on the trailing side — it's the number riders
-            // compare between fills; the cost is secondary context. A missing
-            // consumption on a non-oldest record means a partial fill.
-            VStack(alignment: dynamicTypeSize.isAccessibilitySize ? .leading : .trailing, spacing: 3) {
+            // compare between fills. A missing consumption on a non-oldest
+            // record means a partial fill.
+            VStack(alignment: dynamicTypeSize.isAccessibilitySize ? .leading : .trailing, spacing: 1) {
                 if let consumption = record.fuelConsumption {
-                    HStack(alignment: .firstTextBaseline, spacing: 3) {
-                        Text(String(format: "%.1f", consumption))
-                            .scaledFont(15, weight: .bold)
-                            .monospacedDigit()
-                            .foregroundStyle(consumptionStyle(consumption))
-                        Text("L/100km")
-                            .scaledFont(9, weight: .semibold)
-                            .foregroundStyle(.secondary)
-                    }
-                    .fixedSize()
-                } else if !isOldest {
-                    Text("TEILTANKUNG")
-                        .scaledFont(8, weight: .heavy)
-                        .tracking(0.5)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(Capsule().fill(Color.primary.opacity(0.10)))
-                        .foregroundStyle(.secondary)
-                }
-                if let cost = record.cost {
-                    Text(Formatters.currency(cost, code: currency))
-                        .scaledFont(11, weight: .medium)
+                    Text(String(format: "%.1f", consumption))
+                        .scaledFont(17, weight: .heavy)
                         .monospacedDigit()
+                        .foregroundStyle(consumptionStyle(consumption))
+                    Text("L/100 km")
+                        .scaledFont(10.5, weight: .medium)
+                        .foregroundStyle(.secondary)
+                } else if !isOldest {
+                    Text("—")
+                        .scaledFont(17, weight: .heavy)
+                        .foregroundStyle(.secondary)
+                    Text("Teilfüllung")
+                        .scaledFont(10.5, weight: .medium)
                         .foregroundStyle(.secondary)
                 }
             }
+            .fixedSize()
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, 2)
         .contentShape(Rectangle())
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityText)
+    }
+
+    /// Day and month, so the history scans like a calendar.
+    private var dateTile: some View {
+        let parts = Self.dayAndMonth(record.date)
+        return VStack(spacing: 0) {
+            Text(parts.day)
+                .scaledFont(16, weight: .heavy)
+                .monospacedDigit()
+            Text(parts.month)
+                .scaledFont(9.5, weight: .bold)
+                .foregroundStyle(.secondary)
+        }
+        .frame(width: 42, height: 44)
+        .background(RoundedRectangle(cornerRadius: Theme.Radius.controlInner).fill(Color.primary.opacity(0.06)))
+        .overlay(alignment: .topTrailing) {
+            if record.syncState.isPending {
+                PendingBadge().offset(x: 5, y: -5)
+            }
+        }
+    }
+
+    static func dayAndMonth(_ iso: String) -> (day: String, month: String) {
+        guard let date = Formatters.parseDay(iso) else { return (String(iso.suffix(2)), "") }
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "UTC") ?? .current
+        let day = calendar.component(.day, from: date)
+        let month = calendar.component(.month, from: date)
+        let name = String(MonthName.short(month).replacingOccurrences(of: ".", with: "").prefix(3)).uppercased()
+        return (String(format: "%02d", day), name)
     }
 
     private var accessibilityText: String {
@@ -413,31 +440,6 @@ struct FuelRow: View {
             parts.append(Formatters.currency(cost, code: currency))
         }
         return parts.joined(separator: ", ")
-    }
-
-    /// Tint the per-liter price against the fleet average so expensive and
-    /// cheap fills stand out (same idea as `consumptionStyle`).
-    private func priceStyle(_ price: Double) -> AnyShapeStyle {
-        guard averagePrice > 0 else { return AnyShapeStyle(.secondary) }
-        if price > averagePrice * 1.05 { return AnyShapeStyle(Color.orange) }
-        if price < averagePrice * 0.95 { return AnyShapeStyle(Color.green) }
-        return AnyShapeStyle(.secondary)
-    }
-
-    private var iconBadge: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: Theme.Radius.controlInner)
-                .fill(Theme.Colors.primary.opacity(0.22))
-            Image(systemName: "fuelpump.fill")
-                .scaledFont(15, weight: .semibold)
-                .foregroundStyle(Theme.Colors.primary)
-        }
-        .frame(width: 36, height: 36)
-        .overlay(alignment: .topTrailing) {
-            if record.syncState.isPending {
-                PendingBadge().offset(x: 5, y: -5)
-            }
-        }
     }
 
     private func consumptionStyle(_ value: Double) -> AnyShapeStyle {

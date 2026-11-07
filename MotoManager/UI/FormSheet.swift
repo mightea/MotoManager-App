@@ -73,6 +73,14 @@ struct FormSheet<Content: View>: View {
                         .disabled(isSaving)
                         .padding(.top, Theme.Spacing.s)
                     }
+                    // iPads are mostly used with a keyboard; name the shortcuts.
+                    if UIDevice.current.userInterfaceIdiom == .pad {
+                        Text("⇥ nächstes Feld · ⌘S sichern · esc abbrechen")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity)
+                            .accessibilityHidden(true)
+                    }
                 }
                 .padding(Theme.Spacing.l)
                 .adaptiveFormWidth()

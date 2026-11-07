@@ -37,6 +37,50 @@ struct StatStrip: View {
     }
 }
 
+/// The same figures as separate tiles, for wide overview panes: one row
+/// when they fit, otherwise two per row — never a lone tile wrapping.
+struct StatTileGrid: View {
+    let tiles: [StatTile]
+
+    init(_ tiles: [StatTile]) { self.tiles = tiles }
+
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .top, spacing: Theme.Spacing.listSection) {
+                ForEach(tiles) { tile($0).frame(minWidth: 128) }
+            }
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: Theme.Spacing.listSection), count: 2),
+                      spacing: Theme.Spacing.listSection) {
+                ForEach(tiles) { tile($0) }
+            }
+        }
+    }
+
+    private func tile(_ tile: StatTile) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(tile.eyebrow)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+            Text(tile.value)
+                .font(.title2.weight(.bold))
+                .monospacedDigit()
+                .foregroundStyle(tile.accent ?? .primary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+            if let unit = tile.unit {
+                Text(unit).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+            }
+        }
+        .frame(maxWidth: .infinity, minHeight: 76, alignment: .topLeading)
+        .padding(.horizontal, Theme.Spacing.m - 2)
+        .padding(.vertical, Theme.Spacing.m - 4)
+        .background(Theme.Colors.backgroundElevated, in: RoundedRectangle(cornerRadius: Theme.Radius.field))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(tile.accessibilityText)
+    }
+}
+
 struct StatTile: Identifiable {
     var id: String { eyebrow }
     let eyebrow: String

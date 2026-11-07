@@ -113,16 +113,20 @@ struct WorkspaceAction: View {
     let title: String
     let systemImage: String
     var showsTitle = true
+    /// The tab's main action: filled in the brand blue.
+    var prominent = false
     let action: () -> Void
     @Environment(\.horizontalSizeClass) private var sizeClass
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private var usesTitle: Bool { showsTitle && sizeClass == .regular && !dynamicTypeSize.isAccessibilitySize }
 
-    init(_ title: String, systemImage: String, showsTitle: Bool = true, action: @escaping () -> Void) {
+    init(_ title: String, systemImage: String, showsTitle: Bool = true, prominent: Bool = false,
+         action: @escaping () -> Void) {
         self.title = title
         self.systemImage = systemImage
         self.showsTitle = showsTitle
+        self.prominent = prominent
         self.action = action
     }
 
@@ -136,7 +140,8 @@ struct WorkspaceAction: View {
             .foregroundStyle(Theme.Colors.onPhoto)
             .frame(minWidth: 44, minHeight: 44)
             .padding(.horizontal, usesTitle ? Theme.Spacing.s : 0)
-            .glassEffect(.regular.tint(Theme.Colors.navy950.opacity(0.5)), in: Capsule())
+            .glassEffect(prominent ? .regular.tint(Theme.Colors.primary).interactive()
+                                   : .regular.tint(Theme.Colors.navy950.opacity(0.5)), in: Capsule())
         }
         .buttonStyle(.plain)
         .accessibilityLabel(title)

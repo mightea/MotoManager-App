@@ -114,7 +114,7 @@ struct WorkshopView: View {
                     .font(.headline)
                     .foregroundStyle(Theme.Colors.onPhoto)
                     .frame(width: 44, height: 44)
-                    .glassEffect(.regular.tint(Theme.Colors.navy950.opacity(0.5)), in: Circle())
+                    .glassEffect(.regular.tint(Theme.Colors.primary).interactive(), in: Circle())
             }
             .accessibilityLabel("Hinzufügen")
             .keyboardShortcut("n", modifiers: .command)
@@ -249,7 +249,7 @@ struct WorkshopView: View {
     private var referenceOverview: some View {
         List {
             OverviewTitle("Technik im Blick")
-            Section { StatStrip(statTiles).listRowInsets(EdgeInsets()) }
+            Section { StatTileGrid(statTiles).cardRow() }
             Section {
                 Label("Öffne ein Dokument, um es neben den technischen Daten zu lesen.", systemImage: "doc.text.magnifyingglass")
                     .font(.subheadline)

@@ -174,8 +174,11 @@ struct MaintenanceLogsView: View {
     }
 
     var body: some View {
-        MotorcycleWorkspace(motorcycle: viewModel.motorcycle, type: .service) {
-            WorkspaceAction(filter == .maengel ? "Mangel erfassen" : "Wartung erfassen", systemImage: "plus") {
+        MotorcycleWorkspace(motorcycle: viewModel.motorcycle, type: .service, menuActions: filter == .maengel ? [] : [
+            WorkspaceMenuAction(title: "Mangel erfassen", systemImage: "exclamationmark.bubble") { showingAddIssue = true }
+        ]) {
+            WorkspaceAction(filter == .maengel ? "Mangel erfassen" : "Wartung erfassen", systemImage: "plus",
+                            prominent: true) {
                 if filter == .maengel { showingAddIssue = true } else { showingAddMaintenance = true }
             }
             .keyboardShortcut("n", modifiers: .command)
@@ -281,25 +284,23 @@ struct MaintenanceLogsView: View {
     private var attentionOverview: some View {
         List {
             OverviewTitle("Wartung im Blick")
-            Section { StatStrip(statTiles).listRowInsets(EdgeInsets()) }
-            Section("Handlungsbedarf") {
-                if !intervalInsights.isEmpty {
-                    ServiceIntervalsCard(insights: intervalInsights, initiallyExpanded: true)
-                }
-                // The Mängel filter already shows these records in the list.
-                if filter != .maengel {
-                    if openIssuesCount > 0 {
-                        Label("\(openIssuesCount) offene Mängel", systemImage: "exclamationmark.circle")
-                            .foregroundStyle(Theme.Colors.accent)
+            Section { StatTileGrid(statTiles).cardRow() }
+            if filter != .maengel && !unresolvedIssues.isEmpty {
+                Section { unresolvedIssuesCard }
+                    .cardRow()
+            }
+            if !intervalInsights.isEmpty {
+                Section {
+                    ForEach(intervalInsights.sorted { $0.nextDate < $1.nextDate }) { insight in
+                        IntervalProgressRow(insight: insight, currentOdo: currentOdo)
                     }
-                    ForEach(viewModel.issues.filter { $0.status.lowercased() != "done" }, id: \.clientId) { issue in
-                        Button { editingIssue = issue } label: { IssueRow(issue: issue) }
-                            .buttonStyle(.plain)
-                            .accessibilityIdentifier("service.issue.\(issue.clientId)")
+                } header: {
+                    HStack {
+                        Text("Service-Intervalle")
+                        Spacer()
+                        Text("nach Fälligkeit").textCase(nil)
                     }
                 }
-                Button("Wartung erfassen", systemImage: "plus") { showingAddMaintenance = true }
-                Button("Mangel erfassen", systemImage: "exclamationmark.bubble") { showingAddIssue = true }
             }
         }
         .accessibilityIdentifier("service.overview")
@@ -310,6 +311,65 @@ struct MaintenanceLogsView: View {
         .background(Theme.Colors.background)
         // The title is the first row, on the list column's baseline.
         .toolbar(.hidden, for: .navigationBar)
+    }
+
+    /// Every unresolved issue, regardless of the list's search.
+    private var unresolvedIssues: [SDIssue] {
+        viewModel.issues.filter { !Self.isDone($0) }
+    }
+
+    /// Open issues in one bordered card, each with a one-tap "Erledigt".
+    private var unresolvedIssuesCard: some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.m - 4) {
+            Text(unresolvedIssues.count == 1 ? "1 OFFENER MANGEL" : "\(unresolvedIssues.count) OFFENE MÄNGEL")
+                .font(.caption.weight(.heavy))
+                .foregroundStyle(.orange)
+            ForEach(unresolvedIssues, id: \.clientId) { issue in
+                HStack(spacing: Theme.Spacing.m - 4) {
+                    Button { editingIssue = issue } label: {
+                        HStack(spacing: Theme.Spacing.m - 4) {
+                            Image(systemName: "exclamationmark")
+                                .font(.headline.weight(.heavy))
+                                .foregroundStyle(.orange)
+                                .frame(width: 36, height: 36)
+                                .background(Color.orange.opacity(0.16), in: RoundedRectangle(cornerRadius: Theme.Radius.controlInner))
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(issue.title)
+                                    .font(.subheadline.weight(.bold))
+                                    .lineLimit(2)
+                                Text(issueSubtitle(issue))
+                                    .font(.footnote)
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(1)
+                            }
+                            Spacer(minLength: 0)
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("service.issue.\(issue.clientId)")
+                    Button("Erledigt") { _ = viewModel.setIssueStatus(issue, status: "done") }
+                        .font(.footnote.weight(.semibold))
+                        .buttonStyle(.bordered)
+                        .tint(Theme.Colors.primary)
+                        .accessibilityLabel("\(issue.title) als erledigt markieren")
+                }
+            }
+        }
+        .padding(Theme.Spacing.m)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Theme.Colors.backgroundElevated, in: RoundedRectangle(cornerRadius: Theme.Radius.card))
+        .overlay(RoundedRectangle(cornerRadius: Theme.Radius.card).stroke(Color.orange.opacity(0.45), lineWidth: 1))
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("service.unresolvedIssues")
+    }
+
+    private func issueSubtitle(_ issue: SDIssue) -> String {
+        var parts = ["seit \(Formatters.dayMonthName(issue.date))"]
+        if let note = issue.recordDescription?.split(separator: "\n").first, !note.isEmpty {
+            parts.append(String(note))
+        }
+        return parts.joined(separator: " · ")
     }
 
     private var statTiles: [StatTile] {
@@ -986,6 +1046,99 @@ struct MaintenanceLogsView_Previews: PreviewProvider {
         ZStack {
             LiquidBackgroundView().ignoresSafeArea()
             MaintenanceLogsView(viewModel: .mock, partsVM: PartsViewModel())
+        }
+    }
+}
+
+/// One interval with how much of it is used up and when it is due.
+private struct IntervalProgressRow: View {
+    let insight: MaintenanceInsight
+    let currentOdo: Int
+
+    private var months: (used: Int, total: Int) {
+        let calendar = Calendar.current
+        let total = max(1, calendar.dateComponents([.month], from: insight.lastDate, to: insight.nextDate).month ?? 12)
+        let used = max(0, calendar.dateComponents([.month], from: insight.lastDate, to: Date()).month ?? 0)
+        return (used, total)
+    }
+
+    /// Time or km, whichever is further along.
+    private var fraction: Double {
+        let byTime = Double(months.used) / Double(months.total)
+        var byKm = 0.0
+        if let interval = insight.intervalKms, interval > 0, let since = insight.kmsSinceLast {
+            byKm = Double(since) / Double(interval)
+        }
+        return min(1, max(byTime, byKm))
+    }
+
+    private var tint: Color {
+        switch insight.status {
+        case .overdue: Theme.Colors.accent
+        case .due: .orange
+        case .ok: Theme.Colors.primary
+        }
+    }
+
+    private var rule: String {
+        var parts = [insight.intervalYears == 1 ? "jedes Jahr" : "alle \(insight.intervalYears) Jahre"]
+        if let kms = insight.intervalKms { parts.append("\(Formatters.kilometers(kms))") }
+        return parts.joined(separator: " · ")
+    }
+
+    private var progressText: String {
+        var text = "\(min(months.used, months.total)) von \(months.total) Monaten"
+        if let since = insight.kmsSinceLast, since > 0 { text += " · \(Formatters.kilometers(since))" }
+        return text
+    }
+
+    private var due: String {
+        insight.nextDate.formatted(.dateTime.month(.abbreviated).year().locale(Formatters.displayLocale))
+    }
+
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: Theme.Spacing.m) {
+                titles.frame(width: 150, alignment: .leading)
+                bar
+                Text(due)
+                    .font(.subheadline.weight(.bold))
+                    .foregroundStyle(insight.status == .ok ? AnyShapeStyle(.primary) : AnyShapeStyle(tint))
+                    .frame(width: 96, alignment: .trailing)
+            }
+            .frame(minWidth: 420)
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(alignment: .firstTextBaseline) {
+                    titles
+                    Spacer()
+                    Text(due).font(.subheadline.weight(.bold))
+                        .foregroundStyle(insight.status == .ok ? AnyShapeStyle(.primary) : AnyShapeStyle(tint))
+                }
+                bar
+            }
+        }
+        .padding(.vertical, 4)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(insight.label), \(rule), \(progressText), fällig \(due)")
+    }
+
+    private var titles: some View {
+        VStack(alignment: .leading, spacing: 1) {
+            Text(insight.label).font(.subheadline.weight(.bold)).lineLimit(1)
+            Text(rule).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+        }
+    }
+
+    private var bar: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            GeometryReader { proxy in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(Color.primary.opacity(0.08))
+                    Capsule().fill(tint).frame(width: max(8, proxy.size.width * fraction))
+                }
+            }
+            .frame(height: 8)
+            Text(progressText).font(.caption).foregroundStyle(.secondary).lineLimit(1)
         }
     }
 }
