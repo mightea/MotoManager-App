@@ -84,6 +84,62 @@ class MotorcycleViewModel: ObservableObject {
         }
     }
 
+    /// Online-only edit; the confirmed server copy replaces the bike in the
+    /// fleet, the cache and (when active) the selection, so the header and
+    /// every workspace pick the change up at once.
+    @discardableResult
+    func updateMotorcycle(
+        _ motorcycle: Motorcycle,
+        fields: [(name: String, value: String)],
+        image: (data: Data, mimeType: String)?
+    ) async -> Bool {
+        errorMessage = nil
+        do {
+            let updated = try await NetworkManager.shared.updateMotorcycle(id: motorcycle.id, fields: fields, image: image)
+            if let index = motorcycles.firstIndex(where: { $0.id == updated.id }) {
+                motorcycles[index] = updated
+            } else {
+                motorcycles.append(updated)
+            }
+            motorcycles.sort {
+                "\($0.make) \($0.model)".localizedCaseInsensitiveCompare("\($1.make) \($1.model)") == .orderedAscending
+            }
+            CacheStore.shared.save(motorcycles, key: CacheKey.motorcycles)
+            if selectedMotorcycle?.id == updated.id { selectedMotorcycle = updated }
+            return true
+        } catch {
+            errorMessage = "Motorrad konnte nicht gespeichert werden: \(error.localizedDescription)"
+            return false
+        }
+    }
+
+    /// Deletes the bike and its whole server-side history, then drops the
+    /// local SwiftData rows that belonged to it so no orphaned record is
+    /// ever pushed against the vanished id.
+    @discardableResult
+    func deleteMotorcycle(_ motorcycle: Motorcycle) async -> Bool {
+        errorMessage = nil
+        do {
+            try await NetworkManager.shared.deleteMotorcycle(id: motorcycle.id)
+        } catch {
+            errorMessage = "Motorrad konnte nicht gelöscht werden: \(error.localizedDescription)"
+            return false
+        }
+        SyncEngine.shared.purgeLocalRecords(motorcycleId: motorcycle.id)
+        motorcycles.removeAll { $0.id == motorcycle.id }
+        CacheStore.shared.save(motorcycles, key: CacheKey.motorcycles)
+        defaults.set(recentMotorcycleIds.filter { $0 != motorcycle.id }, forKey: recentIdsKey)
+        if selectedMotorcycle?.id == motorcycle.id {
+            selectedMotorcycle = motorcycles.first
+            if let next = motorcycles.first {
+                defaults.set(next.id, forKey: lastSelectedIdKey)
+            } else {
+                defaults.removeObject(forKey: lastSelectedIdKey)
+            }
+        }
+        return true
+    }
+
     func selectMotorcycle(_ motorcycle: Motorcycle) {
         let previousId = selectedMotorcycle?.id
         selectedMotorcycle = motorcycle

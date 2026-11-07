@@ -6,6 +6,8 @@ import SwiftUI
 struct ChromeActions {
     var openGarage: () -> Void = {}
     var openSettings: () -> Void = {}
+    /// Edit sheet for the active motorcycle.
+    var editMotorcycle: () -> Void = {}
 }
 
 private struct ChromeActionsKey: EnvironmentKey {

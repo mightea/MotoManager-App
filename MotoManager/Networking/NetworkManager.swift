@@ -125,6 +125,7 @@ class NetworkManager {
     /// handling used by JSON requests.
     private func makeMultipartRequest(
         path: String,
+        method: String = "POST",
         fields: [(name: String, value: String)],
         file: (field: String, name: String, mimeType: String, data: Data)? = nil
     ) throws -> URLRequest {
@@ -153,7 +154,7 @@ class NetworkManager {
         }
         append("--\(boundary)--\r\n")
 
-        var request = try makeRequest(path: path, method: "POST", authorized: true)
+        var request = try makeRequest(path: path, method: method, authorized: true)
         request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
         request.httpBody = body
         return request
@@ -328,6 +329,37 @@ class NetworkManager {
             motorcycle.image = base + (imagePath.hasPrefix("/") ? imagePath : "/\(imagePath)")
         }
         return motorcycle
+    }
+
+    /// Multipart PUT: absent fields keep their value, empty strings clear
+    /// optional ones, a non-empty `image` replaces the photo.
+    func updateMotorcycle(
+        id: Int,
+        fields: [(name: String, value: String)],
+        image: (data: Data, mimeType: String)? = nil
+    ) async throws -> Motorcycle {
+        let file = image.map { (field: "image", name: "motorcycle.jpg", mimeType: $0.mimeType, data: $0.data) }
+        let request = try makeMultipartRequest(path: "/api/motorcycles/\(id)", method: "PUT", fields: fields, file: file)
+        let data = try await performRequest(request)
+        var motorcycle = try Self.decode(MotorcycleResponse.self, from: data).motorcycle
+        if let imagePath = motorcycle.image, !imagePath.hasPrefix("http") {
+            let base = baseURL.hasSuffix("/") ? String(baseURL.dropLast()) : baseURL
+            motorcycle.image = base + (imagePath.hasPrefix("/") ? imagePath : "/\(imagePath)")
+        }
+        return motorcycle
+    }
+
+    func deleteMotorcycle(id: Int) async throws {
+        let request = try makeRequest(path: "/api/motorcycles/\(id)", method: "DELETE", authorized: true)
+        _ = try await performRequest(request)
+    }
+
+    /// Server-side VIN / frame-number decode against the model-series catalog.
+    func decodeVin(_ vin: String) async throws -> VinDecodeResult {
+        var components = URLComponents(string: "\(baseURL)/api/vin/decode")
+        components?.queryItems = [URLQueryItem(name: "vin", value: vin)]
+        guard let url = components?.url else { throw APIError.badURL }
+        return try await get(url.absoluteString)
     }
 
     func fetchMaintenance(motorcycleId: Int, since: String? = nil) async throws -> [MaintenanceRecord] {
@@ -588,6 +620,20 @@ class NetworkManager {
     var mcpEndpointURL: String {
         let base = baseURL.hasSuffix("/") ? String(baseURL.dropLast()) : baseURL
         return base + "/mcp"
+    }
+
+    // MARK: - User settings (service intervals)
+
+    func fetchUserSettings() async throws -> UserSettings {
+        let wrapper: UserSettingsResponse = try await get("/api/settings")
+        return wrapper.settings
+    }
+
+    func updateUserSettings(_ settings: UserSettings) async throws -> UserSettings {
+        let body = try JSONSerialization.data(withJSONObject: settings.updatePayload)
+        let request = try makeRequest(path: "/api/settings", method: "PUT", authorized: true, jsonBody: body)
+        let data = try await performRequest(request)
+        return try Self.decode(UserSettingsResponse.self, from: data).settings
     }
 
     func fetchApiTokens() async throws -> [ApiToken] {

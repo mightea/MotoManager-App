@@ -66,3 +66,17 @@ struct Motorcycle: Codable, Identifiable {
         latestOdo: 12500
     )
 }
+
+
+/// `GET /api/vin/decode` — what the server read out of a VIN or classic
+/// frame number, plus the catalog series it maps to (if any).
+struct VinDecodeResult: Codable {
+    let vin: String
+    /// "vin" or "frameNumber".
+    let kind: String
+    let isBmw: Bool
+    let typeCode: String?
+    let modelYear: Int?
+    let checkDigitValid: Bool?
+    let match: ModelSeries?
+}

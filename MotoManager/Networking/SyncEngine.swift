@@ -142,6 +142,26 @@ final class SyncEngine: ObservableObject {
         refreshStatus()
     }
 
+    /// Drops one bike's local rows and cursors after it was deleted on the
+    /// server — nothing may be pushed against the vanished id. Part
+    /// consumptions keep their rows: they are user-scoped, and the server
+    /// cascades them itself.
+    func purgeLocalRecords(motorcycleId: Int) {
+        func deleteAll<T: PersistentModel>(_ type: T.Type, where predicate: Predicate<T>) {
+            for item in (try? context.fetch(FetchDescriptor<T>(predicate: predicate))) ?? [] {
+                context.delete(item)
+            }
+        }
+        deleteAll(SDMaintenanceRecord.self, where: #Predicate { $0.motorcycleId == motorcycleId })
+        deleteAll(SDTorqueSpec.self, where: #Predicate { $0.motorcycleId == motorcycleId })
+        deleteAll(SDIssue.self, where: #Predicate { $0.motorcycleId == motorcycleId })
+        deleteAll(SDMotorcycleDetail.self, where: #Predicate { $0.motorcycleId == motorcycleId })
+        _ = PersistenceMonitor.shared.save(context, operation: "Lokale Daten des gelöschten Motorrads entfernen")
+        SyncCursor.clear(motorcycleId: motorcycleId)
+        knownMotorcycleIds.removeAll { $0 == motorcycleId }
+        refreshStatus()
+    }
+
     /// Fire-and-forget trigger after a local write.
     func requestSync(motorcycleIds: [Int]) {
         Task { await sync(motorcycleIds: motorcycleIds) }
@@ -891,6 +911,15 @@ enum SyncCursor {
     static func clearAll() {
         let defaults = UserDefaults.standard
         for key in defaults.dictionaryRepresentation().keys where key.hasPrefix(prefix) {
+            defaults.removeObject(forKey: key)
+        }
+    }
+    /// Drop the cursors of one motorcycle (every resource) after it was deleted.
+    static func clear(motorcycleId: Int) {
+        let defaults = UserDefaults.standard
+        let suffix = ".\(motorcycleId)"
+        for key in defaults.dictionaryRepresentation().keys
+        where key.hasPrefix(prefix) && key.hasSuffix(suffix) {
             defaults.removeObject(forKey: key)
         }
     }

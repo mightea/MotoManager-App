@@ -4,6 +4,9 @@ Remaining work from the August 2026 app review. The high-impact reliability,
 performance, upload, loading-state, accessibility, and adaptive-width changes
 have already been implemented; this file tracks the deliberately deferred work.
 
+The November 2026 UI review's open items (feature additions and per-screen
+improvements) live in [ui-improvement-todo.md](ui-improvement-todo.md).
+
 ## 1. Bundle the login hero image
 
 **Priority:** Medium

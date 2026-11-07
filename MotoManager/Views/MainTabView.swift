@@ -11,6 +11,7 @@ struct MainTabView: View {
     @State private var activeTab: AppTab = .fuel
     @State private var showingGarage = false
     @State private var showingSettings = false
+    @State private var showingEditMotorcycle = false
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -41,8 +42,15 @@ struct MainTabView: View {
         }
         .environment(\.chromeActions, ChromeActions(
             openGarage: { showingGarage = true },
-            openSettings: { showingSettings = true }
+            openSettings: { showingSettings = true },
+            editMotorcycle: { showingEditMotorcycle = true }
         ))
+        .sheet(isPresented: $showingEditMotorcycle) {
+            if let motorcycle = fleetVM.selectedMotorcycle {
+                EditMotorcycleView(viewModel: fleetVM, motorcycle: motorcycle)
+                    .glassSheet()
+            }
+        }
         .sheet(isPresented: $showingGarage) {
             GarageView()
                 .glassSheet()
@@ -55,6 +63,9 @@ struct MainTabView: View {
         // and on every selection change, so the detail VM is created and loaded
         // exactly once per switch (previously onAppear + onChange + an inline
         // .task all fired, causing duplicate fetch storms).
+        .task {
+            await UserSettingsStore.shared.refresh()
+        }
         .task(id: fleetVM.selectedMotorcycle?.id) {
             guard let selected = fleetVM.selectedMotorcycle else {
                 detailVM = nil
@@ -80,9 +91,11 @@ struct MainTabView: View {
             guard let action else { return }
             showingGarage = false
             showingSettings = false
+            showingEditMotorcycle = false
             switch action {
             case .addFuel: activeTab = .fuel
-            case .scanPart: activeTab = .parts
+            case .scanPart, .openLabel: activeTab = .parts
+            case .addIssue: activeTab = .service
             }
         }
     }

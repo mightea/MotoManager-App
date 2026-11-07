@@ -3,6 +3,9 @@ import SwiftUI
 struct MaintenanceLogsView: View {
     @ObservedObject var viewModel: MotorcycleDetailViewModel
     @ObservedObject var partsVM: PartsViewModel
+    @ObservedObject private var settingsStore = UserSettingsStore.shared
+    @ObservedObject private var reminders = MaintenanceReminderScheduler.shared
+    @ObservedObject private var quickActions = QuickActionRouter.shared
     @Environment(\.horizontalSizeClass) private var sizeClass
 
     enum ServiceTab: Hashable { case issues, maintenance }
@@ -21,6 +24,10 @@ struct MaintenanceLogsView: View {
     @State private var editingIssue: SDIssue?
     @State private var pendingIssueDelete: SDIssue?
     @State private var showingAddMaintenance = false
+    /// "Als Wartung erfassen": the defect the new maintenance entry resolves.
+    @State private var resolvingIssue: SDIssue?
+    /// Resolved defects stay out of the way until asked for.
+    @State private var showingDoneIssues = false
 
     private var serviceRecords: [SDMaintenanceRecord] {
         viewModel.serviceRecords
@@ -58,7 +65,15 @@ struct MaintenanceLogsView: View {
     }
 
     private var intervalInsights: [MaintenanceInsight] {
-        MaintenanceIntervalsEngine.insights(records: serviceRecords, currentOdo: currentOdo)
+        MaintenanceIntervalsEngine.insights(
+            records: serviceRecords, currentOdo: currentOdo, settings: settingsStore.settings)
+    }
+
+    /// Cheap change key for the reminder rescheduling: the reminder dates
+    /// only depend on each item's due date.
+    private var reminderSignature: String {
+        let items = intervalInsights.map { "\($0.key)@\(Int($0.nextDate.timeIntervalSince1970))" }
+        return "\(reminders.isEnabled)|" + items.joined(separator: ",")
     }
 
     /// Most recent *real* maintenance — a location move must not read as
@@ -89,6 +104,11 @@ struct MaintenanceLogsView: View {
             "\($0.title) \($0.recordDescription ?? "")".localizedStandardContains(query)
         }
     }
+
+    private var openIssues: [SDIssue] { searchedIssues.filter { !Self.isDone($0) } }
+    private var doneIssues: [SDIssue] { searchedIssues.filter { Self.isDone($0) } }
+
+    private static func isDone(_ issue: SDIssue) -> Bool { issue.status.lowercased() == "done" }
 
     /// Composite groups (same date+odo+category merge, children folded in),
     /// bucketed by year for the section headers. Fed from the filtered slice.
@@ -123,6 +143,20 @@ struct MaintenanceLogsView: View {
             }
         }
         .onChange(of: tab) { _, _ in selectedRecord = nil }
+        // Consume the "Mangel erfassen" App Shortcut. `initial: true` covers
+        // a cold launch where the intent fired before this view existed.
+        .onChange(of: quickActions.pending, initial: true) { _, action in
+            guard action == .addIssue else { return }
+            quickActions.pending = nil
+            tab = .issues
+            showingAddIssue = true
+        }
+        // Local reminders follow the insights shown here; this is the only
+        // place that has the bike's records, so each bike is (re)scheduled
+        // when its Wartung tab is on screen.
+        .onChange(of: reminderSignature, initial: true) { _, _ in
+            reminders.schedule(for: viewModel.motorcycle, insights: intervalInsights)
+        }
         .onReceive(viewModel.$serviceRecords) { records in
             if let selectedRecord, !records.contains(where: { $0.clientId == selectedRecord.clientId }) {
                 self.selectedRecord = nil
@@ -148,6 +182,12 @@ struct MaintenanceLogsView: View {
         .sheet(isPresented: $showingAddMaintenance) {
             AddMaintenanceView(viewModel: viewModel)
                 .glassSheet()
+        }
+        .sheet(item: $resolvingIssue) { issue in
+            AddMaintenanceView(viewModel: viewModel, resolvingIssue: issue) { _ in
+                _ = viewModel.setIssueStatus(issue, status: "done")
+            }
+            .glassSheet()
         }
     }
 
@@ -309,24 +349,109 @@ struct MaintenanceLogsView: View {
         } else if searchedIssues.isEmpty {
             Section { ContentUnavailableView.search(text: searchText) }
         } else {
-            Section {
-                ForEach(searchedIssues, id: \.clientId) { issue in
-                    Button { editingIssue = issue } label: {
-                        IssueRow(issue: issue)
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityIdentifier("service.issue.\(issue.clientId)")
-                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                        Button {
-                            pendingIssueDelete = issue
-                        } label: {
-                            Label("Löschen", systemImage: "trash")
-                        }
-                        .tint(.red)
+            if openIssues.isEmpty {
+                // Everything is resolved: say so instead of showing nothing
+                // above the collapsed "Erledigt" section.
+                Section {
+                    Label("Keine offenen Mängel", systemImage: "checkmark.circle.fill")
+                        .foregroundStyle(.green)
+                        .font(.subheadline.weight(.semibold))
+                }
+            } else {
+                Section {
+                    ForEach(openIssues, id: \.clientId) { issue in
+                        issueRow(issue)
                     }
                 }
             }
+            if !doneIssues.isEmpty {
+                doneIssuesSection
+            }
         }
+    }
+
+    /// Resolved defects, collapsed by default — they're history, not a to-do.
+    private var doneIssuesSection: some View {
+        Section {
+            if showingDoneIssues {
+                ForEach(doneIssues, id: \.clientId) { issue in
+                    issueRow(issue)
+                        .opacity(0.75)
+                }
+            }
+        } header: {
+            Button {
+                withAnimation(.easeOut(duration: 0.2)) { showingDoneIssues.toggle() }
+            } label: {
+                HStack {
+                    Text("Erledigt")
+                    Spacer()
+                    Text("\(doneIssues.count)")
+                        .monospacedDigit()
+                    Image(systemName: "chevron.down")
+                        .scaledFont(11, weight: .semibold)
+                        .rotationEffect(.degrees(showingDoneIssues ? 180 : 0))
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(showingDoneIssues ? "Erledigte Mängel ausblenden" : "\(doneIssues.count) erledigte Mängel anzeigen")
+        }
+    }
+
+    /// One defect row: tap edits; swipe leading toggles done/open; the
+    /// context menu adds "Als Wartung erfassen" (repair entry that closes
+    /// the defect) and delete.
+    private func issueRow(_ issue: SDIssue) -> some View {
+        let done = Self.isDone(issue)
+        return Button { editingIssue = issue } label: {
+            IssueRow(issue: issue)
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("service.issue.\(issue.clientId)")
+        .swipeActions(edge: .leading, allowsFullSwipe: true) {
+            if done {
+                Button {
+                    _ = viewModel.setIssueStatus(issue, status: "new")
+                } label: {
+                    Label("Wieder öffnen", systemImage: "arrow.uturn.backward.circle.fill")
+                }
+                .tint(.orange)
+            } else {
+                Button {
+                    _ = viewModel.setIssueStatus(issue, status: "done")
+                } label: {
+                    Label("Erledigt", systemImage: "checkmark.circle.fill")
+                }
+                .tint(.green)
+            }
+        }
+        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+            Button {
+                pendingIssueDelete = issue
+            } label: {
+                Label("Löschen", systemImage: "trash")
+            }
+            .tint(.red)
+        }
+        .contextMenu {
+            if done {
+                Button("Wieder öffnen", systemImage: "arrow.uturn.backward.circle") {
+                    _ = viewModel.setIssueStatus(issue, status: "new")
+                }
+            } else {
+                Button("Erledigt", systemImage: "checkmark.circle") {
+                    _ = viewModel.setIssueStatus(issue, status: "done")
+                }
+                Button("Als Wartung erfassen", systemImage: "wrench.and.screwdriver") {
+                    resolvingIssue = issue
+                }
+            }
+            Button("Bearbeiten", systemImage: "pencil") { editingIssue = issue }
+            Divider()
+            Button("Löschen", systemImage: "trash", role: .destructive) { pendingIssueDelete = issue }
+        }
+        .sensoryFeedback(.success, trigger: issue.status) { _, new in new.lowercased() == "done" }
     }
 
     /// "Wartung / Standort / Alle" as a row of compact filter chips.

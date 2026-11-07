@@ -33,6 +33,14 @@ struct ContentView: View {
                     .transition(.opacity)
             }
         }
+        // Universal links from printed labels (https://<web origin>/parts/<id>,
+        // /storage-locations/<id>): parked on the quick-action router until
+        // the Teile tab is up — which also covers a cold launch and a link
+        // that arrives before login. Foreign URLs are ignored.
+        .onOpenURL { url in
+            guard let label = LabelWebLinks.parse(url.absoluteString) else { return }
+            QuickActionRouter.shared.pending = .openLabel(label)
+        }
         // Soft upgrade prompt, shown after the post-login check — held back
         // until the splash is gone so it doesn't pop up over it.
         .sheet(isPresented: Binding(

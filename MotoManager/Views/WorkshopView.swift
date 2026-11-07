@@ -11,6 +11,7 @@ import UniformTypeIdentifiers
 /// plain title with a count.
 struct WorkshopView: View {
     @ObservedObject var viewModel: MotorcycleDetailViewModel
+    @Environment(\.chromeActions) private var chrome
     @State private var presentedDocument: Document?
     @State private var searchText = ""
     @ObservedObject private var offlineStore = DocumentOfflineStore.shared
@@ -203,6 +204,7 @@ struct WorkshopView: View {
                         .listRowBackground(Color.clear)
                 }
             } else {
+                vehicleSection
                 tirePressureSection
                 detailsSection
                 torqueSection
@@ -301,6 +303,60 @@ struct WorkshopView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+    }
+
+    // MARK: - Vehicle (identity data, edited via the bike sheet)
+
+    /// (label, value) rows for the registration data the bike carries.
+    private var vehicleRows: [(String, String)] {
+        let m = viewModel.motorcycle
+        var rows: [(String, String)] = []
+        if let vin = m.vin, !vin.isEmpty { rows.append(("Fahrgestellnummer", vin)) }
+        if let engine = m.engineNumber, !engine.isEmpty { rows.append(("Motornummer", engine)) }
+        if let nr = m.vehicleNr, !nr.isEmpty { rows.append(("Stammnummer", nr)) }
+        if let first = m.firstRegistration, !first.isEmpty {
+            rows.append(("Erstzulassung", Formatters.mediumDate(String(first.prefix(10)))))
+        }
+        if let tank = m.fuelTankSize, tank > 0 { rows.append(("Tankinhalt", String(format: "%g L", tank))) }
+        return rows
+    }
+
+    @ViewBuilder
+    private var vehicleSection: some View {
+        Section {
+            if vehicleRows.isEmpty {
+                emptySectionRow(
+                    "Keine Fahrzeugdaten erfasst",
+                    icon: "doc.text",
+                    actionLabel: "Fahrzeugdaten ergänzen"
+                ) { chrome.editMotorcycle() }
+            } else {
+                ForEach(vehicleRows, id: \.0) { row in
+                    HStack(alignment: .top) {
+                        Text(row.0)
+                            .scaledFont(13, weight: .semibold)
+                        Spacer(minLength: 8)
+                        Text(row.1)
+                            .scaledFont(13, weight: .medium)
+                            .monospaced()
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.trailing)
+                            .textSelection(.enabled)
+                    }
+                    .accessibilityElement(children: .combine)
+                }
+                Button {
+                    chrome.editMotorcycle()
+                } label: {
+                    Label("Motorrad bearbeiten", systemImage: "pencil")
+                        .scaledFont(13, weight: .semibold)
+                }
+                .tint(Theme.Colors.primary)
+                .accessibilityIdentifier("workshop.editMotorcycle")
+            }
+        } header: {
+            sectionHeader("Fahrzeug")
+        }
     }
 
     // MARK: - Tire pressure

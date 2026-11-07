@@ -12,6 +12,7 @@ struct GarageView: View {
     @Environment(\.dismiss) var dismiss
     @State private var query: String = ""
     @State private var showingAddMotorcycle = false
+    @State private var editingMotorcycle: Motorcycle?
 
     private var sortedFiltered: [Motorcycle] {
         let q = query.trim().lowercased()
@@ -60,6 +61,10 @@ struct GarageView: View {
                 dismiss()
             }
             .glassSheet()
+        }
+        .sheet(item: $editingMotorcycle) { motorcycle in
+            EditMotorcycleView(viewModel: fleetVM, motorcycle: motorcycle)
+                .glassSheet()
         }
     }
 
@@ -138,6 +143,15 @@ struct GarageView: View {
                     .buttonStyle(.plain)
                     .accessibilityIdentifier("garage.motorcycle.\(motorcycle.id)")
                     .listRowBackground(isActive ? Theme.Colors.primary.opacity(0.14) : nil)
+                    .contextMenu {
+                        Button("Bearbeiten", systemImage: "pencil") { editingMotorcycle = motorcycle }
+                    }
+                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                        Button { editingMotorcycle = motorcycle } label: {
+                            Label("Bearbeiten", systemImage: "pencil")
+                        }
+                        .tint(Theme.Colors.primary)
+                    }
                 }
             }
         }

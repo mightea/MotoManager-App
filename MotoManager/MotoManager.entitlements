@@ -10,9 +10,16 @@
 	  /.well-known/apple-app-site-association with a `webcredentials` entry listing
 	  this app's `<TeamID>.ltd.herrmann.MotoManager` — otherwise the assertion fails.
 	-->
+	<!--
+	  `applinks` makes the printed labels' QR URLs (https://moto.herrmann.ltd/parts/<id>,
+	  /storage-locations/<id>) open in the app from the Camera app or Safari. The
+	  same AASA file carries the `applinks` section (see the webapp's
+	  public/.well-known/apple-app-site-association).
+	-->
 	<key>com.apple.developer.associated-domains</key>
 	<array>
 		<string>webcredentials:moto.herrmann.ltd</string>
+		<string>applinks:moto.herrmann.ltd</string>
 	</array>
 </dict>
 </plist>

@@ -581,6 +581,17 @@ class MotorcycleDetailViewModel: ObservableObject {
         return persistAndSync()
     }
 
+    /// Status-only change (swipe "Erledigt" / "Wieder öffnen", resolving via
+    /// a maintenance entry) — every other field stays as it is.
+    @discardableResult
+    func setIssueStatus(_ issue: SDIssue, status: String) -> Bool {
+        guard issue.status != status else { return true }
+        issue.status = status
+        if issue.syncState != .pendingCreate { issue.syncState = .pendingUpdate }
+        issue.updatedAtLocal = Date()
+        return persistAndSync()
+    }
+
     @discardableResult
     func deleteIssue(_ issue: SDIssue) -> Bool {
         if issue.serverId == nil {

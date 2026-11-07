@@ -11,9 +11,13 @@ import SwiftUI
 final class QuickActionRouter: ObservableObject {
     static let shared = QuickActionRouter()
 
-    enum QuickAction {
+    enum QuickAction: Equatable {
         case addFuel
         case scanPart
+        case addIssue
+        /// A printed label's universal link (or a scanned QR) — open the
+        /// part / storage location it points at.
+        case openLabel(ScannedLabel)
     }
 
     @Published var pending: QuickAction?
@@ -49,6 +53,19 @@ struct ScanPartLabelIntent: AppIntent {
     }
 }
 
+/// Opens the app on the Wartung tab with the new-defect sheet presented.
+struct AddIssueIntent: AppIntent {
+    static let title: LocalizedStringResource = "Mangel erfassen"
+    static let description = IntentDescription("Öffnet MotoManager und erfasst einen neuen Mangel am aktiven Motorrad.")
+    static let openAppWhenRun = true
+
+    @MainActor
+    func perform() async throws -> some IntentResult {
+        QuickActionRouter.shared.pending = .addIssue
+        return .result()
+    }
+}
+
 // MARK: - App Shortcuts
 
 /// Surfaces the two highest-frequency actions in Spotlight, Siri and the
@@ -76,6 +93,16 @@ struct MotoManagerShortcuts: AppShortcutsProvider {
             ],
             shortTitle: "Etikett scannen",
             systemImageName: "qrcode.viewfinder"
+        )
+        AppShortcut(
+            intent: AddIssueIntent(),
+            phrases: [
+                "Mangel in \(.applicationName) erfassen",
+                "Neuer Mangel in \(.applicationName)",
+                "Log an issue in \(.applicationName)"
+            ],
+            shortTitle: "Mangel erfassen",
+            systemImageName: "exclamationmark.triangle.fill"
         )
     }
 }

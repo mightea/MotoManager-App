@@ -139,6 +139,8 @@ class AuthViewModel: NSObject, ObservableObject {
         // must not inherit this user's local data or cursors (stale cursors
         // would silently skip the other account's records on first sync).
         SyncEngine.shared.resetLocalState()
+        UserSettingsStore.shared.clear()
+        MaintenanceReminderScheduler.shared.cancelAll()
         isAuthenticated = false
         isAwaitingGarage = false
         phase = .idle

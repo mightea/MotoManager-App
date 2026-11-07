@@ -9,6 +9,7 @@ struct SettingsView: View {
     @EnvironmentObject private var engine: SyncEngine
     @EnvironmentObject private var connectivity: ConnectivityMonitor
     @Environment(\.dismiss) var dismiss
+    @ObservedObject private var reminders = MaintenanceReminderScheduler.shared
     @State private var confirmingLogout = false
 
     /// "v0.2.0 (302)" — CI stamps MARKETING_VERSION and the build number
@@ -24,6 +25,7 @@ struct SettingsView: View {
             List {
                 serverSection
                 syncSection
+                maintenanceSection
                 aiAccessSection
                 logoutSection
             }
@@ -122,6 +124,39 @@ struct SettingsView: View {
         formatter.locale = Formatters.displayLocale
         formatter.unitsStyle = .short
         return formatter.localizedString(for: date, relativeTo: Date())
+    }
+
+    // MARK: - Wartung (intervals + reminders)
+
+    private var maintenanceSection: some View {
+        Section {
+            NavigationLink {
+                ServiceIntervalsSettingsView()
+            } label: {
+                Label("Service-Intervalle", systemImage: "calendar.badge.clock")
+            }
+            Toggle(isOn: Binding(
+                get: { reminders.isEnabled },
+                set: { enabled in Task { await reminders.setEnabled(enabled) } }
+            )) {
+                Label("Erinnerungen", systemImage: "bell.badge")
+            }
+            .tint(Theme.Colors.primary)
+            if reminders.isDenied {
+                Button {
+                    if let url = URL(string: UIApplication.openSettingsURLString) {
+                        UIApplication.shared.open(url)
+                    }
+                } label: {
+                    Label("Mitteilungen in den iOS-Einstellungen erlauben", systemImage: "arrow.up.forward.app")
+                        .font(.footnote)
+                }
+            }
+        } header: {
+            Text("Wartung")
+        } footer: {
+            Text("Erinnert dich, wenn ein Service-Intervall in die Fälligkeit rückt und am Fälligkeitstag. Berechnet auf dem Gerät für Motorräder, deren Wartungs-Tab du geöffnet hast.")
+        }
     }
 
     // MARK: - AI access (MCP)

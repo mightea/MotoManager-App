@@ -178,18 +178,39 @@ struct ServiceIntervalsCard: View {
     }
 
     /// "Alle 8 Jahre · überfällig seit 3 Jahren" / "… · fällig in 2 Monaten" /
-    /// "… · nächste Mai 2033".
+    /// "… · nächste Mai 2033". With a km rule the rule reads "Alle 2 Jahre
+    /// oder 10'000 km" and the km verdict is appended when it is the one
+    /// that fires ("· 1'200 km drüber" / "· noch 800 km").
     private func statusDetail(for insight: MaintenanceInsight) -> String {
-        let rule = insight.intervalYears == 1 ? "Jedes Jahr" : "Alle \(insight.intervalYears) Jahre"
+        var rule = insight.intervalYears == 1 ? "Jedes Jahr" : "Alle \(insight.intervalYears) Jahre"
+        if let kms = insight.intervalKms {
+            rule += " oder \(Self.km(kms))"
+        }
         let now = Date()
+        var text: String
         switch insight.status {
         case .overdue:
-            return "\(rule) · überfällig seit \(MaintenanceIntervalsEngine.relativeSpan(from: now, to: insight.nextDate))"
+            text = "\(rule) · überfällig seit \(MaintenanceIntervalsEngine.relativeSpan(from: now, to: insight.nextDate))"
         case .due:
-            return "\(rule) · fällig in \(MaintenanceIntervalsEngine.relativeSpan(from: now, to: insight.nextDate))"
+            text = "\(rule) · fällig in \(MaintenanceIntervalsEngine.relativeSpan(from: now, to: insight.nextDate))"
         case .ok:
-            return "\(rule) · nächste \(Self.monthYear(insight.nextDate))"
+            text = "\(rule) · nächste \(Self.monthYear(insight.nextDate))"
         }
+        if let remaining = insight.kmsRemaining {
+            // Only when the km side is the more urgent one; otherwise the
+            // date verdict already explains the color.
+            let kmStatus = MaintenanceIntervalsEngine.status(
+                nextDate: .distantFuture, now: now,
+                kmsSinceLast: insight.kmsSinceLast, intervalKms: insight.intervalKms)
+            if kmStatus <= insight.status && kmStatus != .ok {
+                text += remaining < 0 ? " · \(Self.km(-remaining)) drüber" : " · noch \(Self.km(remaining))"
+            }
+        }
+        return text
+    }
+
+    private static func km(_ value: Int) -> String {
+        "\(value.formatted(.number.locale(Locale(identifier: "de_CH")))) km"
     }
 
     private func icon(for status: MaintenanceInsight.Status) -> String {

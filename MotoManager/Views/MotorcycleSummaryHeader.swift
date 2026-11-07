@@ -112,9 +112,16 @@ struct MotorcycleSummaryHeader<Actions: View>: View {
 
     private var identityRow: some View {
         HStack(spacing: 0) {
-            identity(progress: progress)
-                .accessibilityElement(children: .combine)
-                .accessibilityIdentifier("workspace.motorcycleIdentity")
+            // The name opens the bike's edit sheet — the one place every tab
+            // shares, so the vehicle data is reachable without hunting.
+            Button(action: chrome.editMotorcycle) {
+                identity(progress: progress)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityElement(children: .combine)
+            .accessibilityHint("Motorrad bearbeiten")
+            .accessibilityIdentifier("workspace.motorcycleIdentity")
             Spacer(minLength: Theme.Spacing.s)
             Color.clear
                 .frame(width: pillSize.width + slotFactor * (actionsSize.width + Theme.Spacing.s), height: 1)

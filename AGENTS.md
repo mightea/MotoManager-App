@@ -117,7 +117,7 @@ MotoManager/
 ### Navigation
 
 - Use `NavigationStack` — **never** `NavigationView`. The codebase was recently modernized; do not regress.
-- `Views/MainTabView.swift` is the post-auth root, with 4 tabs defined by `AppTab` in `UI/GlassTabBar.swift`: Fuel (`Tanken`), Workshop (`Werkstatt`), Service, Parts (`Teile`).
+- `Views/MainTabView.swift` is the post-auth root, with 4 tabs defined by `AppTab` in `UI/GlassTabBar.swift`: Fuel (`Tanken`), Workshop (`Technik`), Service (`Wartung`), Parts (`Teile`). The active motorcycle is edited via `Views/EditMotorcycleView.swift` (header name tap, Technik "Fahrzeug" section, garage row swipe/context menu).
 - `Views/GarageView.swift` opens via `.sheet()` for motorcycle selection.
 - The selected motorcycle ID persists to `UserDefaults` under `com.motomanager.lastSelectedId`.
 

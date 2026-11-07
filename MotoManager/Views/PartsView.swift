@@ -86,9 +86,20 @@ struct PartsView: View {
         // Consume the "Etikett scannen" App Shortcut. `initial: true` covers
         // a cold launch where the intent fired before this view existed.
         .onChange(of: quickActions.pending, initial: true) { _, action in
-            guard action == .scanPart else { return }
-            quickActions.pending = nil
-            showingScanner = true
+            switch action {
+            case .scanPart:
+                quickActions.pending = nil
+                showingScanner = true
+            case .openLabel(let label):
+                // Universal link from a printed label (Camera app, Safari):
+                // same resolution as a scan, minus the scanner sheet.
+                quickActions.pending = nil
+                tab = label.isStorageLocation ? .locations : .mine
+                pendingScan = label
+                resolvePendingScan()
+            default:
+                break
+            }
         }
         .sheet(isPresented: $showingAddPart) {
             AddPartView(viewModel: viewModel)

@@ -12,6 +12,12 @@ import SwiftData
 struct AddMaintenanceView: View {
     @ObservedObject var viewModel: MotorcycleDetailViewModel
     let existingRecord: SDMaintenanceRecord?
+    /// The defect this entry fixes ("Als Wartung erfassen"): pre-fills the
+    /// form as a repair with the defect's text, and the caller closes the
+    /// issue in `onSaved`.
+    let resolvingIssue: SDIssue?
+    /// Called with the created record after a successful create.
+    var onSaved: ((SDMaintenanceRecord) -> Void)? = nil
 
     /// Parts consumed by this repair (partClientId → quantity). Seeded from the
     /// record's existing consumptions when editing, so parts can be added,
@@ -72,9 +78,16 @@ struct AddMaintenanceView: View {
     private let legacyOriginalType: String?
     @State private var typeDirty = false
 
-    init(viewModel: MotorcycleDetailViewModel, existingRecord: SDMaintenanceRecord? = nil) {
+    init(
+        viewModel: MotorcycleDetailViewModel,
+        existingRecord: SDMaintenanceRecord? = nil,
+        resolvingIssue: SDIssue? = nil,
+        onSaved: ((SDMaintenanceRecord) -> Void)? = nil
+    ) {
         self.viewModel = viewModel
         self.existingRecord = existingRecord
+        self.resolvingIssue = resolvingIssue
+        self.onSaved = onSaved
         if let r = existingRecord {
             let raw = r.recordType.lowercased()
             let normalized = MaintenanceCategory.normalize(type: raw, fluidType: r.fluidType)
@@ -116,7 +129,7 @@ struct AddMaintenanceView: View {
             _date = State(initialValue: f.date(from: r.date) ?? Date())
         } else {
             self.legacyOriginalType = nil
-            _formType = State(initialValue: "service")
+            _formType = State(initialValue: resolvingIssue == nil ? "service" : "repair")
             _brakeComponent = State(initialValue: "brakepad")
             _brand = State(initialValue: "")
             _model = State(initialValue: "")
@@ -130,7 +143,12 @@ struct AddMaintenanceView: View {
             _odo = State(initialValue: "\(viewModel.motorcycle.latestOdo ?? viewModel.motorcycle.initialOdo)")
             _cost = State(initialValue: "")
             _currency = State(initialValue: viewModel.motorcycle.currencyCode ?? "CHF")
-            _notes = State(initialValue: AttributedString())
+            // The defect's title (and notes) become the repair description,
+            // so the history later reads "Vergaser tropft – behoben".
+            let seed = resolvingIssue.map { issue in
+                [issue.title, issue.recordDescription].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: "\n")
+            } ?? ""
+            _notes = State(initialValue: AttributedString(seed))
             _notesSelection = State(initialValue: AttributedTextSelection())
             _date = State(initialValue: Date())
         }
@@ -138,7 +156,8 @@ struct AddMaintenanceView: View {
 
     var body: some View {
         FormSheet(
-            title: existingRecord == nil ? "Wartung erfassen" : "Wartung bearbeiten",
+            title: existingRecord != nil ? "Wartung bearbeiten"
+                : resolvingIssue != nil ? "Mangel beheben" : "Wartung erfassen",
             canSave: canSave,
             tracked: [
                 formType, brakeComponent, brand, model, tirePosition, tireSize, dotCode,
@@ -199,6 +218,12 @@ struct AddMaintenanceView: View {
                 DatePicker("Datum", selection: $date, displayedComponents: .date)
                     .labelsHidden()
                     .tint(Theme.Colors.primary)
+            }
+            if let issue = resolvingIssue {
+                Label("Der Mangel «\(issue.title)» wird beim Speichern als erledigt markiert.",
+                      systemImage: "checkmark.circle")
+                    .scaledFont(12, weight: .medium)
+                    .foregroundStyle(.secondary)
             }
             FormField("Beschreibung", hint: "Fett, kursiv und Markenfarben; die Formatierung wird mit dem Web geteilt.") {
                 NoteEditor(text: $notes, selection: $notesSelection, prompt: "z. B. Ölwechsel + Filter")
@@ -524,6 +549,7 @@ struct AddMaintenanceView: View {
                 return false
             }
             recordUsedParts(for: record)
+            onSaved?(record)
         }
         return true
     }

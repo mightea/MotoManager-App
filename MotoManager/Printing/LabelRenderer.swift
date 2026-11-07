@@ -63,6 +63,11 @@ nonisolated enum LabelWebLinks {
 nonisolated enum ScannedLabel: Equatable {
     case part(serverId: Int)
     case storageLocation(serverId: Int)
+
+    var isStorageLocation: Bool {
+        if case .storageLocation = self { return true }
+        return false
+    }
 }
 
 /// TZe tape widths offered for printing. `printableDots` is the printable

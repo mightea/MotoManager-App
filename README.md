@@ -14,11 +14,14 @@ webapp covers the same data from the desktop.
 
 - **Tanken** — fuel entries with price, consumption (L/100 km) and station
   location; odometer OCR via the camera.
-- **Werkstatt** — torque specs, motorcycle details, tire pressures and a
-  document vault.
-- **Service** — maintenance history grouped by year with type-specific
-  summaries, service-interval insights (ok/due/overdue, tire age from DOT
-  codes), bundled works, consumed parts, and open issues (Mängel).
+- **Technik** — vehicle data (VIN, engine/frame numbers, tank size — editable
+  together with the photo via the motorcycle sheet), torque specs, motorcycle
+  details, tire pressures and a document vault.
+- **Wartung** — maintenance history grouped by year with type-specific
+  summaries, service-interval insights (ok/due/overdue from the user's
+  server-side interval rules incl. km limits, tire age from DOT codes, optional
+  local reminders), bundled works, consumed parts, and issues (Mängel) with a
+  done/reopen lifecycle and "Als Wartung erfassen".
 - **Teile** — parts inventory with stock per storage location, consumption
   booking from repairs, and QR label printing on a Brother PT-E550W.
 

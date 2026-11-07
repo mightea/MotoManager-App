@@ -21,7 +21,7 @@ The API issues **opaque Bearer session tokens** stored server-side (14-day expir
 
 ## Post-auth shell
 
-`Views/MainTabView.swift` is the post-auth root with **4 tabs** — Fuel (`Tanken`), Workshop (`Werkstatt`), Service, Parts (`Teile`) — defined by `AppTab` in `UI/GlassTabBar.swift`.
+`Views/MainTabView.swift` is the post-auth root with **4 tabs** — Fuel (`Tanken`), Workshop (`Technik`), Service (`Wartung`), Parts (`Teile`) — defined by `AppTab` in `UI/GlassTabBar.swift`.
 
 ## iOS 27 compatibility — required
 
