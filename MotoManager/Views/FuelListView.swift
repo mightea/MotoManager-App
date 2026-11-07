@@ -68,11 +68,6 @@ struct FuelListView: View {
         return prices.reduce(0, +) / Double(prices.count)
     }
 
-    /// Consumption of the last 10 fills, oldest→newest, for the trend sparkline.
-    private var trendValues: [Double] {
-        Array(fuelRecords.compactMap { $0.fuelConsumption }.prefix(10)).reversed()
-    }
-
     var body: some View {
         MotorcycleWorkspace(motorcycle: viewModel.motorcycle, type: .fuel) {
             WorkspaceAction("Tankung erfassen", systemImage: "plus") { showingAddFuel = true }
@@ -124,21 +119,18 @@ struct FuelListView: View {
             WorkspaceListHeader()
             // Expanded layouts keep the overview in the detail column, even
             // when selecting a record temporarily replaces that overview.
-            if sizeClass != .regular {
+            if sizeClass != .regular, !fuelRecords.isEmpty {
                 Section {
-                    StatStrip(statTiles)
+                    FuelSummaryCard(insights: insights, average: averageConsumption,
+                                    liters: trailingYearLiters, currency: currency)
                         .listRowInsets(EdgeInsets())
-                }
-                if trendValues.count >= 3 {
-                    Section {
-                        ConsumptionTrendRow(values: trendValues, average: averageConsumption)
-                    }
                 }
             }
             content
             WorkspaceListFooter()
         }
         .accessibilityIdentifier("fuel.history")
+        .alignsWorkspaceColumn(.list)
         .tracksWorkspaceHeader()
         .workspaceListStyle()
         .scrollContentBackground(.hidden)
@@ -147,52 +139,63 @@ struct FuelListView: View {
         .refreshable { await viewModel.reconnect() }
     }
 
-    private var statTiles: [StatTile] {
-        [
+    private var insights: FuelInsights { FuelInsights(records: fuelRecords) }
+
+    private var overviewTiles: [StatTile] {
+        let year = Calendar.current.component(.year, from: Date())
+        let fills = insights.fillCount(inYear: year)
+        return [
             StatTile(eyebrow: "Ø Verbrauch",
                      value: averageConsumption > 0 ? String(format: "%.1f", averageConsumption) : "—",
                      unit: "L/100 km · letzte 10", accent: Theme.Colors.primary),
-            StatTile(eyebrow: "Letzte Tankung",
-                     value: lastEntry.map { Formatters.dayMonth($0.date) } ?? "—",
-                     unit: lastEntry?.cost.map { Formatters.currency($0, code: currency, fractionDigits: 0) }),
+            StatTile(eyebrow: "Kosten \(String(year))",
+                     value: Formatters.currency(insights.cost(inYear: year), code: currency, fractionDigits: 0),
+                     unit: fills == 1 ? "1 Tankung" : "\(fills) Tankungen"),
             StatTile(eyebrow: "Liter", value: String(format: "%.0f", trailingYearLiters),
+                     unit: "letzte 12 Monate"),
+            StatTile(eyebrow: "Strecke",
+                     value: insights.trailingYearDistance().map { Formatters.kilometers($0) } ?? "—",
                      unit: "letzte 12 Monate")
         ]
     }
 
+    /// Wide layouts: the dashboard beside the history, until a fill-up is
+    /// selected.
     private var fuelOverview: some View {
         List {
-            Section("Übersicht") { StatStrip(statTiles).listRowInsets(EdgeInsets()) }
-            if !trendValues.isEmpty {
-                Section("Verbrauch · letzte \(trendValues.count) Tankungen") {
-                    Chart {
-                        RuleMark(y: .value("Durchschnitt", averageConsumption))
-                            .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 4]))
-                            .foregroundStyle(.secondary)
-                        ForEach(Array(trendValues.enumerated()), id: \.offset) { index, value in
-                            LineMark(x: .value("Tankung", index + 1), y: .value("L/100 km", value))
-                                .foregroundStyle(Theme.Colors.primary)
-                                .symbol(.circle)
+            OverviewTitle("Verbrauch & Kosten")
+            Section { StatStrip(overviewTiles).listRowInsets(EdgeInsets()) }
+            if fuelRecords.isEmpty {
+                Section {
+                    Label("Sobald Tankungen erfasst sind, zeigt diese Seite Verbrauch, Kosten und Preise.",
+                          systemImage: "chart.xyaxis.line")
+                        .foregroundStyle(.secondary)
+                    Button("Tankung erfassen", systemImage: "plus") { showingAddFuel = true }
+                }
+            } else {
+                Section { FuelConsumptionCard(insights: insights, average: averageConsumption).cardRow() }
+                Section {
+                    ViewThatFits(in: .horizontal) {
+                        HStack(alignment: .top, spacing: Theme.Spacing.listSection) {
+                            FuelMonthlyCostCard(insights: insights, currency: currency)
+                            FuelPriceCard(insights: insights, currency: currency)
+                        }
+                        .frame(minWidth: 560)
+                        VStack(spacing: Theme.Spacing.listSection) {
+                            FuelMonthlyCostCard(insights: insights, currency: currency)
+                            FuelPriceCard(insights: insights, currency: currency)
                         }
                     }
-                    .chartYAxisLabel("L/100 km")
-                    .frame(height: 220)
-                    .padding(.vertical, Theme.Spacing.m)
+                    .cardRow()
                 }
-            }
-            Section {
-                Label("Wähle eine Tankung im Verlauf, um Kosten, Strecke und Tankstelle zu sehen.", systemImage: "sidebar.left")
-                    .foregroundStyle(.secondary)
-                Button("Tankung erfassen", systemImage: "plus") { showingAddFuel = true }
             }
         }
         .accessibilityIdentifier("fuel.overview")
+        .alignsWorkspaceColumn(.overview)
         .workspaceListStyle()
         .scrollContentBackground(.hidden)
-        .scrollDismissesKeyboard(.interactively)
         .background(Theme.Colors.background)
-        .navigationTitle("Verbrauch & Kosten")
-        .navigationBarTitleDisplayMode(.inline)
+        .toolbar(.hidden, for: .navigationBar)
     }
 
     // MARK: - History
@@ -444,85 +447,6 @@ struct FuelRow: View {
         if value > averageConsumption + 0.4 { return AnyShapeStyle(Color.orange) }
         if value < averageConsumption - 0.4 { return AnyShapeStyle(Color.green) }
         return AnyShapeStyle(.primary)
-    }
-}
-
-// MARK: - Consumption trend
-
-/// Compact list row with a Swift Charts sparkline of the last fills'
-/// consumption. One series, one hue; the bike's average is a muted dashed
-/// reference line. No axes or grid — the trend direction is the message.
-struct ConsumptionTrendRow: View {
-    /// Consumption values, oldest→newest.
-    let values: [Double]
-    let average: Double
-
-    var body: some View {
-        HStack(spacing: Theme.Spacing.m) {
-            VStack(alignment: .leading, spacing: 3) {
-                Text("Verbrauchstrend".uppercased())
-                    .scaledFont(9, weight: .heavy)
-                    .tracking(1.2)
-                    .foregroundStyle(.secondary)
-                Text("Letzte \(values.count) Tankungen")
-                    .scaledFont(11, weight: .medium)
-                    .foregroundStyle(.secondary)
-            }
-
-            Spacer(minLength: Theme.Spacing.m)
-
-            chart
-                .frame(width: 150, height: 34)
-        }
-        .padding(.vertical, 2)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(accessibilityText)
-    }
-
-    private var chart: some View {
-        Chart {
-            if average > 0 {
-                RuleMark(y: .value("Durchschnitt", average))
-                    .lineStyle(StrokeStyle(lineWidth: 1, dash: [3, 3]))
-                    .foregroundStyle(.tertiary)
-            }
-            ForEach(Array(values.enumerated()), id: \.offset) { index, value in
-                LineMark(
-                    x: .value("Tankung", index),
-                    y: .value("Verbrauch", value)
-                )
-                .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
-                .foregroundStyle(Theme.Colors.primary)
-            }
-            if let last = values.last {
-                PointMark(
-                    x: .value("Tankung", values.count - 1),
-                    y: .value("Verbrauch", last)
-                )
-                .symbolSize(36)
-                .foregroundStyle(Theme.Colors.primary)
-            }
-        }
-        .chartXAxis(.hidden)
-        .chartYAxis(.hidden)
-        .chartYScale(domain: yDomain)
-        .chartLegend(.hidden)
-    }
-
-    /// Pad the value range so the line never kisses the frame edges, and keep
-    /// the reference line inside the plot.
-    private var yDomain: ClosedRange<Double> {
-        let lo = min(values.min() ?? 0, average > 0 ? average : .greatestFiniteMagnitude)
-        let hi = max(values.max() ?? 1, average > 0 ? average : -.greatestFiniteMagnitude)
-        let pad = max((hi - lo) * 0.15, 0.1)
-        return (lo - pad)...(hi + pad)
-    }
-
-    private var accessibilityText: String {
-        guard let last = values.last else { return "Verbrauchstrend" }
-        return "Verbrauchstrend der letzten \(values.count) Tankungen, "
-            + "zuletzt \(String(format: "%.1f", last)) Liter pro 100 Kilometer, "
-            + "Durchschnitt \(String(format: "%.1f", average))"
     }
 }
 

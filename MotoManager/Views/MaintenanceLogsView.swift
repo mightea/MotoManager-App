@@ -267,6 +267,7 @@ struct MaintenanceLogsView: View {
             WorkspaceListFooter()
         }
         .accessibilityIdentifier("service.history")
+        .alignsWorkspaceColumn(.list)
         .tracksWorkspaceHeader()
         .workspaceListStyle()
         .scrollContentBackground(.hidden)
@@ -279,6 +280,7 @@ struct MaintenanceLogsView: View {
 
     private var attentionOverview: some View {
         List {
+            OverviewTitle("Wartung im Blick")
             Section { StatStrip(statTiles).listRowInsets(EdgeInsets()) }
             Section("Handlungsbedarf") {
                 if !intervalInsights.isEmpty {
@@ -301,12 +303,13 @@ struct MaintenanceLogsView: View {
             }
         }
         .accessibilityIdentifier("service.overview")
+        .alignsWorkspaceColumn(.overview)
         .workspaceListStyle()
         .scrollContentBackground(.hidden)
         .scrollDismissesKeyboard(.interactively)
         .background(Theme.Colors.background)
-        .navigationTitle("Wartung im Blick")
-        .navigationBarTitleDisplayMode(.inline)
+        // The title is the first row, on the list column's baseline.
+        .toolbar(.hidden, for: .navigationBar)
     }
 
     private var statTiles: [StatTile] {

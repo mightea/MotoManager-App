@@ -31,6 +31,8 @@ struct PartsView: View {
     /// empty state.
     @State private var publicLoadedOnce = false
     @ObservedObject private var connectivity = ConnectivityMonitor.shared
+    // Read the workspace width before NavigationSplitView narrows its columns.
+    @Environment(\.horizontalSizeClass) private var sizeClass
 
     var body: some View {
         MotorcycleWorkspace(motorcycle: detailVM.motorcycle, type: .parts) {
@@ -43,7 +45,8 @@ struct PartsView: View {
                 .keyboardShortcut("n", modifiers: .command)
         } content: {
             RecordBrowser(selection: $selection, title: "Teile & Lager",
-                          emptyTitle: "Teil oder Lagerort auswählen", systemImage: "shippingbox") {
+                          emptyTitle: "Teil oder Lagerort auswählen", systemImage: "shippingbox",
+                          overview: AnyView(inventoryOverview)) {
                 partsList
             } detail: { destination in
                 switch destination {
@@ -145,7 +148,10 @@ struct PartsView: View {
     private var partsList: some View {
         List {
             WorkspaceListHeader(searchText: $searchText, prompt: tab == .locations ? "Lagerort suchen …" : "Name oder Teilenummer …")
-            Section { StatStrip(statTiles).listRowInsets(EdgeInsets()) }
+            // Wide layouts show the stats in the overview beside the list.
+            if sizeClass != .regular {
+                Section { StatStrip(statTiles).listRowInsets(EdgeInsets()) }
+            }
             Section {
                 GlassSegmentedControl(
                     segments: [
@@ -180,6 +186,7 @@ struct PartsView: View {
         .scrollDismissesKeyboard(.interactively)
         .background(Theme.Colors.background)
         .accessibilityIdentifier("parts.inventory")
+        .alignsWorkspaceColumn(.list)
         .tracksWorkspaceHeader()
         .refreshable {
             await SyncEngine.shared.sync(motorcycleIds: [])
@@ -267,6 +274,113 @@ struct PartsView: View {
                     : "—"
             )
         ]
+    }
+
+    // MARK: - Overview (wide layouts)
+
+    /// Parts with one or no piece left, fewest first.
+    private var lowStockParts: [(part: SDPart, onHand: Int)] {
+        viewModel.parts
+            .map { (part: $0, onHand: viewModel.onHand(for: $0)) }
+            .filter { $0.onHand <= 1 }
+            .sorted { ($0.onHand, $0.part.name) < ($1.onHand, $1.part.name) }
+    }
+
+    private var topLevelLocations: [SDStorageLocation] {
+        viewModel.storageLocations
+            .filter { $0.parentClientId == nil }
+            .sorted { $0.name < $1.name }
+    }
+
+    private func stockPlaces(_ part: SDPart) -> String? {
+        let names = Set(viewModel.stocks(for: part).compactMap {
+            viewModel.storageLocation(clientId: $0.storageLocationClientId)?.name
+        })
+        return names.isEmpty ? nil : names.sorted().joined(separator: ", ")
+    }
+
+    private var inventoryOverview: some View {
+        List {
+            OverviewTitle("Lager im Überblick")
+            Section { StatStrip(statTiles).listRowInsets(EdgeInsets()) }
+            if !lowStockParts.isEmpty {
+                Section {
+                    ForEach(lowStockParts.prefix(8), id: \.part.clientId) { entry in
+                        Button { selection = .part(entry.part) } label: {
+                            HStack(spacing: Theme.Spacing.m) {
+                                Text("\(entry.onHand)")
+                                    .font(.subheadline.weight(.heavy))
+                                    .monospacedDigit()
+                                    .foregroundStyle(entry.onHand <= 0 ? Theme.Colors.accent : .orange)
+                                    .frame(width: 34, height: 34)
+                                    .background((entry.onHand <= 0 ? Theme.Colors.accent : .orange).opacity(0.16),
+                                                in: RoundedRectangle(cornerRadius: Theme.Radius.controlInner))
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(entry.part.name).font(.subheadline.weight(.semibold))
+                                    Text(stockPlaces(entry.part) ?? entry.part.partNumber)
+                                        .font(.footnote)
+                                        .foregroundStyle(.secondary)
+                                        .lineLimit(1)
+                                }
+                                Spacer(minLength: 0)
+                                Image(systemName: "chevron.right")
+                                    .font(.footnote.weight(.semibold))
+                                    .foregroundStyle(.tertiary)
+                            }
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("parts.lowStock.\(entry.part.clientId)")
+                    }
+                } header: {
+                    HStack {
+                        Text("Knapp im Lager")
+                        Spacer()
+                        Text("Bestand 1 oder weniger").textCase(nil)
+                    }
+                }
+            }
+            if !topLevelLocations.isEmpty {
+                Section("Lagerorte") {
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: Theme.Spacing.s)],
+                              spacing: Theme.Spacing.s) {
+                        ForEach(topLevelLocations, id: \.clientId) { location in
+                            Button { tab = .locations; selection = .location(location) } label: {
+                                let count = viewModel.totalStockedPartCount(at: location)
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(location.name)
+                                        .font(.subheadline.weight(.semibold))
+                                        .lineLimit(2)
+                                    Text(count == 1 ? "1 Teil" : "\(count) Teile")
+                                        .font(.footnote)
+                                        .foregroundStyle(.secondary)
+                                }
+                                .frame(maxWidth: .infinity, minHeight: 56, alignment: .topLeading)
+                                .padding(Theme.Spacing.m - 2)
+                                .background(Theme.Colors.background, in: RoundedRectangle(cornerRadius: Theme.Radius.chip))
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.vertical, Theme.Spacing.xs)
+                }
+            }
+            if viewModel.parts.isEmpty {
+                Section {
+                    Label("Lege Teile an, um Bestand, Lagerwert und knappe Teile hier zu sehen.",
+                          systemImage: "shippingbox")
+                        .foregroundStyle(.secondary)
+                    Button("Teil hinzufügen", systemImage: "plus") { showingAddPart = true }
+                }
+            }
+        }
+        .accessibilityIdentifier("parts.overview")
+        .alignsWorkspaceColumn(.overview)
+        .workspaceListStyle()
+        .scrollContentBackground(.hidden)
+        .background(Theme.Colors.background)
+        .toolbar(.hidden, for: .navigationBar)
     }
 
     // MARK: - Mine

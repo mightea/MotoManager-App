@@ -12,6 +12,9 @@ struct MainTabView: View {
     @State private var showingGarage = false
     @State private var showingSettings = false
     @State private var showingEditMotorcycle = false
+    /// Window width, so the iPad sidebar only opens where it fits beside
+    /// the content instead of covering the list (portrait).
+    @State private var windowWidth: CGFloat = 0
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -40,6 +43,7 @@ struct MainTabView: View {
             }
             .ignoresSafeArea()
         }
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { windowWidth = $0 }
         .environment(\.chromeActions, ChromeActions(
             openGarage: { showingGarage = true },
             openSettings: { showingSettings = true },
@@ -113,15 +117,21 @@ struct MainTabView: View {
                 Tab(tab.label, systemImage: tab.systemImage, value: tab) {
                     screen(for: tab, dVM: dVM)
                 }
+                .badge(tab == .service ? openIssues(dVM) : 0)
             }
         }
         .tabViewStyle(.sidebarAdaptable)
-        .tabViewSidebarHeader {
-            Button { showingGarage = true } label: {
-                Label("\(dVM.motorcycle.make) \(dVM.motorcycle.model)", systemImage: "motorcycle")
-                    .font(.headline)
-            }
-            .padding(.vertical, Theme.Spacing.s)
+        // Wide iPad windows open with the sidebar (tabs plus the garage)
+        // beside the content; narrower ones keep the top tab bar, since the
+        // sidebar would float over the list there.
+        .defaultAdaptableTabBarPlacement(windowWidth >= 1100 ? .sidebar : .automatic)
+        // iPad sidebar: the fleet under the tabs, sync and settings at the
+        // bottom. Phones never show the sidebar.
+        .tabViewSidebarFooter {
+            SidebarGarage(fleetVM: fleetVM, openIssues: openIssues(dVM)) { showingGarage = true }
+        }
+        .tabViewSidebarBottomBar {
+            SidebarStatusBar(viewModel: dVM) { showingSettings = true }
         }
         .tabBarMinimizeBehavior(.never)
 
@@ -145,6 +155,10 @@ struct MainTabView: View {
         // Tear down all four navigation stacks (including any pushed detail
         // referring to the previous bike's records) when the bike changes.
         .id(dVM.motorcycle.id)
+    }
+
+    private func openIssues(_ dVM: MotorcycleDetailViewModel) -> Int {
+        dVM.issues.filter { $0.status.lowercased() != "done" }.count
     }
 
     @ViewBuilder

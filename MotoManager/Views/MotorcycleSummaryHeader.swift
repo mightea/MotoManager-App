@@ -23,6 +23,9 @@ struct MotorcycleSummaryHeader<Actions: View>: View {
     let type: HeaderType
     /// Short landscape windows use the single row permanently.
     var isCondensed = false
+    /// Narrow phones: settings live in the switcher menu and the year drops
+    /// out of the caption, so the km reading stays whole.
+    var isNarrow = false
     @ObservedObject var metrics: WorkspaceHeaderMetrics
     @ObservedObject var scroll: WorkspaceScrollProgress
     @ViewBuilder var actions: () -> Actions
@@ -148,7 +151,7 @@ struct MotorcycleSummaryHeader<Actions: View>: View {
 
     private var metadata: String {
         var items: [String] = []
-        if !isAccessibility,
+        if !isAccessibility, !isNarrow,
            let year = motorcycle.modelYear.flatMap(Formatters.modelYear) { items.append(year) }
         if let plate = motorcycle.numberPlate, !plate.isEmpty { items.append(plate) }
         items.append(Formatters.kilometers(motorcycle.latestOdo ?? motorcycle.initialOdo))
@@ -156,28 +159,47 @@ struct MotorcycleSummaryHeader<Actions: View>: View {
     }
 
     private var switchButton: some View {
-        Button(action: chrome.openGarage) {
-            HStack(spacing: 0) {
-                Image(systemName: "chevron.down")
-                Text("Wechseln")
-                    .padding(.leading, Theme.Spacing.xs)
-                    .fixedSize()
-                    .frame(width: labelFactor * (labelWidth + Theme.Spacing.xs), alignment: .leading)
-                    .clipped()
-                    // Gone before the width closes, so no half letters show.
-                    .opacity(max(0, (labelFactor - 0.4) / 0.6))
+        Group {
+            if isNarrow {
+                Menu {
+                    Button("Motorrad wechseln", systemImage: "arrow.left.arrow.right", action: chrome.openGarage)
+                    Button("Motorrad bearbeiten", systemImage: "pencil", action: chrome.editMotorcycle)
+                    Divider()
+                    Button("Einstellungen", systemImage: "gearshape", action: chrome.openSettings)
+                } label: {
+                    switchLabel
+                }
+                .menuStyle(.button)
+                .buttonStyle(.plain)
+                .accessibilityLabel("Motorrad wechseln und mehr")
+            } else {
+                Button(action: chrome.openGarage) { switchLabel }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Motorrad wechseln")
             }
-            .font(.subheadline.weight(.semibold))
-            .padding(.horizontal, lerp(Theme.Spacing.s, Theme.Spacing.m, labelFactor))
-            .frame(minWidth: 44, minHeight: 44)
-            .glassEffect(.regular.tint(Theme.Colors.navy950.opacity(0.5)), in: Capsule())
         }
-        .buttonStyle(.plain)
-        .accessibilityLabel("Motorrad wechseln")
         .accessibilityIdentifier("workspace.switchMotorcycle")
         .onGeometryChange(for: CGSize.self) { $0.size } action: { pillSize = $0 }
         .frame(maxWidth: .infinity, alignment: .topTrailing)
         .offset(y: lerp(expandedContentHeight - pillSize.height, rowY + (rowHeight - pillSize.height) / 2, progress))
+    }
+
+    private var switchLabel: some View {
+        HStack(spacing: 0) {
+            Image(systemName: "chevron.down")
+            Text("Wechseln")
+                .padding(.leading, Theme.Spacing.xs)
+                .fixedSize()
+                .frame(width: labelFactor * (labelWidth + Theme.Spacing.xs), alignment: .leading)
+                .clipped()
+                // Gone before the width closes, so no half letters show.
+                .opacity(max(0, (labelFactor - 0.4) / 0.6))
+        }
+        .font(.subheadline.weight(.semibold))
+        .foregroundStyle(Theme.Colors.onPhoto)
+        .padding(.horizontal, lerp(Theme.Spacing.s, Theme.Spacing.m, labelFactor))
+        .frame(minWidth: 44, minHeight: 44)
+        .glassEffect(.regular.tint(Theme.Colors.navy950.opacity(0.5)), in: Capsule())
     }
 
     /// Invisible copies that report the identity's height at both ends and

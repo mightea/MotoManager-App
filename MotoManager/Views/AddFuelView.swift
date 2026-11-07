@@ -6,7 +6,7 @@ import SwiftUI
 ///
 /// Native fields preserve complete values on focus. Price/L and total are
 /// auto-coupled — typing into one derives the other from the entered liters.
-/// Currency is picked above the fields; the sheet's own keyboard toolbar
+/// Currency is the price field's unit menu; the sheet's own keyboard toolbar
 /// (instead of FormSheet's plain "Fertig") moves between the odometer,
 /// liters, per-liter price and total.
 ///
@@ -155,7 +155,6 @@ struct AddFuelView: View {
             showsKeyboardDone: false,
             onSave: save
         ) {
-            currencyRow
             fieldStack
             dateRow
             if existingRecord == nil {
@@ -252,12 +251,6 @@ struct AddFuelView: View {
 
     // MARK: - Sections
 
-    private var currencyRow: some View {
-        FormField("Währung") {
-            currencyMenu
-        }
-    }
-
     /// The four chained numeric inputs. Carries the sheet's keyboard toolbar
     /// (previous/next field + "Fertig"); it sits inside FormSheet's
     /// NavigationStack, so the items land in the keyboard bar.
@@ -300,9 +293,13 @@ struct AddFuelView: View {
         }
     }
 
+    /// The currency is the price field's unit menu instead of a row of
+    /// its own.
     private var priceField: some View {
-        numericField("Preis / Liter", unit: currency, text: $price, field: .price,
-            hint: coupleSource == .total && !price.isEmpty ? "Berechnet" : nil)
+        numericField("Preis / Liter", unit: nil, text: $price, field: .price,
+            hint: coupleSource == .total && !price.isEmpty ? "Berechnet" : nil) {
+            currencyMenu
+        }
     }
 
     private var totalField: some View {
@@ -312,7 +309,7 @@ struct AddFuelView: View {
 
     private func numericField(
         _ title: String,
-        unit: String,
+        unit: String?,
         text: Binding<String>,
         field: Field,
         hint: String? = nil
@@ -324,7 +321,7 @@ struct AddFuelView: View {
     /// trailing edge of the input (e.g. the odometer scan button).
     private func numericField<Accessory: View>(
         _ title: String,
-        unit: String,
+        unit: String?,
         text: Binding<String>,
         field: Field,
         hint: String? = nil,
@@ -377,16 +374,21 @@ struct AddFuelView: View {
                 }
             }
         } label: {
-            HStack(spacing: Theme.Spacing.xs) {
-                Image(systemName: "\(Formatters.currencySymbol(for: currency)).circle")
-                    .scaledFont(13, weight: .semibold)
-                Text(currency)
-                    .scaledFont(14, weight: .heavy)
+            HStack(spacing: 3) {
+                Text("\(currency)/L")
+                    .scaledFont(12, weight: .bold)
+                Image(systemName: "chevron.up.chevron.down")
+                    .scaledFont(9, weight: .bold)
             }
+            .foregroundStyle(.primary)
+            .padding(.horizontal, Theme.Spacing.s)
             .frame(minHeight: 28)
+            .background(Theme.Colors.background, in: RoundedRectangle(cornerRadius: Theme.Radius.badge))
             .contentShape(Rectangle())
         }
-        .accessibilityLabel("Währung")
+        .fixedSize()
+        .accessibilityLabel("Währung, \(currency)")
+        .accessibilityIdentifier("fuel.currency")
     }
 
     private func consumptionChip(_ value: Double) -> some View {
@@ -435,7 +437,11 @@ struct AddFuelView: View {
 
     private var odoHint: String? {
         if let prev = previousFuelEntry {
-            return "letzter Stand: \(Formatters.kilometers(prev.odo))"
+            var hint = "vorherige Tankung \(Formatters.kilometers(prev.odo))"
+            if existingRecord == nil, let typed = Int(odo), typed > prev.odo {
+                hint += " · +\(Formatters.kilometers(typed - prev.odo))"
+            }
+            return hint
         }
         return nil
     }

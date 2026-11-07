@@ -43,7 +43,7 @@ enum Formatters {
         return f
     }()
 
-    private static func parseDay(_ iso: String) -> Date? {
+    static func parseDay(_ iso: String) -> Date? {
         dayParser.date(from: String(iso.prefix(10)))
     }
 
