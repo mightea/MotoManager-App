@@ -200,7 +200,15 @@ struct MaintenanceLogicTests {
         let front = record(type: "tire", date: "2025-06-01", odo: 100) { $0.tirePosition = "front" }
         let rear = record(type: "tire", date: "2025-06-01", odo: 100) { $0.tirePosition = "rear" }
         let groups = MaintenanceGrouper.group([front, rear])
-        #expect(MaintenanceGrouper.collapsedMetric(groups[0], fallbackCurrency: "CHF") == "Vorne & Hinten")
+        #expect(MaintenanceGrouper.tirePositions(groups[0]) == "Vorne & Hinten")
+    }
+
+    @Test func tireAndBatteryFallBackToTheirDescription() {
+        let tire = record(type: "tire") { $0.recordDescription = "Heidenau K34 vorne und hinten" }
+        #expect(MaintenanceSummarizer.summarize(tire) == "Heidenau K34 vorne und hinten")
+        let battery = record(type: "battery") { $0.recordDescription = "6V Batterie ersetzt" }
+        #expect(MaintenanceSummarizer.summarize(battery) == "6V Batterie ersetzt")
+        #expect(MaintenanceSummarizer.summarize(record(type: "battery")) == "Batteriewechsel")
     }
 
     // MARK: - Intervals engine

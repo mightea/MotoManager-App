@@ -8,16 +8,46 @@ struct MaintenanceLogsView: View {
     @ObservedObject private var quickActions = QuickActionRouter.shared
     @Environment(\.horizontalSizeClass) private var sizeClass
 
-    enum ServiceTab: Hashable { case issues, maintenance }
-    /// History filter: actual maintenance by default — location moves are
-    /// logistics, not wrenching, and they'd otherwise dominate the timeline.
-    enum HistoryFilter: String, CaseIterable {
-        case wartung = "Wartung"
-        case standort = "Standort"
-        case alle = "Alle"
+    /// The tab's single filter. "Alle" is one timeline of maintenance,
+    /// defects and location moves; each other chip narrows it to one kind.
+    /// (Replaces the former Mängel/Wartung switch plus a second chip row.)
+    enum ServiceFilter: Hashable, CaseIterable {
+        case alle, wartung, maengel, standort
+
+        var label: String {
+            switch self {
+            case .alle: "Alle"
+            case .wartung: "Wartung"
+            case .maengel: "Mängel"
+            case .standort: "Standort"
+            }
+        }
     }
-    @State private var tab: ServiceTab = .maintenance
-    @State private var historyFilter: HistoryFilter = .wartung
+
+    /// One row of the timeline: a maintenance group or a defect.
+    enum TimelineEntry: Identifiable {
+        case record(MaintenanceGroup)
+        case issue(SDIssue)
+
+        var id: String {
+            switch self {
+            case .record(let group): "record-\(group.id)"
+            case .issue(let issue): "issue-\(issue.clientId)"
+            }
+        }
+
+        /// ISO day (`yyyy-MM-dd`) for sorting and year buckets.
+        var day: String {
+            switch self {
+            case .record(let group): String(group.date.prefix(10))
+            case .issue(let issue): String(issue.date.prefix(10))
+            }
+        }
+    }
+
+    @State private var filter: ServiceFilter = .alle
+    @State private var showingSearch = false
+    @State private var showingIntervals = false
     @State private var searchText = ""
     @State private var selectedRecord: SDMaintenanceRecord?
     @State private var showingAddIssue = false
@@ -39,12 +69,13 @@ struct MaintenanceLogsView: View {
         serviceRecords.filter { $0.category != .location }
     }
 
-    /// The history slice the current filter chip selects.
+    /// The maintenance slice the current filter selects.
     private var historyRecords: [SDMaintenanceRecord] {
-        switch historyFilter {
+        switch filter {
         case .wartung: wartungRecords
         case .standort: serviceRecords.filter { $0.category == .location }
         case .alle: serviceRecords
+        case .maengel: []
         }
     }
 
@@ -110,15 +141,30 @@ struct MaintenanceLogsView: View {
 
     private static func isDone(_ issue: SDIssue) -> Bool { issue.status.lowercased() == "done" }
 
-    /// Composite groups (same date+odo+category merge, children folded in),
-    /// bucketed by year for the section headers. Fed from the filtered slice.
-    private var groupedByYear: [(year: String, groups: [MaintenanceGroup])] {
-        MaintenanceGrouper.byYear(
-            MaintenanceGrouper.group(searchedRecords, locations: viewModel.userLocations))
-    }
+    /// Composite maintenance groups (same date+odo+category merge, children
+    /// folded in) plus — under "Alle" — the defects, newest first, bucketed by
+    /// year. Each year carries its maintenance cost for the section header.
+    private var timeline: [(year: String, entries: [TimelineEntry], cost: Double)] {
+        let groups = MaintenanceGrouper.group(searchedRecords, locations: viewModel.userLocations)
+        var entries = groups.map(TimelineEntry.record)
+        if filter == .alle {
+            entries += searchedIssues.map(TimelineEntry.issue)
+        }
+        entries.sort { $0.day > $1.day }
 
-    private var groupCount: Int {
-        groupedByYear.reduce(0) { $0 + $1.groups.count }
+        var sections: [(year: String, entries: [TimelineEntry], cost: Double)] = []
+        for entry in entries {
+            let year = String(entry.day.prefix(4))
+            var cost: Double = 0
+            if case .record(let group) = entry { cost = group.cost }
+            if sections.last?.year == year {
+                sections[sections.count - 1].entries.append(entry)
+                sections[sections.count - 1].cost += cost
+            } else {
+                sections.append((year: year, entries: [entry], cost: cost))
+            }
+        }
+        return sections
     }
 
     private var currentOdo: Int {
@@ -129,8 +175,8 @@ struct MaintenanceLogsView: View {
 
     var body: some View {
         MotorcycleWorkspace(motorcycle: viewModel.motorcycle, type: .service) {
-            WorkspaceAction(tab == .issues ? "Mangel erfassen" : "Wartung erfassen", systemImage: "plus") {
-                if tab == .issues { showingAddIssue = true } else { showingAddMaintenance = true }
+            WorkspaceAction(filter == .maengel ? "Mangel erfassen" : "Wartung erfassen", systemImage: "plus") {
+                if filter == .maengel { showingAddIssue = true } else { showingAddMaintenance = true }
             }
             .keyboardShortcut("n", modifiers: .command)
         } content: {
@@ -142,13 +188,13 @@ struct MaintenanceLogsView: View {
                 MaintenanceDetailView(record: record, viewModel: viewModel, partsVM: partsVM)
             }
         }
-        .onChange(of: tab) { _, _ in selectedRecord = nil }
+        .onChange(of: filter) { _, _ in selectedRecord = nil }
         // Consume the "Mangel erfassen" App Shortcut. `initial: true` covers
         // a cold launch where the intent fired before this view existed.
         .onChange(of: quickActions.pending, initial: true) { _, action in
             guard action == .addIssue else { return }
             quickActions.pending = nil
-            tab = .issues
+            filter = .maengel
             showingAddIssue = true
         }
         // Local reminders follow the insights shown here; this is the only
@@ -183,6 +229,10 @@ struct MaintenanceLogsView: View {
             AddMaintenanceView(viewModel: viewModel)
                 .glassSheet()
         }
+        .sheet(isPresented: $showingIntervals) {
+            intervalsSheet
+                .glassSheet()
+        }
         .sheet(item: $resolvingIssue) { issue in
             AddMaintenanceView(viewModel: viewModel, resolvingIssue: issue) { _ in
                 _ = viewModel.setIssueStatus(issue, status: "done")
@@ -193,61 +243,32 @@ struct MaintenanceLogsView: View {
 
     private var serviceList: some View {
         List {
-            WorkspaceListHeader(searchText: $searchText, prompt: tab == .issues ? "Mängel durchsuchen …" : "Verlauf durchsuchen …")
+            // Search is on demand on phones (the icon in the filter row);
+            // wide layouts keep the column title and field as before.
+            if sizeClass == .regular || showingSearch || !searchText.isEmpty {
+                WorkspaceListHeader(searchText: $searchText, prompt: filter == .maengel ? "Mängel durchsuchen …" : "Verlauf durchsuchen …")
+            }
             if sizeClass != .regular {
-                // No interval tile here: the intervals card below already
-                // carries that status (plus what's due next).
-                Section { StatStrip(Array(statTiles.dropLast())).listRowInsets(EdgeInsets()) }
+                // Wide layouts show this in the overview column instead.
+                attentionCard
             }
             Section {
-                GlassSegmentedControl(
-                    segments: [
-                        .init(value: .issues, label: "Mängel", count: openIssuesCount),
-                        .init(value: .maintenance, label: "Wartung", count: wartungRecords.count)
-                    ],
-                    selection: $tab
-                )
+                filterBar
             }
             .listRowInsets(EdgeInsets())
             .listRowBackground(Color.clear)
             .listRowSeparator(.hidden)
 
-            if tab == .issues {
+            if filter == .maengel {
                 issuesContent
             } else {
-                if sizeClass != .regular && !intervalInsights.isEmpty {
-                    Section {
-                        ServiceIntervalsCard(insights: intervalInsights)
-                            // Tighter than the default insetGrouped row
-                            // insets — the card is dense, and the default
-                            // ~20pt frame read as oversized padding.
-                            .listRowInsets(EdgeInsets(top: 6, leading: 14, bottom: 10, trailing: 14))
-                    }
-                    // The default section spacing left a ~50pt hole between
-                    // the segment switcher and the card header.
-                    .listSectionMargins(.top, 0)
-                }
-
-                Section {
-                    historyFilterControl
-                } header: {
-                    HStack {
-                        Text("Verlauf")
-                        Spacer()
-                        Text("\(groupCount) \(groupCount == 1 ? "Eintrag" : "Einträge")")
-                    }
-                }
-                .listRowInsets(EdgeInsets())
-                .listRowBackground(Color.clear)
-                .listRowSeparator(.hidden)
-
-                maintenanceContent
+                timelineContent
             }
             WorkspaceListFooter()
         }
         .accessibilityIdentifier("service.history")
         .tracksWorkspaceHeader()
-        .listStyle(.insetGrouped)
+        .workspaceListStyle()
         .scrollContentBackground(.hidden)
         .scrollDismissesKeyboard(.interactively)
         .background(Theme.Colors.background)
@@ -263,8 +284,8 @@ struct MaintenanceLogsView: View {
                 if !intervalInsights.isEmpty {
                     ServiceIntervalsCard(insights: intervalInsights, initiallyExpanded: true)
                 }
-                // The issues segment already shows these records in the list.
-                if tab != .issues {
+                // The Mängel filter already shows these records in the list.
+                if filter != .maengel {
                     if openIssuesCount > 0 {
                         Label("\(openIssuesCount) offene Mängel", systemImage: "exclamationmark.circle")
                             .foregroundStyle(Theme.Colors.accent)
@@ -280,7 +301,7 @@ struct MaintenanceLogsView: View {
             }
         }
         .accessibilityIdentifier("service.overview")
-        .listStyle(.insetGrouped)
+        .workspaceListStyle()
         .scrollContentBackground(.hidden)
         .scrollDismissesKeyboard(.interactively)
         .background(Theme.Colors.background)
@@ -363,6 +384,7 @@ struct MaintenanceLogsView: View {
                         issueRow(issue)
                     }
                 }
+                .listRowInsets(denseRowInsets)
             }
             if !doneIssues.isEmpty {
                 doneIssuesSection
@@ -378,6 +400,7 @@ struct MaintenanceLogsView: View {
                     issueRow(issue)
                         .opacity(0.75)
                 }
+                .listRowInsets(denseRowInsets)
             }
         } header: {
             Button {
@@ -408,6 +431,9 @@ struct MaintenanceLogsView: View {
             IssueRow(issue: issue)
         }
         .buttonStyle(.plain)
+        // Explicit, like the maintenance rows: the wide-layout list column
+        // otherwise paints unstyled rows grey.
+        .listRowBackground(Theme.Colors.backgroundElevated)
         .accessibilityIdentifier("service.issue.\(issue.clientId)")
         .swipeActions(edge: .leading, allowsFullSwipe: true) {
             if done {
@@ -454,54 +480,204 @@ struct MaintenanceLogsView: View {
         .sensoryFeedback(.success, trigger: issue.status) { _, new in new.lowercased() == "done" }
     }
 
-    /// "Wartung / Standort / Alle" as a row of compact filter chips.
-    /// Standortwechsel are logistics, so they're out of the default view but
-    /// one tap away. Not a full-width GlassSegmentedControl: that matched the
-    /// page-level Mängel/Wartung switcher in size, so a secondary list filter
-    /// read as a second set of page tabs. `.plain` buttons are load-bearing —
-    /// multiple non-plain Buttons in one List row fire *all* their actions on
-    /// a row tap, so the last one (Alle) always won and the filter stuck.
-    private var historyFilterControl: some View {
-        HStack(spacing: 8) {
-            ForEach(HistoryFilter.allCases, id: \.self) { filter in
-                historyFilterChip(filter)
+
+    // MARK: - Attention card
+
+    /// The phone summary: open defects and interval health, one line each.
+    /// Replaces the cost/last-service stat card, the intervals card and the
+    /// Mängel/Wartung switch that used to stack above the history.
+    private var attentionCard: some View {
+        Section {
+            Button { filter = .maengel } label: {
+                AttentionRow(color: openIssuesCount > 0 ? .orange : .green,
+                             title: openIssuesTitle, detail: openIssuesDetail)
             }
-            Spacer(minLength: 0)
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("service.attention.issues")
+
+            if !intervalInsights.isEmpty {
+                let status = intervalStatus
+                Button { showingIntervals = true } label: {
+                    AttentionRow(color: status.color, title: status.title, detail: status.detail)
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("service.attention.intervals")
+            }
         }
-        .animation(.easeOut(duration: 0.18), value: historyFilter)
-        .sensoryFeedback(.selection, trigger: historyFilter)
+        .listRowInsets(EdgeInsets(top: 10, leading: 12, bottom: 10, trailing: 12))
     }
 
-    private func historyFilterChip(_ filter: HistoryFilter) -> some View {
-        let isActive = historyFilter == filter
+    private var openIssuesTitle: String {
+        switch openIssuesCount {
+        case 0: "Keine offenen Mängel"
+        case 1: "1 offener Mangel"
+        default: "\(openIssuesCount) offene Mängel"
+        }
+    }
+
+    /// First word of the newest open defects: "Vergaser, Rücklicht".
+    private var openIssuesDetail: String? {
+        let titles = viewModel.issues
+            .filter { !Self.isDone($0) }
+            .prefix(2)
+            .map { $0.title.split(separator: " ").first.map(String.init) ?? $0.title }
+        return titles.isEmpty ? nil : titles.joined(separator: ", ")
+    }
+
+    /// Worst bucket wins: overdue, then due, then "all in plan".
+    private var intervalStatus: (color: Color, title: String, detail: String?) {
+        let overdue = intervalInsights.filter { $0.status == .overdue }.sorted { $0.nextDate < $1.nextDate }
+        if let worst = overdue.first {
+            let title = overdue.count == 1 ? "1 Intervall überfällig" : "\(overdue.count) Intervalle überfällig"
+            return (Theme.Colors.accent, title, worst.label)
+        }
+        let due = intervalInsights.filter { $0.status == .due }.sorted { $0.nextDate < $1.nextDate }
+        if let next = due.first {
+            let title = due.count == 1 ? "1 Intervall bald fällig" : "\(due.count) Intervalle bald fällig"
+            return (.orange, title, "\(next.label) \(Self.shortMonthYear(next.nextDate))")
+        }
+        let count = intervalInsights.count
+        let next = intervalInsights.min { $0.nextDate < $1.nextDate }
+        return (.green,
+                count == 1 ? "1 Intervall im Plan" : "\(count) Intervalle im Plan",
+                next.map { "\($0.label) \(Self.shortMonthYear($0.nextDate))" })
+    }
+
+    private static let shortMonthYearFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.locale = Formatters.displayLocale
+        f.dateFormat = "MM/yy"
+        return f
+    }()
+
+    private static func shortMonthYear(_ date: Date) -> String {
+        shortMonthYearFormatter.string(from: date)
+    }
+
+    private var intervalsSheet: some View {
+        NavigationStack {
+            List {
+                Section {
+                    ServiceIntervalsCard(insights: intervalInsights, initiallyExpanded: true, showsHeader: false)
+                }
+            }
+            .workspaceListStyle()
+            .scrollContentBackground(.hidden)
+            .background(Theme.Colors.background)
+            .navigationTitle("Service-Intervalle")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Fertig") { showingIntervals = false }
+                }
+            }
+        }
+    }
+
+    // MARK: - Filter
+
+    /// "Alle · Wartung · Mängel · Standort" chips plus the search toggle.
+    /// `.plain` buttons are load-bearing — multiple non-plain Buttons in one
+    /// List row fire *all* their actions on a row tap, so the last one always
+    /// won and the filter stuck.
+    private var filterBar: some View {
+        HStack(spacing: 6) {
+            ScrollView(.horizontal) {
+                HStack(spacing: 6) {
+                    ForEach(ServiceFilter.allCases, id: \.self) { option in
+                        filterChip(option)
+                    }
+                }
+            }
+            .scrollIndicators(.hidden)
+
+            if sizeClass != .regular {
+                Button {
+                    withAnimation(.easeOut(duration: 0.18)) {
+                        showingSearch.toggle()
+                        if !showingSearch { searchText = "" }
+                    }
+                } label: {
+                    Image(systemName: showingSearch ? "xmark" : "magnifyingglass")
+                        .scaledFont(13, weight: .semibold)
+                        .foregroundStyle(.secondary)
+                        .frame(width: 32, height: 32)
+                        .background(Circle().fill(Theme.Colors.backgroundElevated))
+                        .frame(minWidth: 44, minHeight: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(showingSearch ? "Suche schliessen" : "Verlauf durchsuchen")
+                .accessibilityIdentifier("service.search")
+            }
+        }
+        .animation(.easeOut(duration: 0.18), value: filter)
+        .sensoryFeedback(.selection, trigger: filter)
+    }
+
+    private func chipCount(_ option: ServiceFilter) -> Int? {
+        switch option {
+        case .wartung: wartungRecords.isEmpty ? nil : wartungRecords.count
+        case .maengel: openIssuesCount == 0 ? nil : openIssuesCount
+        case .alle, .standort: nil
+        }
+    }
+
+    private func filterChip(_ option: ServiceFilter) -> some View {
+        let isActive = filter == option
+        let count = chipCount(option)
         return Button {
-            historyFilter = filter
+            filter = option
         } label: {
-            Text(filter.rawValue)
-                .scaledFont(12, weight: .semibold)
-                .lineLimit(1)
-                .foregroundStyle(isActive ? AnyShapeStyle(Theme.Colors.primary) : AnyShapeStyle(.secondary))
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
-                .background(
-                    Capsule().fill(
-                        isActive
-                            ? AnyShapeStyle(Theme.Colors.primary.opacity(0.14))
-                            : AnyShapeStyle(Color.primary.opacity(0.05))
-                    )
-                )
-                // Keep the ~44pt hit target (HIG) without the visual bulk:
-                // the chip stays 29pt tall, the tappable area doesn't.
-                .frame(minHeight: 44)
-                .contentShape(Rectangle())
+            HStack(spacing: 4) {
+                Text(option.label)
+                if let count {
+                    Text("\(count)")
+                        .monospacedDigit()
+                        .opacity(0.7)
+                }
+            }
+            .scaledFont(13, weight: .semibold)
+            .lineLimit(1)
+            .foregroundStyle(isActive ? AnyShapeStyle(Color.white) : AnyShapeStyle(.primary))
+            .padding(.horizontal, 11)
+            .frame(height: 32)
+            .background(
+                Capsule().fill(isActive ? AnyShapeStyle(Theme.Colors.primary) : AnyShapeStyle(Theme.Colors.backgroundElevated))
+            )
+            // Keep the ~44pt hit target (HIG) without the visual bulk.
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(filter.rawValue)
+        .accessibilityLabel(count.map { "\(option.label), \($0)" } ?? option.label)
         .accessibilityAddTraits(isActive ? [.isSelected] : [])
+        .accessibilityIdentifier("service.filter.\(option)")
+    }
+
+    // MARK: - Timeline
+
+    private var denseRowInsets: EdgeInsets {
+        EdgeInsets(top: Theme.Spacing.rowV, leading: 12, bottom: Theme.Spacing.rowV, trailing: 12)
+    }
+
+    private func yearHeader(_ year: String, cost: Double) -> some View {
+        HStack {
+            Text(year)
+            Spacer()
+            if cost > 0 {
+                Text(Formatters.currency(cost, code: currency, fractionDigits: 0))
+                    .monospacedDigit()
+            }
+        }
+        .scaledFont(13, weight: .semibold)
+        .foregroundStyle(.secondary)
+        .textCase(nil)
     }
 
     @ViewBuilder
-    private var maintenanceContent: some View {
+    private var timelineContent: some View {
+        let sections = timeline
         if viewModel.showsLoadingPlaceholders && serviceRecords.isEmpty {
             Section {
                 ForEach(0..<4, id: \.self) { _ in
@@ -509,18 +685,19 @@ struct MaintenanceLogsView: View {
                         .redacted(reason: .placeholder)
                 }
             }
-        } else if searchedRecords.isEmpty {
+            .listRowInsets(denseRowInsets)
+        } else if sections.isEmpty {
             Section {
                 if !searchText.isEmpty {
                     ContentUnavailableView.search(text: searchText)
                 } else {
                     ListEmptyState {
                         Label(
-                            historyFilter == .standort ? "Keine Standortwechsel" : "Keine Wartung erfasst",
-                            systemImage: historyFilter == .standort ? "mappin.and.ellipse" : "wrench.and.screwdriver.fill"
+                            filter == .standort ? "Keine Standortwechsel" : "Keine Wartung erfasst",
+                            systemImage: filter == .standort ? "mappin.and.ellipse" : "wrench.and.screwdriver.fill"
                         )
                     } description: {
-                        Text(historyFilter == .standort
+                        Text(filter == .standort
                             ? "Standortwechsel tauchen hier auf."
                             : "Reparaturen und Wartungen tauchen hier auf.")
                     } actions: {
@@ -531,23 +708,67 @@ struct MaintenanceLogsView: View {
             .listRowBackground(Color.clear)
             .listRowSeparator(.hidden)
         } else {
-            ForEach(groupedByYear, id: \.year) { section in
-                Section(section.year) {
-                    ForEach(section.groups) { group in
-                        Button {
-                            selectedRecord = group.primary
-                        } label: {
-                            MaintenanceGroupRow(group: group, fallbackCurrency: currency)
+            ForEach(sections, id: \.year) { section in
+                Section {
+                    ForEach(section.entries) { entry in
+                        switch entry {
+                        case .record(let group):
+                            Button {
+                                selectedRecord = group.primary
+                            } label: {
+                                MaintenanceGroupRow(group: group, fallbackCurrency: currency)
+                            }
+                            .buttonStyle(.plain)
+                            .selectedRecord(selectedRecord?.clientId == group.primary?.clientId)
+                        case .issue(let issue):
+                            issueRow(issue)
                         }
-                        .buttonStyle(.plain)
-                        .selectedRecord(selectedRecord?.clientId == group.primary?.clientId)
                     }
+                } header: {
+                    yearHeader(section.year, cost: section.cost)
                 }
+                .listRowInsets(denseRowInsets)
             }
         }
     }
 
 }
+
+// MARK: - Attention row
+
+private struct AttentionRow: View {
+    let color: Color
+    let title: String
+    let detail: String?
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Circle()
+                .fill(color)
+                .frame(width: 8, height: 8)
+            Text(title)
+                .scaledFont(15, weight: .semibold)
+                .foregroundStyle(.primary)
+                .lineLimit(1)
+                // The status must stay whole on an SE; the detail truncates.
+                .layoutPriority(1)
+            Spacer(minLength: 8)
+            if let detail {
+                Text(detail)
+                    .scaledFont(13)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+            Image(systemName: "chevron.right")
+                .scaledFont(11, weight: .semibold)
+                .foregroundStyle(.tertiary)
+        }
+        .frame(minHeight: 28)
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .combine)
+    }
+}
+
 
 // MARK: - Issue row
 
@@ -570,50 +791,40 @@ private struct IssueRow: View {
         }
     }
 
+    /// Two lines, like the maintenance rows: what's wrong, then date and the
+    /// first line of the note. The status sits in a pill on the right.
     var body: some View {
-        HStack(alignment: .top, spacing: 12) {
+        HStack(spacing: 10) {
             ZStack {
-                RoundedRectangle(cornerRadius: Theme.Radius.controlInner)
-                    .fill(statusColor.opacity(0.22))
+                RoundedRectangle(cornerRadius: Theme.Radius.badge)
+                    .fill(statusColor.opacity(0.16))
                 Image(systemName: statusIcon)
-                    .scaledFont(16, weight: .semibold)
+                    .scaledFont(14, weight: .semibold)
                     .foregroundStyle(statusColor)
             }
-            .frame(width: 36, height: 36)
+            .frame(width: 32, height: 32)
             .overlay(alignment: .topTrailing) {
                 if issue.syncState.isPending { PendingBadge().offset(x: 5, y: -5) }
             }
 
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 2) {
                 Text(issue.title)
-                    .scaledFont(14, weight: .bold)
+                    .scaledFont(15, weight: .semibold)
                     .foregroundStyle(.primary)
                     .lineLimit(2)
-                if let notes = issue.recordDescription, !notes.isEmpty {
-                    Text(NoteBrandPalette.display(description: notes, markup: issue.descriptionMarkup))
-                        .scaledFont(12)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(2)
-                }
-                HStack(spacing: 6) {
-                    Text(statusLabel.uppercased())
-                        .scaledFont(9, weight: .heavy)
-                        .tracking(0.4)
-                        .padding(.horizontal, 7)
-                        .padding(.vertical, 2)
-                        .background(Capsule().fill(statusColor.opacity(0.22)))
-                        .foregroundStyle(statusColor)
-                    Text("·").foregroundStyle(.tertiary)
-                    Text(Formatters.mediumDate(issue.date))
-                    Text("·").foregroundStyle(.tertiary)
-                    Text("\(issue.odo) km").monospacedDigit()
-                }
-                .scaledFont(10, weight: .semibold)
-                .foregroundStyle(.secondary)
+                Text(subtitle)
+                    .scaledFont(12.5)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
             }
-            Spacer(minLength: 0)
+            Spacer(minLength: 8)
+            Text(statusLabel)
+                .scaledFont(11, weight: .bold)
+                .padding(.horizontal, 7)
+                .padding(.vertical, 3)
+                .background(Capsule().fill(statusColor.opacity(0.16)))
+                .foregroundStyle(pillTextColor)
         }
-        .padding(.vertical, 4)
         .contentShape(Rectangle())
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(statusLabel) Mangel: \(issue.title), \(Formatters.mediumDate(issue.date)), Kilometerstand \(issue.odo)")
@@ -631,6 +842,28 @@ private struct IssueRow: View {
         }
     }
 
+    /// Darker shade of the status color, so the pill text keeps contrast on
+    /// its tinted background.
+    private var pillTextColor: Color {
+        switch issue.status.lowercased() {
+        case "done": return Color(light: Color(hex: 0x166534), dark: .green)
+        case "in_progress": return Theme.Colors.primary
+        default:
+            return issue.priority.lowercased() == "high"
+                ? Theme.Colors.accent
+                : Color(light: Color(hex: 0x9A3412), dark: .orange)
+        }
+    }
+
+    private var subtitle: String {
+        let note = issue.recordDescription?
+            .split(whereSeparator: \.isNewline).first
+            .map { String($0).trimmingCharacters(in: .whitespaces) }
+        return [Formatters.dayMonthName(issue.date), note]
+            .compactMap { $0?.isEmpty == false ? $0 : nil }
+            .joined(separator: " · ")
+    }
+
     private var statusIcon: String {
         switch issue.status.lowercased() {
         case "done": return "checkmark.circle.fill"
@@ -643,7 +876,7 @@ private struct IssueRow: View {
         switch issue.status.lowercased() {
         case "in_progress": return "In Arbeit"
         case "done": return "Erledigt"
-        default: return "Neu"
+        default: return "Offen"
         }
     }
 }
@@ -656,81 +889,81 @@ private struct MaintenanceGroupRow: View {
 
     /// Skeleton stand-in for the loading state (rendered `.redacted`).
     static var placeholder: some View {
-        HStack(spacing: 12) {
-            RoundedRectangle(cornerRadius: Theme.Radius.controlInner)
+        HStack(spacing: 10) {
+            RoundedRectangle(cornerRadius: Theme.Radius.badge)
                 .fill(.quaternary)
-                .frame(width: 38, height: 38)
-            VStack(alignment: .leading, spacing: 4) {
-                Text("15. August 2026")
+                .frame(width: 32, height: 32)
+            VStack(alignment: .leading, spacing: 2) {
                 Text("Ölwechsel, Kette gespannt")
+                Text("15. Aug. · 12'345 km")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
             Spacer()
         }
-        .padding(.vertical, 4)
     }
 
+    /// Two lines: what was done (the summaries), then when and where on the
+    /// odometer. Cost sits on the right; the year header carries the total.
+    /// The category is the icon alone, in neutral grey — colour is reserved
+    /// for defects, so orange keeps meaning "needs attention".
     var body: some View {
         let category = group.category
-        HStack(alignment: .top, spacing: 12) {
+        HStack(spacing: 10) {
             ZStack {
-                RoundedRectangle(cornerRadius: Theme.Radius.controlInner)
-                    .fill(category.tint.opacity(0.15))
+                RoundedRectangle(cornerRadius: Theme.Radius.badge)
+                    .fill(Color.primary.opacity(0.06))
                 Image(systemName: category.icon)
-                    .scaledFont(16, weight: .semibold)
-                    .foregroundStyle(category.tint)
+                    .scaledFont(14, weight: .semibold)
+                    .foregroundStyle(.secondary)
             }
-            .frame(width: 38, height: 38)
+            .frame(width: 32, height: 32)
             .overlay(alignment: .topTrailing) {
                 if group.isPending { PendingBadge().offset(x: 5, y: -5) }
             }
 
-            VStack(alignment: .leading, spacing: 4) {
-                HStack(alignment: .firstTextBaseline) {
-                    Text(Formatters.mediumDate(group.date))
-                        .scaledFont(14, weight: .bold)
-                        .foregroundStyle(.primary)
-                    Spacer(minLength: 8)
-                    Text("\(group.odo) km")
-                        .scaledFont(12, weight: .semibold)
-                        .monospacedDigit()
-                        .foregroundStyle(.secondary)
-                }
-
-                if !group.summaries.isEmpty {
-                    HStack(alignment: .firstTextBaseline, spacing: 6) {
-                        if group.count > 1 {
-                            Text("\(group.count)×")
-                                .scaledFont(11, weight: .heavy)
-                                .monospacedDigit()
-                                .foregroundStyle(.secondary)
-                        }
-                        Text(group.summaries.joined(separator: ", "))
-                            .scaledFont(13, weight: .medium)
-                            .foregroundStyle(category.tint)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                }
-
-                HStack(spacing: 6) {
-                    if let metric = MaintenanceGrouper.collapsedMetric(group, fallbackCurrency: fallbackCurrency) {
-                        Text(metric)
-                            .monospacedDigit()
-                        Text("·").foregroundStyle(.tertiary)
-                    }
-                    Text(category.label.uppercased())
-                        .scaledFont(9, weight: .heavy)
-                        .tracking(0.6)
-                }
-                .scaledFont(10, weight: .semibold)
-                .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .scaledFont(15, weight: .semibold)
+                    .foregroundStyle(.primary)
+                    .lineLimit(2)
+                Text(subtitle)
+                    .scaledFont(12.5)
+                    .monospacedDigit()
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+            Spacer(minLength: 8)
+            if group.cost > 0 {
+                Text(Formatters.currency(group.cost, code: group.currency ?? fallbackCurrency, fractionDigits: 0))
+                    .scaledFont(14, weight: .semibold)
+                    .monospacedDigit()
+                    .foregroundStyle(.primary)
             }
         }
-        .padding(.vertical, 4)
         .contentShape(Rectangle())
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityText)
+    }
+
+    private var title: String {
+        group.summaries.isEmpty ? group.category.label : group.summaries.joined(separator: ", ")
+    }
+
+    /// "2. Aug. · 83'420 km · Reparatur": the category name only where the
+    /// summary is free text and doesn't already say what kind of job it was.
+    private var subtitle: String {
+        var parts = [Formatters.dayMonthName(group.date)]
+        if group.odo > 0 { parts.append(Formatters.kilometers(group.odo)) }
+        if group.count > 1 { parts.append("\(group.count) Einträge") }
+        if let positions = MaintenanceGrouper.tirePositions(group) { parts.append(positions) }
+        switch group.category {
+        case .repair, .general, .brakepad, .brakerotor, .chain:
+            if title != group.category.label { parts.append(group.category.label) }
+        default:
+            break
+        }
+        return parts.joined(separator: " · ")
     }
 
     private var accessibilityText: String {

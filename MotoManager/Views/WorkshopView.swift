@@ -214,7 +214,7 @@ struct WorkshopView: View {
         }
         .accessibilityIdentifier("workshop.references")
         .tracksWorkspaceHeader()
-        .listStyle(.insetGrouped)
+        .workspaceListStyle()
         .scrollContentBackground(.hidden)
         .scrollDismissesKeyboard(.interactively)
         .background(Theme.Colors.background)
@@ -233,7 +233,7 @@ struct WorkshopView: View {
             }
         }
         .accessibilityIdentifier("workshop.overview")
-        .listStyle(.insetGrouped)
+        .workspaceListStyle()
         .scrollContentBackground(.hidden)
         .background(Theme.Colors.background)
         .navigationTitle("Technik im Blick")

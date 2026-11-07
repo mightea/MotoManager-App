@@ -99,20 +99,16 @@ enum MaintenanceGrouper {
         return sections
     }
 
-    /// The right-hand metric of a collapsed row (webapp `getCollapsedMetric`):
-    /// tire → unique position labels ("Vorne & Hinten"), else the summed cost.
-    static func collapsedMetric(_ group: MaintenanceGroup, fallbackCurrency: String?) -> String? {
-        if group.category == .tire {
-            var seen = Set<String>()
-            let positions = group.records.compactMap { record -> String? in
-                guard let position = record.tirePosition,
-                      let label = MaintenanceCategory.tirePositionLabels[position],
-                      seen.insert(label).inserted else { return nil }
-                return label
-            }
-            return positions.isEmpty ? nil : positions.joined(separator: " & ")
+    /// Unique tire positions of a tire group ("Vorne & Hinten"), else nil.
+    static func tirePositions(_ group: MaintenanceGroup) -> String? {
+        guard group.category == .tire else { return nil }
+        var seen = Set<String>()
+        let positions = group.records.compactMap { record -> String? in
+            guard let position = record.tirePosition,
+                  let label = MaintenanceCategory.tirePositionLabels[position],
+                  seen.insert(label).inserted else { return nil }
+            return label
         }
-        guard group.cost > 0 else { return nil }
-        return Formatters.currency(group.cost, code: group.currency ?? fallbackCurrency ?? "CHF")
+        return positions.isEmpty ? nil : positions.joined(separator: " & ")
     }
 }

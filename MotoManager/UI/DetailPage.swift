@@ -69,7 +69,7 @@ struct DetailPage<HeroBackground: View, HeroContent: View, BodyContent: View>: V
 
             bodyContent
         }
-        .listStyle(.insetGrouped)
+        .workspaceListStyle()
         .scrollContentBackground(.hidden)
         .frame(maxWidth: 800)
         .frame(maxWidth: .infinity)

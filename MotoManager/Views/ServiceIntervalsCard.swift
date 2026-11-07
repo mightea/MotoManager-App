@@ -5,11 +5,15 @@ import SwiftUI
 /// into Reifen / Batterie / Flüssigkeiten / Wartung, with a tally header.
 struct ServiceIntervalsCard: View {
     let insights: [MaintenanceInsight]
+    /// False inside a container that already names the card (the intervals
+    /// sheet): the list renders expanded without its tally header.
+    let showsHeader: Bool
     @State private var expanded: Bool
 
-    init(insights: [MaintenanceInsight], initiallyExpanded: Bool = false) {
+    init(insights: [MaintenanceInsight], initiallyExpanded: Bool = false, showsHeader: Bool = true) {
         self.insights = insights
-        _expanded = State(initialValue: initiallyExpanded)
+        self.showsHeader = showsHeader
+        _expanded = State(initialValue: initiallyExpanded || !showsHeader)
     }
 
     private var overdueCount: Int { insights.count { $0.status == .overdue } }
@@ -29,17 +33,21 @@ struct ServiceIntervalsCard: View {
             // dense card. One row, exact padding, content flush with the
             // header text.
             VStack(alignment: .leading, spacing: 0) {
-                Button {
-                    withAnimation(.easeOut(duration: 0.2)) { expanded.toggle() }
-                } label: {
-                    header
+                if showsHeader {
+                    Button {
+                        withAnimation(.easeOut(duration: 0.2)) { expanded.toggle() }
+                    } label: {
+                        header
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(accessibilitySummary)
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel(accessibilitySummary)
 
                 if expanded {
-                    Divider()
-                        .padding(.vertical, 10)
+                    if showsHeader {
+                        Divider()
+                            .padding(.vertical, 10)
+                    }
                     VStack(alignment: .leading, spacing: 12) {
                         ForEach(MaintenanceInsight.Category.allCases, id: \.rawValue) { category in
                             let items = insights

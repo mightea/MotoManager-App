@@ -175,7 +175,7 @@ struct PartsView: View {
             }
             WorkspaceListFooter()
         }
-        .listStyle(.insetGrouped)
+        .workspaceListStyle()
         .scrollContentBackground(.hidden)
         .scrollDismissesKeyboard(.interactively)
         .background(Theme.Colors.background)

@@ -60,7 +60,9 @@ enum MaintenanceCategory: String, CaseIterable, Identifiable {
         case .battery, .repair: Color(hex: 0xF59E0B)
         case .fuel: .green
         case .tire, .chain: Color(hex: 0x94A3B8)
-        case .general: .white.opacity(0.6)
+        // Was white at 60%: invisible on the light canvas, so "Allgemein"
+        // rows rendered without icon or summary in light mode.
+        case .general: Color(hex: 0x8A879A)
         }
     }
 

@@ -20,6 +20,9 @@ enum MaintenanceSummarizer {
             if let dot = record.dotCode, !dot.isEmpty {
                 parts.append("DOT \(Self.formattedDot(dot))")
             }
+            if parts.isEmpty, let description = record.recordDescription, !description.isEmpty {
+                return description
+            }
             return parts.isEmpty ? "Reifenwechsel" : parts.joined(separator: " ")
 
         case .battery:
@@ -27,6 +30,9 @@ enum MaintenanceSummarizer {
             if !brandModel.isEmpty { parts.append(brandModel) }
             if let type = record.batteryType {
                 parts.append("(\(MaintenanceCategory.batteryTypeLabels[type] ?? type))")
+            }
+            if parts.isEmpty, let description = record.recordDescription, !description.isEmpty {
+                return description
             }
             return parts.isEmpty ? "Batteriewechsel" : parts.joined(separator: " ")
 

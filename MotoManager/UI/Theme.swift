@@ -46,6 +46,10 @@ enum Theme {
         /// Horizontal gutter for the main tab screens' content. Tighter than
         /// `m` so cards get more width; tweak here to re-flow every home view.
         static let pageH: CGFloat = 12
+        /// Vertical gap between the cards (sections) of a workspace list.
+        static let listSection: CGFloat = 12
+        /// Vertical padding of a dense list row (history, issues).
+        static let rowV: CGFloat = 9
     }
 
     /// The single corner-radius scale. Values nest concentrically:
