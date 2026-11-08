@@ -110,12 +110,9 @@ struct WorkshopView: View {
                     Button("Dokument scannen", systemImage: "doc.viewfinder") { showingScanner = true }
                 }
             } label: {
-                Image(systemName: "plus")
-                    .font(.headline)
-                    .foregroundStyle(Theme.Colors.onPhoto)
-                    .frame(width: 44, height: 44)
-                    .glassEffect(.regular.tint(Theme.Colors.primary).interactive(), in: Circle())
+                WorkspaceActionLabel(title: "Hinzufügen", systemImage: "plus", prominent: true)
             }
+            .buttonStyle(.plain)
             .accessibilityLabel("Hinzufügen")
             .keyboardShortcut("n", modifiers: .command)
         } content: {

@@ -88,11 +88,7 @@ struct MotorcycleWorkspace<Actions: View, Content: View>: View {
                                     metrics: metrics, scroll: scroll) {
                 HStack(spacing: Theme.Spacing.s) {
                     if !compactChrome {
-                        ForEach(menuActions) { item in
-                            WorkspaceAction(item.title, systemImage: item.systemImage, showsTitle: false,
-                                            action: item.action)
-                                .disabled(item.isDisabled)
-                        }
+                        WorkspaceSecondarySlot(actions: menuActions)
                     }
                     actions()
                     if !compactChrome {
@@ -150,10 +146,7 @@ struct RegularWorkspaceHeader<Actions: View>: View {
             .accessibilityIdentifier("workspace.motorcycleIdentity")
             Spacer(minLength: Theme.Spacing.m)
             HStack(spacing: Theme.Spacing.s) {
-                ForEach(menuActions) { item in
-                    WorkspaceAction(item.title, systemImage: item.systemImage, showsTitle: false, action: item.action)
-                        .disabled(item.isDisabled)
-                }
+                WorkspaceSecondarySlot(actions: menuActions)
                 actions()
                     .environment(\.workspaceActionsIconOnly, iconOnly)
                 Button(action: chrome.openGarage) {
@@ -214,14 +207,6 @@ struct WorkspaceAction: View {
     /// The tab's main action: filled in the brand blue.
     var prominent = false
     let action: () -> Void
-    @Environment(\.horizontalSizeClass) private var sizeClass
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-
-    @Environment(\.workspaceActionsIconOnly) private var iconOnly
-
-    private var usesTitle: Bool {
-        showsTitle && !iconOnly && sizeClass == .regular && !dynamicTypeSize.isAccessibilitySize
-    }
 
     init(_ title: String, systemImage: String, showsTitle: Bool = true, prominent: Bool = false,
          action: @escaping () -> Void) {
@@ -234,19 +219,61 @@ struct WorkspaceAction: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: Theme.Spacing.s) {
-                Image(systemName: systemImage)
-                if usesTitle { Text(title).lineLimit(1).fixedSize() }
-            }
-            .font(.subheadline.weight(.semibold))
-            .foregroundStyle(Theme.Colors.onPhoto)
-            .frame(minWidth: 44, minHeight: 44)
-            .padding(.horizontal, usesTitle ? Theme.Spacing.s : 0)
-            .glassEffect(prominent ? .regular.tint(Theme.Colors.primary).interactive()
-                                   : .regular.tint(Theme.Colors.navy950.opacity(0.5)), in: Capsule())
+            WorkspaceActionLabel(title: title, systemImage: systemImage, showsTitle: showsTitle, prominent: prominent)
         }
         .buttonStyle(.plain)
         .accessibilityLabel(title)
+    }
+}
+
+/// The look of a header button. The main (prominent) action has one fixed
+/// width on every tab — "Tankung erfassen", "Wartung erfassen", the
+/// Technik menu — so the buttons beside it never shift between tabs.
+struct WorkspaceActionLabel: View {
+    let title: String
+    let systemImage: String
+    var showsTitle = true
+    var prominent = false
+    @Environment(\.horizontalSizeClass) private var sizeClass
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.workspaceActionsIconOnly) private var iconOnly
+
+    static let primaryWidth: CGFloat = 200
+
+    private var usesTitle: Bool {
+        showsTitle && !iconOnly && sizeClass == .regular && !dynamicTypeSize.isAccessibilitySize
+    }
+
+    var body: some View {
+        HStack(spacing: Theme.Spacing.s) {
+            Image(systemName: systemImage)
+            if usesTitle { Text(title).lineLimit(1).minimumScaleFactor(0.8) }
+        }
+        .font(.subheadline.weight(.semibold))
+        .foregroundStyle(Theme.Colors.onPhoto)
+        .frame(width: usesTitle && prominent ? Self.primaryWidth : nil)
+        .frame(minWidth: 44, minHeight: 44)
+        .padding(.horizontal, usesTitle && !prominent ? Theme.Spacing.s : 0)
+        .glassEffect(prominent ? .regular.tint(Theme.Colors.primary).interactive()
+                               : .regular.tint(Theme.Colors.navy950.opacity(0.5)), in: Capsule())
+        .contentShape(Capsule())
+    }
+}
+
+/// Keeps the secondary-action slot's width on tabs that have none, so the
+/// main action and settings sit at the same spot on every tab.
+struct WorkspaceSecondarySlot: View {
+    let actions: [WorkspaceMenuAction]
+
+    var body: some View {
+        if actions.isEmpty {
+            Color.clear.frame(width: 44, height: 44).accessibilityHidden(true)
+        } else {
+            ForEach(actions) { item in
+                WorkspaceAction(item.title, systemImage: item.systemImage, showsTitle: false, action: item.action)
+                    .disabled(item.isDisabled)
+            }
+        }
     }
 }
 
