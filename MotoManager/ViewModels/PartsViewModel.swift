@@ -180,6 +180,40 @@ class PartsViewModel: ObservableObject {
         }
     }
 
+    /// Price per piece of the most recent purchase with a price.
+    func lastUnitPrice(for part: SDPart) -> Double? {
+        stocks(for: part)
+            .filter { ($0.price ?? 0) > 0 }
+            .max { ($0.purchaseDate ?? "") < ($1.purchaseDate ?? "") }
+            .map { ($0.normalizedPrice ?? $0.price ?? 0) / Double(max(1, $0.quantity)) }
+    }
+
+    /// Price per piece over time, oldest first, for the price chart.
+    func priceHistory(for part: SDPart) -> [(date: String, unitPrice: Double)] {
+        stocks(for: part)
+            .compactMap { stock -> (date: String, unitPrice: Double)? in
+                guard let date = stock.purchaseDate, let price = stock.price, price > 0 else { return nil }
+                return (date, price / Double(max(1, stock.quantity)))
+            }
+            .sorted { $0.date < $1.date }
+    }
+
+    /// The first place a part is stocked at.
+    func primaryLocation(for part: SDPart) -> SDStorageLocation? {
+        for stock in stocks(for: part) {
+            if let location = stock.storageLocationClientId.flatMap({ locationsByClientId[$0] })
+                ?? stock.storageLocationServerId.flatMap({ locationsByServerId[$0] }) {
+                return location
+            }
+        }
+        return nil
+    }
+
+    /// Where a part is kept: the path of its first stocked place.
+    func placePath(for part: SDPart) -> String? {
+        locationPath(primaryLocation(for: part))
+    }
+
     /// Direct child locations, sorted by name.
     func children(of location: SDStorageLocation) -> [SDStorageLocation] {
         childrenByLocation[location.clientId, default: []].sorted {

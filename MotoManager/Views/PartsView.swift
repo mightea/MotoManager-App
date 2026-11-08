@@ -10,7 +10,7 @@ struct PartsView: View {
     private var motorcycle: Motorcycle? { detailVM.motorcycle }
     @ObservedObject private var quickActions = QuickActionRouter.shared
 
-    enum PartsTab: Hashable { case mine, locations, publicParts }
+    enum PartsTab: Hashable { case mine, publicParts }
     @State private var tab: PartsTab = .mine
     @State private var searchText = ""
     /// On by default: the tab lives under a specific bike, so parts fitting
@@ -20,12 +20,20 @@ struct PartsView: View {
     @State private var filterBySelectedBike = true
     /// Only parts with one piece or none left.
     @State private var lowStockOnly = false
-    /// Only parts stocked at this place (or anywhere inside it).
-    @State private var placeFilter: SDStorageLocation?
     /// Phones keep the search behind an icon in the chip row.
     @State private var showingSearch = false
     @State private var showingAddPart = false
-    enum Destination: Hashable { case part(SDPart), location(SDStorageLocation) }
+    enum Destination: Hashable { case part(SDPart), location(SDStorageLocation), shopping }
+    @ObservedObject private var planningStore = PartsPlanningStore.shared
+    /// The part a scanned label opened the quick booking sheet for.
+    @State private var quickBook: SDPart?
+    /// Set while the camera scanner is up, so its result opens quick booking
+    /// (a label link from another app opens the detail instead).
+    @State private var scanFromCamera = false
+    /// Groups the list by storage place instead of stock level.
+    @State private var groupByPlace = false
+
+    private var planner: PartsPlanner { PartsPlanner(parts: viewModel, bike: detailVM, store: planningStore) }
     @State private var selection: Destination?
     @State private var partPendingDeletion: SDPart?
     @State private var showingScanner = false
@@ -56,7 +64,10 @@ struct PartsView: View {
             } detail: { destination in
                 switch destination {
                 case .part(let part):
-                    PartDetailView(part: part, viewModel: viewModel)
+                    PartDetailView(part: part, viewModel: viewModel, neededFor: planner.reasonText(for: part),
+                                   openIssues: planner.openIssueList)
+                case .shopping:
+                    ShoppingListView(parts: viewModel, bike: detailVM)
                 case .location(let location):
                     StorageLocationDetailView(location: location, viewModel: viewModel,
                         placeName: detailVM.location(id: location.locationId)?.name)
@@ -102,11 +113,17 @@ struct PartsView: View {
                 // Universal link from a printed label (Camera app, Safari):
                 // same resolution as a scan, minus the scanner sheet.
                 quickActions.pending = nil
-                tab = label.isStorageLocation ? .locations : .mine
+                tab = .mine
+                if label.isStorageLocation { groupByPlace = true }
                 pendingScan = label
                 resolvePendingScan()
             default:
                 break
+            }
+        }
+        .sheet(item: $quickBook) { part in
+            QuickBookSheet(part: part, viewModel: viewModel, bikeName: planner.bikeName) {
+                selection = .part(part)
             }
         }
         .sheet(isPresented: $showingAddPart) {
@@ -118,7 +135,7 @@ struct PartsView: View {
         // animation doesn't fight the sheet's — onDismiss fires after the
         // animation completes.
         .sheet(isPresented: $showingScanner, onDismiss: resolvePendingScan) {
-            LabelScanSheet { pendingScan = $0 }
+            LabelScanSheet { pendingScan = $0; scanFromCamera = true }
                 .glassSheet()
         }
         .alert("Etikett nicht gefunden", isPresented: $showingScanNotFound) {
@@ -155,27 +172,14 @@ struct PartsView: View {
     private var partsList: some View {
         List {
             WorkspaceListHeader(searchText: searchVisible ? $searchText : nil,
-                                prompt: tab == .locations ? "Lagerort suchen …" : "Name oder Teilenummer …")
-            Section {
-                GlassSegmentedControl(
-                    segments: [
-                        .init(value: PartsTab.mine, label: "Teile", count: viewModel.parts.count),
-                        .init(value: PartsTab.locations, label: "Lagerorte", count: viewModel.storageLocations.count),
-                        .init(value: PartsTab.publicParts, label: "Öffentlich")
-                    ],
-                    selection: $tab
-                )
-            }
-            .listRowInsets(EdgeInsets())
-            .listRowBackground(Color.clear)
-            .listRowSeparator(.hidden)
-
+                                prompt: "Name, Nummer oder Lagerort …")
+            // No segment switch: "Nach Ort" and "Öffentlich" are chips.
             switch tab {
             case .mine:
                 mineSections
-            case .locations:
-                locationSections
             case .publicParts:
+                Section { chipBar }
+                    .cardRow()
                 Section { publicRows }
             }
             WorkspaceListFooter()
@@ -196,29 +200,21 @@ struct PartsView: View {
         }
     }
 
-    private var addLabel: String {
-        switch tab {
-        case .mine, .publicParts: "Teil hinzufügen"
-        case .locations: "Lagerort hinzufügen"
-        }
-    }
+    private var addLabel: String { "Teil hinzufügen" }
 
     private func addAction() {
-        switch tab {
-        case .mine: showingAddPart = true
-        case .locations: showingAddLocation = true
-        case .publicParts: break   // button is disabled on the public segment
-        }
+        if tab != .publicParts { showingAddPart = true }
     }
 
     /// Opens the scanned part/location, or the not-found alert for ids that
     /// don't exist locally (not yet pulled, or someone else's label).
     private func resolvePendingScan() {
-        defer { pendingScan = nil }
+        defer { pendingScan = nil; scanFromCamera = false }
         switch pendingScan {
         case .part(let serverId):
             if let part = viewModel.part(serverId: serverId) {
-                selection = .part(part)
+                // From the camera: book pieces in or out right away.
+                if scanFromCamera { quickBook = part } else { selection = .part(part) }
             } else {
                 showingScanNotFound = true
             }
@@ -277,66 +273,42 @@ struct PartsView: View {
 
     // MARK: - Overview (wide layouts)
 
-    /// Parts with one or no piece left, fewest first.
-    private var lowStockParts: [(part: SDPart, onHand: Int)] {
-        viewModel.parts
-            .map { (part: $0, onHand: viewModel.onHand(for: $0)) }
-            .filter { $0.onHand <= 1 }
-            .sorted { ($0.onHand, $0.part.name) < ($1.onHand, $1.part.name) }
-    }
-
     private var topLevelLocations: [SDStorageLocation] {
         viewModel.storageLocations
             .filter { $0.parentClientId == nil }
             .sorted { $0.name < $1.name }
     }
 
-    private func stockPlaces(_ part: SDPart) -> String? {
-        let names = Set(viewModel.stocks(for: part).compactMap {
-            viewModel.storageLocation(clientId: $0.storageLocationClientId)?.name
-        })
-        return names.isEmpty ? nil : names.sorted().joined(separator: ", ")
-    }
-
     private var inventoryOverview: some View {
         List {
             OverviewTitle("Lager im Überblick")
             Section { StatTileGrid(statTiles).cardRow() }
-            if !lowStockParts.isEmpty {
+            let needs = planner.needs
+            if !needs.isEmpty {
                 Section {
-                    ForEach(lowStockParts.prefix(8), id: \.part.clientId) { entry in
-                        Button { selection = .part(entry.part) } label: {
-                            HStack(spacing: Theme.Spacing.m) {
-                                Text("\(entry.onHand)")
-                                    .font(.subheadline.weight(.heavy))
-                                    .monospacedDigit()
-                                    .foregroundStyle(entry.onHand <= 0 ? Theme.Colors.accent : .orange)
-                                    .frame(width: 34, height: 34)
-                                    .background((entry.onHand <= 0 ? Theme.Colors.accent : .orange).opacity(0.16),
-                                                in: RoundedRectangle(cornerRadius: Theme.Radius.controlInner))
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(entry.part.name).font(.subheadline.weight(.semibold))
-                                    Text(stockPlaces(entry.part) ?? entry.part.partNumber)
-                                        .font(.footnote)
-                                        .foregroundStyle(.secondary)
-                                        .lineLimit(1)
-                                }
-                                Spacer(minLength: 0)
-                                Image(systemName: "chevron.right")
-                                    .font(.footnote.weight(.semibold))
-                                    .foregroundStyle(.tertiary)
-                            }
-                            .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityIdentifier("parts.lowStock.\(entry.part.clientId)")
-                    }
+                    NeededPartsRows(planner: planner, needs: needs) { selection = .part($0) }
                 } header: {
+                    groupHeader("Bald gebraucht · \(detailVM.motorcycle.model)", count: needs.count, tint: Theme.Colors.primary)
+                }
+            }
+            let items = planner.items
+            Section {
+                ForEach(items.prefix(6)) { item in
                     HStack {
-                        Text("Knapp im Lager")
+                        Text(item.name).font(.subheadline.weight(.semibold)).lineLimit(1)
                         Spacer()
-                        Text("Bestand 1 oder weniger").textCase(nil)
+                        Text("\(item.quantity)×").font(.subheadline).monospacedDigit().foregroundStyle(.secondary)
                     }
+                }
+                Button(items.isEmpty ? "Einkaufsliste öffnen" : "Einkaufsliste öffnen · \(items.count) Teile",
+                       systemImage: "cart") { selection = .shopping }
+                    .accessibilityIdentifier("parts.overview.shopping")
+            } header: {
+                HStack {
+                    Text("Einkaufsliste")
+                    Spacer()
+                    let total = items.compactMap(\.estimate).reduce(0, +)
+                    if total > 0 { Text("ca. " + Formatters.currency(total, code: "CHF", fractionDigits: 0)).textCase(nil) }
                 }
             }
             if !topLevelLocations.isEmpty {
@@ -344,7 +316,7 @@ struct PartsView: View {
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: Theme.Spacing.s)],
                               spacing: Theme.Spacing.s) {
                         ForEach(topLevelLocations, id: \.clientId) { location in
-                            Button { tab = .locations; selection = .location(location) } label: {
+                            Button { groupByPlace = true; selection = .location(location) } label: {
                                 let count = viewModel.totalStockedPartCount(at: location)
                                 VStack(alignment: .leading, spacing: 4) {
                                     Text(location.name)
@@ -397,14 +369,11 @@ struct PartsView: View {
         if lowStockOnly {
             result = result.filter { viewModel.onHand(for: $0) <= 1 }
         }
-        if let placeFilter {
-            let ids = viewModel.stockedPartIds(under: placeFilter)
-            result = result.filter { ids.contains($0.clientId) }
-        }
         let query = searchText.trimmingCharacters(in: .whitespaces).lowercased()
         if !query.isEmpty {
             result = result.filter {
                 $0.name.lowercased().contains(query) || $0.partNumber.lowercased().contains(query)
+                    || (viewModel.placePath(for: $0)?.lowercased().contains(query) ?? false)
                     || ($0.oemPartNumber?.lowercased().contains(query) ?? false)
             }
         }
@@ -414,7 +383,7 @@ struct PartsView: View {
     /// True when the empty list is caused by the default bike filter alone —
     /// the message must then point at the toggle, not at a search query.
     private var emptyBecauseOfBikeFilter: Bool {
-        filterBySelectedBike && motorcycle?.seriesId != nil && !lowStockOnly && placeFilter == nil
+        filterBySelectedBike && motorcycle?.seriesId != nil && !lowStockOnly
             && searchText.trimmingCharacters(in: .whitespaces).isEmpty
             && !viewModel.parts.isEmpty
     }
@@ -442,6 +411,18 @@ struct PartsView: View {
 
     @ViewBuilder
     private var mineSections: some View {
+        let searching = !searchText.trimmingCharacters(in: .whitespaces).isEmpty
+        if !searching && sizeClass != .regular {
+            let needs = planner.needs
+            if !needs.isEmpty {
+                Section {
+                    NeededPartsRows(planner: planner, needs: needs) { selection = .part($0) }
+                } header: {
+                    groupHeader("Bald gebraucht · \(detailVM.motorcycle.model)", count: needs.count, tint: Theme.Colors.primary)
+                }
+            }
+            Section { shoppingRow }
+        }
         Section { chipBar }
             .cardRow()
 
@@ -465,13 +446,42 @@ struct PartsView: View {
                         searchText = ""
                         filterBySelectedBike = false
                         lowStockOnly = false
-                        placeFilter = nil
                     }
                 }
             }
         } else {
-            let low = filteredParts.filter { viewModel.onHand(for: $0) <= 1 }
-            let stocked = filteredParts.filter { viewModel.onHand(for: $0) > 1 }
+            if groupByPlace {
+                ForEach(partPlaceGroups, id: \.title) { group in
+                    Section {
+                        ForEach(group.parts, id: \.clientId) { partRow($0) }
+                    } header: {
+                        placeHeader(group.title, location: group.location, count: group.parts.count)
+                    }
+                }
+                let empty = emptyPlaces
+                Section {
+                    ForEach(empty, id: \.clientId) { location in
+                        Button { selection = .location(location) } label: {
+                            HStack {
+                                Image(systemName: "archivebox").foregroundStyle(.secondary)
+                                Text(viewModel.locationPath(location) ?? location.name).font(.subheadline)
+                                Spacer()
+                                Text("leer").font(.caption).foregroundStyle(.secondary)
+                                Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(.tertiary)
+                            }
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .selectedRecord(selection == .location(location))
+                    }
+                    Button("Lagerort hinzufügen", systemImage: "plus") { showingAddLocation = true }
+                        .accessibilityIdentifier("parts.addLocation")
+                } header: {
+                    if !empty.isEmpty { groupHeader("Ohne Teile", count: empty.count, tint: nil) }
+                }
+            }
+            let low = groupByPlace ? [] : filteredParts.filter { viewModel.onHand(for: $0) <= 1 }
+            let stocked = groupByPlace ? [] : filteredParts.filter { viewModel.onHand(for: $0) > 1 }
             if !low.isEmpty {
                 Section {
                     ForEach(low, id: \.clientId) { partRow($0) }
@@ -491,6 +501,75 @@ struct PartsView: View {
                     .cardRow()
             }
         }
+    }
+
+    /// The filtered parts by where they are kept ("Garage › Regal A"),
+    /// each with its place so the header can open it.
+    private var partPlaceGroups: [(title: String, location: SDStorageLocation?, parts: [SDPart])] {
+        let grouped = Dictionary(grouping: filteredParts) { viewModel.primaryLocation(for: $0)?.clientId }
+        return grouped.map { key, parts in
+            let location = key.flatMap { viewModel.storageLocation(clientId: $0) }
+            return (title: viewModel.locationPath(location) ?? "Ohne Lagerort", location: location, parts: parts)
+        }
+        .sorted { ($0.location == nil ? 1 : 0, $0.title) < ($1.location == nil ? 1 : 0, $1.title) }
+    }
+
+    /// Places with no part stocked directly at them.
+    private var emptyPlaces: [SDStorageLocation] {
+        let used = Set(viewModel.parts.compactMap { viewModel.primaryLocation(for: $0)?.clientId })
+        return viewModel.storageLocations
+            .filter { !used.contains($0.clientId) && viewModel.stockedParts(at: $0).isEmpty }
+            .sorted { (viewModel.locationPath($0) ?? $0.name) < (viewModel.locationPath($1) ?? $1.name) }
+    }
+
+    /// A place's section header; tapping it opens the place (label, contents).
+    @ViewBuilder
+    private func placeHeader(_ title: String, location: SDStorageLocation?, count: Int) -> some View {
+        if let location {
+            Button { selection = .location(location) } label: {
+                HStack(spacing: 4) {
+                    Text(title)
+                    Image(systemName: "chevron.right").font(.caption2.weight(.bold))
+                    Spacer()
+                    Text("\(count)").monospacedDigit()
+                }
+                .foregroundStyle(.secondary)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityHint("Lagerort öffnen")
+        } else {
+            groupHeader(title, count: count, tint: nil)
+        }
+    }
+
+    /// One row into the shopping list with its count and estimate.
+    private var shoppingRow: some View {
+        let items = planner.items
+        let total = items.compactMap(\.estimate).reduce(0, +)
+        let forIssues = items.filter { $0.group == .issue }.count
+        var detail = items.isEmpty ? "Nichts zu kaufen" : (items.count == 1 ? "1 Teil" : "\(items.count) Teile")
+        if total > 0 { detail += " · ca. " + Formatters.currency(total, code: "CHF", fractionDigits: 0) }
+        if forIssues > 0 { detail += " · \(forIssues) für offene Mängel" }
+        return Button { selection = .shopping } label: {
+            HStack(spacing: Theme.Spacing.m - 4) {
+                Image(systemName: "cart")
+                    .font(.subheadline.weight(.bold))
+                    .foregroundStyle(.orange)
+                    .frame(width: 34, height: 34)
+                    .background(Color.orange.opacity(0.15), in: RoundedRectangle(cornerRadius: Theme.Radius.controlInner))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Einkaufsliste").font(.subheadline.weight(.bold))
+                    Text(detail).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                }
+                Spacer(minLength: 0)
+                Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(.tertiary)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .selectedRecord(selection == .shopping)
+        .accessibilityIdentifier("parts.shopping")
     }
 
     /// Count and stock value under the list; the stats strip lives in the
@@ -541,26 +620,21 @@ struct PartsView: View {
         HStack(spacing: 6) {
             ScrollView(.horizontal) {
                 HStack(spacing: 6) {
-                    if let moto = motorcycle, moto.seriesId != nil {
+                    if tab != .publicParts, let moto = motorcycle, moto.seriesId != nil {
                         chip(filterBySelectedBike ? "Passend für \(moto.model)" : "Alle Motorräder",
                              systemImage: filterBySelectedBike ? "checkmark" : nil,
                              active: filterBySelectedBike) { filterBySelectedBike.toggle() }
                             .accessibilityIdentifier("parts.filter.fit")
                     }
-                    chip("Knapp", count: lowStockCount, active: lowStockOnly) { lowStockOnly.toggle() }
-                        .accessibilityIdentifier("parts.filter.low")
-                    if !topLevelLocations.isEmpty {
-                        Menu {
-                            Button("Alle Orte") { placeFilter = nil }
-                            ForEach(topLevelLocations, id: \.clientId) { location in
-                                Button(location.name) { placeFilter = location }
-                            }
-                        } label: {
-                            chipLabel(placeFilter?.name ?? "Alle Orte", systemImage: nil, count: nil,
-                                      trailing: "chevron.down", active: placeFilter != nil)
-                        }
-                        .accessibilityIdentifier("parts.filter.place")
+                    if tab != .publicParts {
+                        chip("Knapp", count: lowStockCount, active: lowStockOnly) { lowStockOnly.toggle() }
+                            .accessibilityIdentifier("parts.filter.low")
+                        chip("Nach Ort", systemImage: groupByPlace ? "checkmark" : nil, active: groupByPlace) { groupByPlace.toggle() }
+                            .accessibilityIdentifier("parts.group.place")
                     }
+                    chip("Öffentlich", systemImage: tab == .publicParts ? "checkmark" : "globe",
+                         active: tab == .publicParts) { tab = tab == .publicParts ? .mine : .publicParts }
+                        .accessibilityIdentifier("parts.filter.public")
                 }
             }
             .scrollIndicators(.hidden)
@@ -616,110 +690,6 @@ struct PartsView: View {
         .contentShape(Rectangle())
     }
 
-    // MARK: - Storage locations
-
-    /// Name-or-path search over the user's storage locations, sorted by their
-    /// full breadcrumb path so children group under their parents.
-    private var filteredLocations: [SDStorageLocation] {
-        let query = searchText.trimmingCharacters(in: .whitespaces).lowercased()
-        var result = viewModel.storageLocations
-        if !query.isEmpty {
-            result = result.filter {
-                (viewModel.locationPath($0) ?? $0.name).lowercased().contains(query)
-            }
-        }
-        return result.sorted {
-            (viewModel.locationPath($0) ?? $0.name) < (viewModel.locationPath($1) ?? $1.name)
-        }
-    }
-
-    /// Places (garage, workshop) with their storage locations nested below,
-    /// so a box is found by walking the shelf. Searching flattens the tree
-    /// and shows each hit's path instead.
-    @ViewBuilder
-    private var locationSections: some View {
-        let query = searchText.trimmingCharacters(in: .whitespaces)
-        if !query.isEmpty || filteredLocations.isEmpty || viewModel.storageLocations.isEmpty {
-            Section { locationRows }
-        } else {
-            ForEach(placeGroups, id: \.name) { group in
-                Section {
-                    ForEach(group.rows, id: \.location.clientId) { row in
-                        locationButton(row.location, depth: row.depth)
-                    }
-                } header: {
-                    Label(group.name, systemImage: group.isPlace ? "mappin.and.ellipse" : "archivebox")
-                }
-            }
-        }
-    }
-
-    /// Root locations grouped by the place they belong to, each flattened
-    /// with its descendants in tree order.
-    private var placeGroups: [(name: String, isPlace: Bool, rows: [(location: SDStorageLocation, depth: Int)])] {
-        var order: [String] = []
-        var groups: [String: [(location: SDStorageLocation, depth: Int)]] = [:]
-        var places: Set<String> = []
-        for root in topLevelLocations {
-            let place = detailVM.location(id: root.locationId)?.name
-            let name = place ?? "Ohne Ort"
-            if place != nil { places.insert(name) }
-            if groups[name] == nil { order.append(name) }
-            groups[name, default: []].append(contentsOf: flatten(root, depth: 0))
-        }
-        // Places first, the unassigned group last.
-        order.sort { ($0 == "Ohne Ort" ? 1 : 0, $0) < ($1 == "Ohne Ort" ? 1 : 0, $1) }
-        return order.map { (name: $0, isPlace: places.contains($0), rows: groups[$0] ?? []) }
-    }
-
-    private func flatten(_ location: SDStorageLocation, depth: Int) -> [(location: SDStorageLocation, depth: Int)] {
-        guard depth < 8 else { return [] }
-        return [(location, depth)] + viewModel.children(of: location).flatMap { flatten($0, depth: depth + 1) }
-    }
-
-    private func locationButton(_ location: SDStorageLocation, depth: Int?) -> some View {
-        Button {
-            selection = .location(location)
-        } label: {
-            StorageLocationCard(
-                location: location,
-                parentPath: depth == nil ? viewModel.locationParentPath(location) : nil,
-                placeName: depth == nil ? detailVM.location(id: location.locationId)?.name : nil,
-                directCount: viewModel.stockedParts(at: location).count,
-                totalCount: viewModel.totalStockedPartCount(at: location),
-                depth: depth ?? 0
-            )
-        }
-        .buttonStyle(.plain)
-        .selectedRecord(selection == .location(location))
-        .accessibilityIdentifier("parts.location.\(location.clientId)")
-    }
-
-    @ViewBuilder
-    private var locationRows: some View {
-        if viewModel.storageLocations.isEmpty && detailVM.showsLoadingPlaceholders {
-            ForEach(0..<3, id: \.self) { _ in
-                StorageLocationCard.placeholder
-                    .redacted(reason: .placeholder)
-            }
-        } else if filteredLocations.isEmpty {
-            emptyStateRow(
-                title: viewModel.storageLocations.isEmpty ? "Keine Lagerorte" : "Keine Treffer",
-                message: viewModel.storageLocations.isEmpty
-                    ? "Lege mit dem Plus-Button einen Lagerort an — sie entstehen auch beim Erfassen von Beständen."
-                    : "Kein Lagerort passt zur Suche.",
-                icon: "archivebox.fill"
-            )
-            if viewModel.storageLocations.isEmpty {
-                Button("Lagerort hinzufügen", systemImage: "plus") { showingAddLocation = true }
-            }
-        } else {
-            ForEach(filteredLocations, id: \.clientId) { location in
-                locationButton(location, depth: nil)
-            }
-        }
-    }
-
     // MARK: - Public browse
 
     @ViewBuilder
@@ -762,87 +732,6 @@ struct PartsView: View {
         }
         .listRowBackground(Color.clear)
         .listRowSeparator(.hidden)
-    }
-}
-
-// MARK: - Cards
-
-private struct StorageLocationCard: View {
-    let location: SDStorageLocation
-    let parentPath: String?
-    let placeName: String?
-    /// Parts stocked directly at this location.
-    let directCount: Int
-    /// Parts stocked here or in any nested container — what the big number
-    /// shows, so a parent full of stocked boxes never reads "0 Teile".
-    let totalCount: Int
-    /// Nesting level in the tree; nested rows indent and use a smaller icon.
-    var depth: Int = 0
-
-    /// Skeleton stand-in for the loading state (rendered `.redacted`).
-    static var placeholder: some View {
-        HStack(spacing: 12) {
-            Circle()
-                .fill(.quaternary)
-                .frame(width: 40, height: 40)
-            VStack(alignment: .leading, spacing: 3) {
-                Text("Regal A · Kiste 3")
-                Text("Garage")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-            }
-            Spacer()
-            Text("4")
-        }
-    }
-
-    var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: depth == 0 ? "archivebox.fill" : "shippingbox")
-                .scaledFont(depth == 0 ? 16 : 14, weight: .semibold)
-                .foregroundStyle(depth == 0 ? AnyShapeStyle(Theme.Colors.primary) : AnyShapeStyle(.secondary))
-                .frame(width: depth == 0 ? 36 : 30, height: depth == 0 ? 36 : 30)
-                .background(RoundedRectangle(cornerRadius: Theme.Radius.badge)
-                    .fill(depth == 0 ? Theme.Colors.primary.opacity(0.15) : Color.primary.opacity(0.06)))
-                .padding(.leading, CGFloat(min(depth, 4)) * 22)
-                .overlay(alignment: .topTrailing) {
-                    if location.syncState.isPending { PendingBadge().offset(x: 5, y: -5) }
-                }
-
-            VStack(alignment: .leading, spacing: 3) {
-                Text(location.name)
-                    .scaledFont(15, weight: .bold)
-                    .foregroundStyle(.primary)
-                    .fixedSize(horizontal: false, vertical: true)
-                if let parentPath {
-                    Text(parentPath)
-                        .scaledFont(11, weight: .semibold)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                } else if let placeName {
-                    Label(placeName, systemImage: "mappin.and.ellipse")
-                        .scaledFont(11, weight: .semibold)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-            Spacer(minLength: 0)
-
-            VStack(alignment: .trailing, spacing: 2) {
-                Text("\(totalCount)")
-                    .scaledFont(17, weight: .heavy)
-                    .monospacedDigit()
-                    .foregroundStyle(totalCount > 0 ? AnyShapeStyle(Theme.Colors.primary) : AnyShapeStyle(.tertiary))
-                Text(totalCount != directCount ? "gesamt" : (totalCount == 1 ? "Teil" : "Teile"))
-                    .scaledFont(9, weight: .heavy)
-                    .tracking(1)
-                    .foregroundStyle(.tertiary)
-            }
-            Image(systemName: "chevron.right")
-                .scaledFont(12, weight: .bold)
-                .foregroundStyle(.tertiary)
-        }
-        .padding(.vertical, 4)
     }
 }
 

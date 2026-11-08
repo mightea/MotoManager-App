@@ -18,12 +18,20 @@ struct PartDetailView: View {
     /// Row deletes (swipe/context menu) wait here for confirmation.
     @State private var pendingStockDelete: SDPartStock?
     @State private var pendingConsumptionDelete: SDPartConsumption?
+    /// Why the selected bike will need this part soon, if it will.
+    let neededFor: String?
+    /// Open issues of the selected bike, to link this part to by hand.
+    let openIssues: [(id: UUID, title: String)]
+    @ObservedObject private var planning = PartsPlanningStore.shared
     /// Captured at init so the auto-pop guard never reads a deleted model.
     private let partClientId: UUID
 
-    init(part: SDPart, viewModel: PartsViewModel) {
+    init(part: SDPart, viewModel: PartsViewModel, neededFor: String? = nil,
+         openIssues: [(id: UUID, title: String)] = []) {
         self.part = part
         self.viewModel = viewModel
+        self.neededFor = neededFor
+        self.openIssues = openIssues
         self.partClientId = part.clientId
     }
 
@@ -42,7 +50,23 @@ struct PartDetailView: View {
         List {
             heroSection
             stockCardSection
+            if let neededFor {
+                Section {
+                    Label {
+                        Text("Gebraucht für ").foregroundStyle(.secondary) + Text(neededFor).fontWeight(.semibold)
+                    } icon: {
+                        Image(systemName: "calendar.badge.clock").foregroundStyle(Theme.Colors.primary)
+                    }
+                    .font(.subheadline)
+                }
+            }
             placesSection
+            if viewModel.priceHistory(for: part).count >= 2 {
+                Section("Preis pro Stück") {
+                    PartPriceChart(points: viewModel.priceHistory(for: part))
+                        .padding(.vertical, Theme.Spacing.xs)
+                }
+            }
             if let description = part.partDescription, !description.isEmpty {
                 Section("Beschreibung") {
                     Text(NoteBrandPalette.display(description: description, markup: part.descriptionMarkup))
@@ -77,6 +101,23 @@ struct PartDetailView: View {
                     Image(systemName: "pencil")
                 }
                 .accessibilityLabel("Bearbeiten")
+                Menu {
+                    Button(planning.manual.contains(part.clientId) ? "Auf der Einkaufsliste" : "Auf die Einkaufsliste",
+                           systemImage: "cart.badge.plus") { planning.addToList(part.clientId) }
+                        .disabled(planning.manual.contains(part.clientId))
+                    if !openIssues.isEmpty {
+                        Menu("Für Mangel vormerken") {
+                            ForEach(openIssues, id: \.id) { issue in
+                                Toggle(issue.title, isOn: Binding(
+                                    get: { planning.isLinked(issue: issue.id, part: part.clientId) },
+                                    set: { _ in planning.toggleLink(issue: issue.id, part: part.clientId) }))
+                            }
+                        }
+                    }
+                } label: {
+                    Image(systemName: "ellipsis")
+                }
+                .accessibilityLabel("Mehr")
             }
         }
         .sheet(isPresented: $showingEdit) {
@@ -589,7 +630,8 @@ struct AddPartStockView: View {
     @State private var isUsed: Bool
     @State private var errorMessage: String?
 
-    init(viewModel: PartsViewModel, part: SDPart, existingStock: SDPartStock? = nil) {
+    /// `initialQuantity` prefills a new entry (shopping list, quick booking).
+    init(viewModel: PartsViewModel, part: SDPart, existingStock: SDPartStock? = nil, initialQuantity: Int = 1) {
         self.viewModel = viewModel
         self.part = part
         self.existingStock = existingStock
@@ -608,7 +650,7 @@ struct AddPartStockView: View {
             _notesSelection = State(initialValue: AttributedTextSelection())
             _isUsed = State(initialValue: s.isUsed)
         } else {
-            _quantity = State(initialValue: 1)
+            _quantity = State(initialValue: max(1, initialQuantity))
             _price = State(initialValue: "")
             _currency = State(initialValue: "CHF")
             _purchaseDate = State(initialValue: Date())
