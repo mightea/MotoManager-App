@@ -47,9 +47,11 @@ struct FuelConsumptionChart: View {
                              yStart: .value("Basis", yDomain.lowerBound),
                              yEnd: .value("L/100 km", point.value))
                         .foregroundStyle(Theme.Colors.primary.opacity(0.14))
-                        .interpolationMethod(.linear)
+                        .interpolationMethod(.monotone)
                 }
                 LineMark(x: .value("Datum", point.date), y: .value("L/100 km", point.value))
+                    // Smooth, but monotone: never overshoots past a real value.
+                    .interpolationMethod(.monotone)
                     .lineStyle(StrokeStyle(lineWidth: showsAxes ? 3 : 2.5, lineCap: .round, lineJoin: .round))
                     .foregroundStyle(Theme.Colors.primary)
             }
