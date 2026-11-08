@@ -37,6 +37,9 @@ nonisolated struct MaintenanceRecord: Codable, Identifiable {
     let tripDistance: Double?
     let fuelAdditiveAdded: Bool?
     let leadSubstituteAdded: Bool?
+    /// Fuel only: the tank was filled up (backend migration 060); absent on
+    /// older servers, which treat every fill as full.
+    let fullTank: Bool?
     let summary: String?
     let parentId: Int?
     // Sync metadata (server-provided; see backend migration 011).
@@ -47,7 +50,7 @@ nonisolated struct MaintenanceRecord: Codable, Identifiable {
     enum CodingKeys: String, CodingKey {
         case id, date, odo, motorcycleId, cost, normalizedCost, partsCost, currency, description, descriptionMarkup, summary
         case recordType = "type"
-        case brand, model, tirePosition, tireSize, dotCode, batteryType, fluidType, viscosity, oilType, inspectionLocation, locationId, fuelType, fuelAmount, pricePerUnit, latitude, longitude, locationName, fuelConsumption, tripDistance, fuelAdditiveAdded, leadSubstituteAdded, parentId
+        case brand, model, tirePosition, tireSize, dotCode, batteryType, fluidType, viscosity, oilType, inspectionLocation, locationId, fuelType, fuelAmount, pricePerUnit, latitude, longitude, locationName, fuelConsumption, tripDistance, fuelAdditiveAdded, leadSubstituteAdded, fullTank, parentId
         case clientId, updatedAt, deletedAt
     }
 }

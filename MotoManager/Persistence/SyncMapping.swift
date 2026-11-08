@@ -60,6 +60,7 @@ extension SDMaintenanceRecord {
         tripDistance = dto.tripDistance
         fuelAdditiveAdded = dto.fuelAdditiveAdded ?? false
         leadSubstituteAdded = dto.leadSubstituteAdded ?? false
+        fullTank = dto.fullTank ?? true
         parentId = dto.parentId
         serverUpdatedAt = dto.updatedAt
         syncState = .synced
@@ -98,6 +99,7 @@ extension SDMaintenanceRecord {
         if let tripDistance { p["tripDistance"] = tripDistance }
         p["fuelAdditiveAdded"] = fuelAdditiveAdded
         p["leadSubstituteAdded"] = leadSubstituteAdded
+        if recordType == "fuel" { p["fullTank"] = fullTank }
         if let parentId { p["parentId"] = parentId }
         return p
     }

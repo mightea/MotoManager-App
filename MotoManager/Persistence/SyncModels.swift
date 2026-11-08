@@ -52,6 +52,9 @@ final class SDMaintenanceRecord {
     /// Defaults keep these a lightweight SwiftData migration (see `syncAttempts`).
     var fuelAdditiveAdded: Bool = false
     var leadSubstituteAdded: Bool = false
+    /// Fuel only: the tank was filled up. Consumption runs full tank to full
+    /// tank (computed by the server).
+    var fullTank: Bool = true
     var parentId: Int?
 
     var syncState: SyncState

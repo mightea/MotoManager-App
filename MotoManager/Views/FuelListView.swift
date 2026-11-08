@@ -249,8 +249,7 @@ struct FuelListView: View {
                                 averageConsumption: averageConsumption,
                                 currency: currency,
                                 trip: tripDistances[record.clientId],
-                                averagePrice: averagePricePerLiter,
-                                isOldest: record.clientId == fuelRecords.last?.clientId
+                                averagePrice: averagePricePerLiter
                             )
                         }
                         .buttonStyle(.plain)
@@ -282,8 +281,6 @@ struct FuelRow: View {
     var trip: Int? = nil
     /// Fleet-average price per liter, for tinting expensive/cheap fills.
     var averagePrice: Double = 0
-    /// The oldest record can't have a consumption — don't badge it as partial.
-    var isOldest: Bool = false
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     /// Skeleton stand-in for the loading state (rendered `.redacted`).
@@ -369,8 +366,8 @@ struct FuelRow: View {
             }
 
             // Consumption leads on the trailing side — it's the number riders
-            // compare between fills. A missing consumption on a non-oldest
-            // record means a partial fill.
+            // compare between fills. A partial fill has none of its own: the
+            // server adds its litres to the next full tank.
             VStack(alignment: dynamicTypeSize.isAccessibilitySize ? .leading : .trailing, spacing: 1) {
                 if let consumption = record.fuelConsumption {
                     Text(String(format: "%.1f", consumption))
@@ -380,7 +377,7 @@ struct FuelRow: View {
                     Text("L/100 km")
                         .scaledFont(10.5, weight: .medium)
                         .foregroundStyle(.secondary)
-                } else if !isOldest {
+                } else if !record.fullTank {
                     Text("—")
                         .scaledFont(17, weight: .heavy)
                         .foregroundStyle(.secondary)
@@ -431,8 +428,8 @@ struct FuelRow: View {
         var parts: [String] = ["Tankung am \(Formatters.mediumDate(record.date))"]
         if let consumption = record.fuelConsumption {
             parts.append("Verbrauch \(String(format: "%.1f", consumption)) Liter pro 100 Kilometer")
-        } else if !isOldest {
-            parts.append("Teiltankung")
+        } else if !record.fullTank {
+            parts.append("Teilfüllung")
         }
         if let amount = record.fuelAmount {
             parts.append("\(String(format: "%.1f", amount)) Liter")

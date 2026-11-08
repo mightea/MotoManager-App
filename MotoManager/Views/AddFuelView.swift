@@ -81,6 +81,7 @@ struct AddFuelView: View {
             _currency = State(initialValue: record.currency ?? Self.defaultCurrency(for: viewModel))
             _fuelAdditiveAdded = State(initialValue: record.fuelAdditiveAdded)
             _leadSubstituteAdded = State(initialValue: record.leadSubstituteAdded)
+            _fullTank = State(initialValue: record.fullTank)
 
             let formatter = ISO8601DateFormatter()
             formatter.formatOptions = [.withFullDate]
@@ -457,12 +458,14 @@ struct AddFuelView: View {
         return avg > 0 ? avg : nil
     }
 
+    /// Live L/100 km preview, full tank to full tank like the server: none for
+    /// a partial fill, and partial fills since the last full one add their litres.
     private var derivedConsumption: Double? {
-        guard let prev = previousFuelEntry,
-              litersValue > 0 else { return nil }
-        let diff = odoValue - prev.odo
-        guard diff > 0 else { return nil }
-        return (litersValue / Double(diff)) * 100
+        let earlier = viewModel.fuelRecords
+            .filter { $0.clientId != existingRecord?.clientId }
+            .map { FuelStats.Fill(odo: $0.odo, liters: $0.fuelAmount, fullTank: $0.fullTank) }
+        return FuelStats.fullToFullConsumption(
+            odo: odoValue, liters: litersValue, fullTank: fullTank, earlier: earlier)
     }
 
     private var currencyOptions: [String] {
@@ -764,6 +767,7 @@ struct AddFuelView: View {
                 currency: currency, date: date, fuelType: fuelType,
                 locationName: locationName.isEmpty ? nil : locationName,
                 notes: notes.isEmpty ? nil : notes,
+                fullTank: fullTank,
                 fuelAdditiveAdded: fuelAdditiveAdded,
                 leadSubstituteAdded: leadSubstituteAdded
             )
@@ -774,6 +778,7 @@ struct AddFuelView: View {
                 currency: currency, date: date, fuelType: fuelType,
                 locationName: stationName.isEmpty ? (locationName.isEmpty ? nil : locationName) : stationName,
                 notes: notes.isEmpty ? nil : notes,
+                fullTank: fullTank,
                 fuelAdditiveAdded: fuelAdditiveAdded,
                 leadSubstituteAdded: leadSubstituteAdded,
                 locationId: locationId,

@@ -55,3 +55,26 @@ struct FuelFillComparisonTests {
         #expect(window.highlight == 1)
     }
 }
+
+struct FullToFullConsumptionTests {
+    private let earlier: [FuelStats.Fill] = [
+        .init(odo: 10_000, liters: 12, fullTank: true),
+        .init(odo: 10_100, liters: 4, fullTank: false),
+    ]
+
+    @Test func partialLitresCountTowardsTheNextFullTank() {
+        let c = FuelStats.fullToFullConsumption(odo: 10_300, liters: 11, fullTank: true, earlier: earlier)
+        #expect(c.map { abs($0 - 5.0) < 1e-9 } == true)
+    }
+
+    @Test func partialFillHasNoConsumption() {
+        #expect(FuelStats.fullToFullConsumption(odo: 10_300, liters: 11, fullTank: false, earlier: earlier) == nil)
+    }
+
+    @Test func needsAnEarlierFullTank() {
+        let onlyPartial = [FuelStats.Fill(odo: 10_100, liters: 4, fullTank: false)]
+        #expect(FuelStats.fullToFullConsumption(odo: 10_300, liters: 11, fullTank: true, earlier: onlyPartial) == nil)
+        // Later fills (editing an older record) are ignored.
+        #expect(FuelStats.fullToFullConsumption(odo: 9_000, liters: 11, fullTank: true, earlier: earlier) == nil)
+    }
+}

@@ -156,6 +156,25 @@ struct SyncMappingTests {
         #expect(payload["currency"] as? String == "CHF")
     }
 
+    @Test func fullTankRoundTrips() throws {
+        let r = SDMaintenanceRecord(motorcycleId: 7, date: "2026-06-16", odo: 15000, recordType: "fuel", syncState: .pendingCreate)
+        #expect(r.toPayload()["fullTank"] as? Bool == true)
+        r.fullTank = false
+        #expect(r.toPayload()["fullTank"] as? Bool == false)
+
+        let partial = """
+        {"id":1,"date":"2026-06-16","odo":100,"motorcycleId":1,"type":"fuel","fullTank":false}
+        """
+        r.apply(try JSONDecoder().decode(MaintenanceRecord.self, from: Data(partial.utf8)))
+        #expect(r.fullTank == false)
+        // Older servers don't send it: every fill counts as full.
+        let legacy = """
+        {"id":1,"date":"2026-06-16","odo":100,"motorcycleId":1,"type":"fuel"}
+        """
+        r.apply(try JSONDecoder().decode(MaintenanceRecord.self, from: Data(legacy.utf8)))
+        #expect(r.fullTank == true)
+    }
+
     @Test func applyDTOReconcilesServerIdAndClearsPending() throws {
         // A locally-created record (no serverId) that the server has now acked.
         let local = SDMaintenanceRecord(motorcycleId: 1, date: "2026-06-16", odo: 100, recordType: "fuel", syncState: .pendingCreate)

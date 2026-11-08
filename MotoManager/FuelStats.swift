@@ -16,6 +16,29 @@ extension SDMaintenanceRecord: FuelStatRecord {}
 /// Pure fuel-consumption aggregation, extracted from `FuelListView` so it can be
 /// unit-tested without instantiating a view. All functions are side-effect free.
 enum FuelStats {
+    struct Fill {
+        let odo: Int
+        let liters: Double?
+        let fullTank: Bool
+    }
+
+    /// L/100 km for a fill, measured from the last full tank before it — the
+    /// rule the server applies. Nil for a partial fill, when there is no
+    /// earlier full tank, or on an odometer that didn't move. Litres of
+    /// partial fills in between count towards this one. `earlier` may hold
+    /// fills in any order; only those below `odo` are used.
+    static func fullToFullConsumption(odo: Int, liters: Double, fullTank: Bool, earlier: [Fill]) -> Double? {
+        guard fullTank, liters > 0 else { return nil }
+        var partials = 0.0
+        for fill in earlier.filter({ $0.odo < odo }).sorted(by: { $0.odo > $1.odo }) {
+            if fill.fullTank {
+                return (liters + partials) / Double(odo - fill.odo) * 100
+            }
+            partials += fill.liters ?? 0
+        }
+        return nil
+    }
+
     /// The fuel records out of a mixed maintenance list (case-insensitive `type`).
     static func fuelRecords<T: FuelStatRecord>(_ records: [T]) -> [T] {
         records.filter { $0.recordType.lowercased() == "fuel" }

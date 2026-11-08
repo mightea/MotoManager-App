@@ -169,9 +169,11 @@ struct FuelDetailView: View {
                         }
                     } else {
                         Text("—").font(.system(size: 40, weight: .heavy)).foregroundStyle(.secondary)
-                        Text(comparison?.isOldest == true
-                             ? "Erste Tankung – Verbrauch ab der nächsten"
-                             : "Teilfüllung – Verbrauch folgt mit der nächsten Volltankung")
+                        Text(!record.fullTank
+                             ? "Teilfüllung – Verbrauch folgt mit der nächsten Volltankung"
+                             : comparison?.isOldest == true
+                                ? "Erste Tankung – Verbrauch ab der nächsten"
+                                : "Kein Verbrauch – keine Volltankung davor")
                             .font(.footnote.weight(.semibold)).foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
@@ -330,8 +332,7 @@ struct FuelDetailView: View {
             }
             Divider()
             HStack(spacing: 6) {
-                // Not stored on the record: a consumption means it was a full tank.
-                flag("Voll getankt", on: record.fuelConsumption != nil)
+                flag("Voll getankt", on: record.fullTank)
                 flag("Additiv", on: record.fuelAdditiveAdded)
                 flag("Bleiersatz", on: record.leadSubstituteAdded)
             }
