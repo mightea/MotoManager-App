@@ -133,7 +133,9 @@ struct MainTabView: View {
         .tabViewSidebarBottomBar {
             SidebarStatusBar(viewModel: dVM) { showingSettings = true }
         }
-        .tabBarMinimizeBehavior(.never)
+        // iOS 26: scrolling down shrinks the tab bar to the active tab (and
+        // the status accessory beside it); scrolling up brings it back.
+        .tabBarMinimizeBehavior(.onScrollDown)
 
         Group {
             if #available(iOS 26.1, *) {
