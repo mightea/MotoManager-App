@@ -48,6 +48,8 @@ struct MaintenanceLogsView: View {
     @State private var filter: ServiceFilter = .alle
     @State private var showingSearch = false
     @State private var showingIntervals = false
+    @State private var showingStatistics = false
+    @EnvironmentObject private var fleetVM: MotorcycleViewModel
     @State private var searchText = ""
     @State private var selectedRecord: SDMaintenanceRecord?
     @State private var showingAddIssue = false
@@ -270,6 +272,9 @@ struct MaintenanceLogsView: View {
             WorkspaceListFooter()
         }
         .accessibilityIdentifier("service.history")
+        .navigationDestination(isPresented: $showingStatistics) {
+            StatisticsView(fleetVM: fleetVM, detailVM: viewModel, pushed: true)
+        }
         .alignsWorkspaceColumn(.list)
         .tracksWorkspaceHeader()
         .workspaceListStyle()
@@ -565,6 +570,10 @@ struct MaintenanceLogsView: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("service.attention.intervals")
+            }
+            if !StatisticsPlacement.usesTab {
+                Button { showingStatistics = true } label: { StatisticsLinkRow(detailVM: viewModel) }
+                    .buttonStyle(.plain)
             }
         }
         .listRowInsets(EdgeInsets(top: 10, leading: 12, bottom: 10, trailing: 12))

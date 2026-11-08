@@ -7,6 +7,8 @@ struct FuelListView: View {
     @Environment(\.horizontalSizeClass) private var sizeClass
     @ObservedObject private var quickActions = QuickActionRouter.shared
     @State private var showingAddFuel = false
+    @State private var showingStatistics = false
+    @EnvironmentObject private var fleetVM: MotorcycleViewModel
     @State private var selectedFuelRecord: SDMaintenanceRecord?
     @State private var pendingFuelDelete: SDMaintenanceRecord?
 
@@ -124,12 +126,19 @@ struct FuelListView: View {
                     FuelSummaryCard(insights: insights, average: averageConsumption,
                                     liters: trailingYearLiters, currency: currency)
                         .listRowInsets(EdgeInsets())
+                    if !StatisticsPlacement.usesTab {
+                        Button { showingStatistics = true } label: { StatisticsLinkRow(detailVM: viewModel) }
+                            .buttonStyle(.plain)
+                    }
                 }
             }
             content
             WorkspaceListFooter()
         }
         .accessibilityIdentifier("fuel.history")
+        .navigationDestination(isPresented: $showingStatistics) {
+            StatisticsView(fleetVM: fleetVM, detailVM: viewModel, pushed: true)
+        }
         .alignsWorkspaceColumn(.list)
         .tracksWorkspaceHeader()
         .workspaceListStyle()

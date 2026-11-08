@@ -113,7 +113,7 @@ struct MainTabView: View {
         // Offline and sync status remain in the system bottom accessory.
         let showAccessory = StatusAccessoryBar.isActive(engine: syncEngine, viewModel: dVM)
         let tabs = TabView(selection: $activeTab) {
-            ForEach(AppTab.allCases) { tab in
+            ForEach(AppTab.visible) { tab in
                 Tab(tab.label, systemImage: tab.systemImage, value: tab) {
                     screen(for: tab, dVM: dVM)
                 }
@@ -188,6 +188,8 @@ struct MainTabView: View {
                 MaintenanceLogsView(viewModel: dVM, partsVM: partsVM)
             case .parts:
                 PartsView(viewModel: partsVM, detailVM: dVM)
+            case .statistics:
+                StatisticsTab(fleetVM: fleetVM, detailVM: dVM)
             }
         }
     }

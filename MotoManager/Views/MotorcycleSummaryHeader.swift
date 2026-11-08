@@ -1,7 +1,7 @@
 import SwiftUI
 
 enum HeaderType {
-    case fuel, service, workshop, parts
+    case fuel, service, workshop, parts, statistics
 
     var title: String {
         switch self {
@@ -9,6 +9,7 @@ enum HeaderType {
         case .service: "Wartung"
         case .workshop: "Technik"
         case .parts: "Teile"
+        case .statistics: "Statistik"
         }
     }
 }
