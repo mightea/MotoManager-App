@@ -2,6 +2,17 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>ltd.herrmann.MotoManager.connect</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>motomanager</string>
+			</array>
+		</dict>
+	</array>
 	<key>MMDefaultBaseURL</key>
 	<string>$(MM_DEFAULT_BASE_URL)</string>
 	<key>NSBonjourServices</key>

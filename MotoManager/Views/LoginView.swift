@@ -101,6 +101,16 @@ struct LoginView: View {
             }
         }
         .preferredColorScheme(.dark)
+        // Connect link from the webapp: take over server and username, then
+        // only the password is left to type.
+        .onReceive(ConnectLinkRouter.shared.$pending) { link in
+            guard let link else { return }
+            ConnectLinkRouter.shared.pending = nil
+            serverURL = link.server
+            if let user = link.username { identifier = user }
+            focusedField = link.username == nil ? .identifier : .password
+            AccessibilityNotification.Announcement("Server und Benutzername übernommen").post()
+        }
     }
 
     // MARK: - Background layers

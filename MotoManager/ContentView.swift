@@ -5,6 +5,8 @@ struct ContentView: View {
     @StateObject private var fleetVM = MotorcycleViewModel()
     @StateObject private var upgradeManager = AppUpgradeManager.shared
     @State private var showSplash = true
+    /// A connect link that arrived while signed in, waiting for confirmation.
+    @State private var connectWhileSignedIn: ConnectLink?
 
     var body: some View {
         ZStack {
@@ -38,8 +40,33 @@ struct ContentView: View {
         // the Teile tab is up — which also covers a cold launch and a link
         // that arrives before login. Foreign URLs are ignored.
         .onOpenURL { url in
+            // Connect link from the webapp's settings: prefill the login.
+            if let link = ConnectLink.parse(url) {
+                if authVM.isAuthenticated {
+                    connectWhileSignedIn = link
+                } else {
+                    ConnectLinkRouter.shared.pending = link
+                }
+                return
+            }
             guard let label = LabelWebLinks.parse(url.absoluteString) else { return }
             QuickActionRouter.shared.pending = .openLabel(label)
+        }
+        .alert(
+            "Mit diesem Konto verbinden?",
+            isPresented: Binding(
+                get: { connectWhileSignedIn != nil },
+                set: { if !$0 { connectWhileSignedIn = nil } }
+            ),
+            presenting: connectWhileSignedIn
+        ) { link in
+            Button("Abmelden und verbinden", role: .destructive) {
+                ConnectLinkRouter.shared.pending = link
+                authVM.logout()
+            }
+            Button("Abbrechen", role: .cancel) {}
+        } message: { link in
+            Text("Du bist bereits angemeldet. Danach meldest du dich \(link.username.map { "als \($0) " } ?? "")bei \(link.displayHost) an. Noch nicht synchronisierte Änderungen gehen verloren.")
         }
         // Soft upgrade prompt, shown after the post-login check — held back
         // until the splash is gone so it doesn't pop up over it.
