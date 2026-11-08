@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.19.0](https://github.com/mightea/MotoManager-App/compare/v0.18.0...v0.19.0) (2026-11-08)
+
+
+### Features
+
+* collapse the tab bar to the active tab while scrolling ([1f53546](https://github.com/mightea/MotoManager-App/commit/1f53546d164b35e0afa0e3a41e199bcbe2b317d3))
+* draw the fuel consumption curve smoothly ([714ab59](https://github.com/mightea/MotoManager-App/commit/714ab592307bf9f16946d111335cc85bf0e3ceea))
+* open a connect link from the webapp to prefill the login ([f31d297](https://github.com/mightea/MotoManager-App/commit/f31d2970295771ca88dc263ed429e60811add453))
+* plan parts — needed soon, shopping list, scan to book; drop the segment switch ([df5b805](https://github.com/mightea/MotoManager-App/commit/df5b80583ad3e6d150862fb584ad58c4925f1935))
+* redesign the fuel detail — consumption first, compared, with neighbours ([6cd3654](https://github.com/mightea/MotoManager-App/commit/6cd36540ec7650036c4b31149aaffa2c63a645e2))
+* save and sync whether a fill-up filled the tank ([b8c4e5e](https://github.com/mightea/MotoManager-App/commit/b8c4e5e0495badb8806736a0cbabdcd55a2931a6))
+* statistics — link from Tanken and Wartung on iPhone, fifth tab on iPad and Duo ([7272a25](https://github.com/mightea/MotoManager-App/commit/7272a2555e18d78fcfb4ef8920adfb90bed1160c))
+
 ## [0.18.0](https://github.com/mightea/MotoManager-App/compare/v0.17.0...v0.18.0) (2026-11-08)
 
 
