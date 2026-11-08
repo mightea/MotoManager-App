@@ -619,9 +619,19 @@ struct MaintenanceLogsView: View {
 
     private var intervalsSheet: some View {
         NavigationStack {
+            // Same rows as the iPad overview: progress bar, rule and due date,
+            // soonest first.
             List {
                 Section {
-                    ServiceIntervalsCard(insights: intervalInsights, initiallyExpanded: true, showsHeader: false)
+                    ForEach(intervalInsights.sorted { $0.nextDate < $1.nextDate }) { insight in
+                        IntervalProgressRow(insight: insight, currentOdo: currentOdo)
+                    }
+                } header: {
+                    HStack {
+                        Text("Nach Fälligkeit")
+                        Spacer()
+                        Text(intervalInsights.count == 1 ? "1 Intervall" : "\(intervalInsights.count) Intervalle")
+                    }
                 }
             }
             .workspaceListStyle()

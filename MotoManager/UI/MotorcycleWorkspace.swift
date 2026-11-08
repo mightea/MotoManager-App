@@ -68,8 +68,14 @@ struct MotorcycleWorkspace<Actions: View, Content: View>: View {
                 // don't reliably honour a safe-area inset (with the sidebar
                 // open they started underneath the photo).
                 VStack(spacing: 0) {
-                    header(condensed: condensed, compactChrome: compactChrome)
+                    RegularWorkspaceHeader(motorcycle: motorcycle, menuActions: menuActions) {
+                        actions()
+                    }
                     body
+                        // The header above already clears the floating tab
+                        // bar; without this the split view insets its
+                        // columns by the bar's height a second time.
+                        .ignoresSafeArea(.container, edges: .top)
                 }
             }
         }
@@ -100,6 +106,98 @@ struct MotorcycleWorkspace<Actions: View, Content: View>: View {
     }
 }
 
+/// Wide layouts: one row at the bottom of the photo — the bike on the left,
+/// the tab's actions and the switcher on the right — with room above it for
+/// iPadOS's floating tab bar, which would otherwise cover the buttons.
+struct RegularWorkspaceHeader<Actions: View>: View {
+    let motorcycle: Motorcycle
+    var menuActions: [WorkspaceMenuAction] = []
+    @ViewBuilder var actions: () -> Actions
+    @Environment(\.chromeActions) private var chrome
+    @State private var width: CGFloat = 1000
+
+    /// Below this the titled buttons no longer fit beside the bike's name
+    /// (iPad mini portrait, split screen): icons only.
+    private var iconOnly: Bool { width < 860 }
+
+    private var metadata: String {
+        var items: [String] = []
+        if let year = motorcycle.modelYear.flatMap(Formatters.modelYear) { items.append(year) }
+        if let plate = motorcycle.numberPlate, !plate.isEmpty { items.append(plate) }
+        items.append(Formatters.kilometers(motorcycle.latestOdo ?? motorcycle.initialOdo))
+        return items.joined(separator: " · ")
+    }
+
+    var body: some View {
+        HStack(alignment: .bottom, spacing: Theme.Spacing.s) {
+            Button(action: chrome.editMotorcycle) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("\(motorcycle.make) \(motorcycle.model)")
+                        .font(.title.weight(.bold))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.75)
+                    Text(metadata)
+                        .font(.subheadline)
+                        .monospacedDigit()
+                        .foregroundStyle(Theme.Colors.onPhotoSecondary)
+                        .lineLimit(1)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityElement(children: .combine)
+            .accessibilityHint("Motorrad bearbeiten")
+            .accessibilityIdentifier("workspace.motorcycleIdentity")
+            Spacer(minLength: Theme.Spacing.m)
+            HStack(spacing: Theme.Spacing.s) {
+                ForEach(menuActions) { item in
+                    WorkspaceAction(item.title, systemImage: item.systemImage, showsTitle: false, action: item.action)
+                        .disabled(item.isDisabled)
+                }
+                actions()
+                    .environment(\.workspaceActionsIconOnly, iconOnly)
+                Button(action: chrome.openGarage) {
+                    Label("Wechseln", systemImage: "chevron.down")
+                        .labelStyle(.titleAndIcon)
+                        .lineLimit(1)
+                        .fixedSize()
+                        .font(.subheadline.weight(.semibold))
+                        .padding(.horizontal, Theme.Spacing.m)
+                        .frame(minHeight: 44)
+                        .glassEffect(.regular.tint(Theme.Colors.navy950.opacity(0.5)), in: Capsule())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Motorrad wechseln")
+                .accessibilityIdentifier("workspace.switchMotorcycle")
+                WorkspaceAction("Einstellungen", systemImage: "gearshape", showsTitle: false) {
+                    chrome.openSettings()
+                }
+            }
+        }
+        .foregroundStyle(Theme.Colors.onPhoto)
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
+        .padding(.horizontal, Theme.Spacing.l)
+        .padding(.top, 64)
+        .padding(.bottom, Theme.Spacing.m)
+        .frame(maxWidth: .infinity)
+        .background { MotorcyclePhotoBackground(motorcycle: motorcycle) }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("workspace.header")
+    }
+}
+
+private struct WorkspaceActionsIconOnlyKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
+extension EnvironmentValues {
+    /// Set by a narrow wide-layout header: actions drop their titles.
+    var workspaceActionsIconOnly: Bool {
+        get { self[WorkspaceActionsIconOnlyKey.self] }
+        set { self[WorkspaceActionsIconOnlyKey.self] = newValue }
+    }
+}
+
 /// A secondary workspace action (see `MotorcycleWorkspace.menuActions`).
 struct WorkspaceMenuAction: Identifiable {
     var id: String { title }
@@ -119,7 +217,11 @@ struct WorkspaceAction: View {
     @Environment(\.horizontalSizeClass) private var sizeClass
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
-    private var usesTitle: Bool { showsTitle && sizeClass == .regular && !dynamicTypeSize.isAccessibilitySize }
+    @Environment(\.workspaceActionsIconOnly) private var iconOnly
+
+    private var usesTitle: Bool {
+        showsTitle && !iconOnly && sizeClass == .regular && !dynamicTypeSize.isAccessibilitySize
+    }
 
     init(_ title: String, systemImage: String, showsTitle: Bool = true, prominent: Bool = false,
          action: @escaping () -> Void) {
@@ -134,7 +236,7 @@ struct WorkspaceAction: View {
         Button(action: action) {
             HStack(spacing: Theme.Spacing.s) {
                 Image(systemName: systemImage)
-                if usesTitle { Text(title) }
+                if usesTitle { Text(title).lineLimit(1).fixedSize() }
             }
             .font(.subheadline.weight(.semibold))
             .foregroundStyle(Theme.Colors.onPhoto)
@@ -159,7 +261,6 @@ struct RecordBrowser<Selection: Hashable, Content: View, Detail: View>: View {
     var overview: AnyView? = nil
     @ViewBuilder var content: () -> Content
     @ViewBuilder var detail: (Selection) -> Detail
-    @State private var visibility: NavigationSplitViewVisibility = .all
     @State private var columns = ColumnAlignment()
     @Environment(\.horizontalSizeClass) private var sizeClass
 
@@ -175,15 +276,22 @@ struct RecordBrowser<Selection: Hashable, Content: View, Detail: View>: View {
     }
 
     private var splitView: some View {
-        NavigationSplitView(columnVisibility: $visibility) {
-            content()
-                .environment(\.workspaceListTitle, title)
-                .navigationTitle(title)
-                .navigationBarTitleDisplayMode(.inline)
-                // Headings and search belong to the scrolling list content.
-                .toolbar(.hidden, for: .navigationBar)
-                .navigationSplitViewColumnWidth(min: 330, ideal: 420, max: 560)
-        } detail: {
+        // Two plain columns instead of NavigationSplitView: the system split
+        // view inset its columns under the iPad's floating tab bar a second
+        // time (an empty band in portrait) and drew a grey panel behind the
+        // list. Both columns now start right below the photo header.
+        GeometryReader { proxy in
+            HStack(spacing: 0) {
+                content()
+                    .environment(\.workspaceListTitle, title)
+                    .frame(width: min(max(330, proxy.size.width * 0.42), 460))
+                detailColumn
+            }
+        }
+        .environment(\.workspaceColumns, columns)
+    }
+
+    private var detailColumn: some View {
             NavigationStack {
                 if let selection {
                     detail(selection).id(selection)
@@ -208,9 +316,6 @@ struct RecordBrowser<Selection: Hashable, Content: View, Detail: View>: View {
                         description: Text("Wähle links einen Eintrag, um die Details anzuzeigen."))
                 }
             }
-        }
-        .navigationSplitViewStyle(.balanced)
-        .environment(\.workspaceColumns, columns)
     }
 }
 

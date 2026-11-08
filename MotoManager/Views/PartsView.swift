@@ -1015,12 +1015,13 @@ private struct PartCard: View {
 
             VStack(alignment: .leading, spacing: 2) {
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    // Two lines: similar parts often differ only in the tail
-                    // of the name, which a one-line clamp cuts off.
+                    // Two lines for names with spaces; a single long German
+                    // compound shrinks a little instead of breaking mid-word.
                     Text(part.name)
                         .scaledFont(15, weight: .bold)
                         .foregroundStyle(.primary)
-                        .lineLimit(2)
+                        .lineLimit(part.name.contains(" ") ? 2 : 1)
+                        .minimumScaleFactor(0.75)
                         .multilineTextAlignment(.leading)
                     if part.isPublic {
                         Image(systemName: "globe")

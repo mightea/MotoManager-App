@@ -41,19 +41,27 @@ struct StatStrip: View {
 /// when they fit, otherwise two per row — never a lone tile wrapping.
 struct StatTileGrid: View {
     let tiles: [StatTile]
+    @State private var width: CGFloat = 0
 
     init(_ tiles: [StatTile]) { self.tiles = tiles }
 
+    /// All in one row when each tile gets ~96 pt (three) or ~128 pt (four),
+    /// otherwise two per row. Decided on the available width, not the texts'
+    /// ideal widths, so a long caption truncates instead of breaking the row.
+    private var columns: Int {
+        let gap = Theme.Spacing.listSection
+        let minimum: CGFloat = tiles.count <= 3 ? 96 : 128
+        let needed = CGFloat(tiles.count) * minimum + CGFloat(tiles.count - 1) * gap
+        return width == 0 || width >= needed ? tiles.count : 2
+    }
+
     var body: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(alignment: .top, spacing: Theme.Spacing.listSection) {
-                ForEach(tiles) { tile($0).frame(minWidth: 128) }
-            }
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: Theme.Spacing.listSection), count: 2),
-                      spacing: Theme.Spacing.listSection) {
-                ForEach(tiles) { tile($0) }
-            }
+        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: Theme.Spacing.listSection,
+                                                     alignment: .top), count: max(1, columns)),
+                  spacing: Theme.Spacing.listSection) {
+            ForEach(tiles) { tile($0) }
         }
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
     }
 
     private func tile(_ tile: StatTile) -> some View {
@@ -73,7 +81,7 @@ struct StatTileGrid: View {
             }
         }
         .frame(maxWidth: .infinity, minHeight: 76, alignment: .topLeading)
-        .padding(.horizontal, Theme.Spacing.m - 2)
+        .padding(.horizontal, Theme.Spacing.m - 4)
         .padding(.vertical, Theme.Spacing.m - 4)
         .background(Theme.Colors.backgroundElevated, in: RoundedRectangle(cornerRadius: Theme.Radius.field))
         .accessibilityElement(children: .ignore)

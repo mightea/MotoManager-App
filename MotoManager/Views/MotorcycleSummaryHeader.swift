@@ -233,6 +233,20 @@ struct MotorcycleSummaryHeader<Actions: View>: View {
     // MARK: Photo
 
     private var photo: some View {
+        MotorcyclePhotoBackground(motorcycle: motorcycle)
+    }
+
+    private func lerp(_ from: CGFloat, _ to: CGFloat, _ t: CGFloat) -> CGFloat {
+        from + (to - from) * t
+    }
+}
+
+/// The bike's photo behind the workspace header, with the scrims that keep
+/// white text legible.
+struct MotorcyclePhotoBackground: View {
+    let motorcycle: Motorcycle
+
+    var body: some View {
         GeometryReader { proxy in
             let wide = proxy.size.width > 700
             let height = max(0, proxy.size.height)
@@ -266,9 +280,5 @@ struct MotorcycleSummaryHeader<Actions: View>: View {
         }
         .ignoresSafeArea(.container, edges: .top)
         .accessibilityHidden(true)
-    }
-
-    private func lerp(_ from: CGFloat, _ to: CGFloat, _ t: CGFloat) -> CGFloat {
-        from + (to - from) * t
     }
 }
