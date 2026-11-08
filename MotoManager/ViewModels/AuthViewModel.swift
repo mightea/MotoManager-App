@@ -131,6 +131,7 @@ class AuthViewModel: NSObject, ObservableObject {
         ImageCache.shared.clearAll()
         DocumentCache.shared.clearAll()
         DocumentOfflineStore.shared.clearAll()
+        DocumentBookmarkStore.shared.clearAll()
         // In-memory and URL-level caches too — the wipe must cover *every*
         // cache so a different account never sees the previous user's data.
         RemoteImageMemoryCache.shared.clearAll()

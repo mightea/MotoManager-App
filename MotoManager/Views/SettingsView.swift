@@ -10,6 +10,7 @@ struct SettingsView: View {
     @EnvironmentObject private var connectivity: ConnectivityMonitor
     @Environment(\.dismiss) var dismiss
     @ObservedObject private var reminders = MaintenanceReminderScheduler.shared
+    @ObservedObject private var offlineStore = DocumentOfflineStore.shared
     @State private var confirmingLogout = false
 
     /// "v0.2.0 (302)" — CI stamps MARKETING_VERSION and the build number
@@ -26,6 +27,7 @@ struct SettingsView: View {
                 serverSection
                 syncSection
                 maintenanceSection
+                documentsSection
                 aiAccessSection
                 logoutSection
             }
@@ -157,6 +159,35 @@ struct SettingsView: View {
         } footer: {
             Text("Erinnert dich, wenn ein Service-Intervall in die Fälligkeit rückt und am Fälligkeitstag. Berechnet auf dem Gerät für Motorräder, deren Wartungs-Tab du geöffnet hast.")
         }
+    }
+
+    // MARK: - Offline documents
+
+    private var documentsSection: some View {
+        Section {
+            NavigationLink {
+                OfflineDocumentsView()
+            } label: {
+                LabeledContent {
+                    Text(offlineSummary).monospacedDigit()
+                } label: {
+                    Label("Offline-Dokumente", systemImage: "arrow.down.doc")
+                }
+            }
+            .accessibilityIdentifier("settings.offlineDocuments")
+        } header: {
+            Text("Dokumente")
+        } footer: {
+            Text("Was auf diesem Gerät gespeichert ist und wann Dokumente für die Offline-Nutzung geladen werden.")
+        }
+    }
+
+    /// "6 · 14.2 MB" — count and size right on the row.
+    private var offlineSummary: String {
+        let entries = Array(offlineStore.entries.values)
+        guard !entries.isEmpty else { return "Keine" }
+        let bytes = entries.reduce(Int64(0)) { $0 + offlineStore.size(of: $1) }
+        return "\(entries.count) · " + ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
     }
 
     // MARK: - AI access (MCP)
