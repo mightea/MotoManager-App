@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.18.0](https://github.com/mightea/MotoManager-App/compare/v0.17.0...v0.18.0) (2026-11-08)
+
+
+### Features
+
+* document reader for the workshop and offline document settings ([17a1eaf](https://github.com/mightea/MotoManager-App/commit/17a1eaf1047afdb036686a2d42a8b8473d4d0682))
+
+
+### Bug Fixes
+
+* keep the header buttons at the same position on every tab ([e00caa4](https://github.com/mightea/MotoManager-App/commit/e00caa40b483eccbdf04806ddb017b282ef7c6bf))
+* match the iPad proposal on smaller iPads and bring interval bars to the iPhone ([1fa69f3](https://github.com/mightea/MotoManager-App/commit/1fa69f3563f8e0fe98cb2f75925448533f6a4c0e))
+
 ## [0.17.0](https://github.com/mightea/MotoManager-App/compare/v0.16.0...v0.17.0) (2026-11-07)
 
 
