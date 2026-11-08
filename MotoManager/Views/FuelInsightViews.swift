@@ -33,6 +33,8 @@ struct FuelConsumptionChart: View {
     let average: Double
     var showsAxes = true
     var showsArea = false
+    /// The point to mark; the newest by default.
+    var highlight: Int? = nil
 
     var body: some View {
         Chart {
@@ -55,9 +57,9 @@ struct FuelConsumptionChart: View {
                     .lineStyle(StrokeStyle(lineWidth: showsAxes ? 3 : 2.5, lineCap: .round, lineJoin: .round))
                     .foregroundStyle(Theme.Colors.primary)
             }
-            if let last = series.last {
-                PointMark(x: .value("Datum", last.date), y: .value("L/100 km", last.value))
-                    .symbolSize(showsAxes ? 60 : 40)
+            if let marked = series.indices.contains(highlight ?? -1) ? series[highlight!] : series.last {
+                PointMark(x: .value("Datum", marked.date), y: .value("L/100 km", marked.value))
+                    .symbolSize(showsAxes ? 90 : 40)
                     .foregroundStyle(Theme.Colors.primary)
             }
         }

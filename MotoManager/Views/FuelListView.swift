@@ -80,7 +80,7 @@ struct FuelListView: View {
                           overview: AnyView(fuelOverview)) {
                 fuelList
             } detail: { record in
-                FuelDetailView(record: record, viewModel: viewModel)
+                FuelDetailView(record: record, viewModel: viewModel) { selectedFuelRecord = $0 }
             }
         }
         // Consume the "Tankung erfassen" App Shortcut. `initial: true` covers
