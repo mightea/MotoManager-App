@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftData
 
 /// Pushed detail page for a catalog part: fitment + description, the stock
 /// entries ("Bestand") and the consumption history ("Verbrauch"), with
@@ -12,6 +13,8 @@ struct PartDetailView: View {
     @State private var showingAddStock = false
     @State private var editingStock: SDPartStock?
     @State private var showingAddConsumption = false
+    /// "Beim Mangel verbuchen": the defect the consumption is booked for.
+    @State private var bookingIssue: SDIssue?
     @State private var showingPrintLabel = false
     @State private var printingLocation: SDStorageLocation?
     @State private var didAutoDismiss = false
@@ -23,6 +26,7 @@ struct PartDetailView: View {
     /// Open issues of the selected bike, to link this part to by hand.
     let openIssues: [(id: UUID, title: String)]
     @ObservedObject private var planning = PartsPlanningStore.shared
+    @ObservedObject private var issueLinks = IssuePartLinkStore.shared
     /// Captured at init so the auto-pop guard never reads a deleted model.
     private let partClientId: UUID
 
@@ -49,6 +53,7 @@ struct PartDetailView: View {
     var body: some View {
         List {
             heroSection
+            linkedIssuesSection
             stockCardSection
             if let neededFor {
                 Section {
@@ -109,8 +114,8 @@ struct PartDetailView: View {
                         Menu("Für Mangel vormerken") {
                             ForEach(openIssues, id: \.id) { issue in
                                 Toggle(issue.title, isOn: Binding(
-                                    get: { planning.isLinked(issue: issue.id, part: part.clientId) },
-                                    set: { _ in planning.toggleLink(issue: issue.id, part: part.clientId) }))
+                                    get: { issueLinks.isLinked(issue: issue.id, part: part.clientId) },
+                                    set: { issueLinks.setLinked($0, issue: issue.id, part: part.clientId) }))
                             }
                         }
                     }
@@ -134,6 +139,10 @@ struct PartDetailView: View {
         }
         .sheet(isPresented: $showingAddConsumption) {
             AddPartConsumptionView(viewModel: viewModel, part: part)
+                .glassSheet()
+        }
+        .sheet(item: $bookingIssue) { issue in
+            AddPartConsumptionView(viewModel: viewModel, part: part, initialNotes: "Mangel: \(issue.title)")
                 .glassSheet()
         }
         .sheet(isPresented: $showingPrintLabel) {
@@ -217,6 +226,96 @@ struct PartDetailView: View {
             subtitle: viewModel.locationParentPath(location),
             footer: "MotoManager · Lagerort #\(serverId)"
         )
+    }
+
+    // MARK: - Linked defects
+
+    /// Open defects this part is linked to, on any bike (newest first).
+    private var linkedOpenIssues: [SDIssue] {
+        let ids = issueLinks.issues(forPart: part.clientId)
+        guard !ids.isEmpty else { return [] }
+        let context = PersistenceController.shared.mainContext
+        return ((try? context.fetch(FetchDescriptor<SDIssue>())) ?? [])
+            .filter { ids.contains($0.clientId) && $0.syncState != .pendingDelete && $0.status.lowercased() != "done" }
+            .sorted { $0.date > $1.date }
+    }
+
+    /// "Passt zu offenem Mangel" — mirrors the webapp's part-issue callout:
+    /// bike · title, priority and since when, a shortcut to book one piece
+    /// against the defect, and × (or swipe) to unlink.
+    @ViewBuilder
+    private var linkedIssuesSection: some View {
+        let issues = linkedOpenIssues
+        if !issues.isEmpty {
+            Section {
+                ForEach(issues, id: \.clientId) { issue in
+                    linkedIssueRow(issue)
+                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                            Button("Verknüpfung lösen", systemImage: "link.badge.minus", role: .destructive) {
+                                issueLinks.setLinked(false, issue: issue.clientId, part: part.clientId)
+                            }
+                        }
+                }
+            } header: {
+                Label(issues.count == 1 ? "Passt zu offenem Mangel" : "Passt zu offenen Mängeln",
+                      systemImage: "link")
+                    .foregroundStyle(.orange)
+            }
+        }
+    }
+
+    private func linkedIssueRow(_ issue: SDIssue) -> some View {
+        HStack(alignment: .top, spacing: Theme.Spacing.m - 4) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text([bikeLabel(issue.motorcycleId), issue.title].compactMap { $0 }.joined(separator: " · "))
+                    .font(.subheadline.weight(.semibold))
+                    .fixedSize(horizontal: false, vertical: true)
+                Text(Self.priorityLine(priority: issue.priority, date: issue.date).uppercased())
+                    .scaledFont(11, weight: .semibold)
+                    .monospaced()
+                    .foregroundStyle(.secondary)
+                Button {
+                    bookingIssue = issue
+                } label: {
+                    Label("Beim Mangel verbuchen", systemImage: "minus.circle")
+                        .font(.footnote.weight(.semibold))
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .tint(Theme.Colors.primary)
+                .disabled(onHand <= 0)
+                .accessibilityIdentifier("part.issue.book.\(issue.clientId)")
+            }
+            Spacer(minLength: 0)
+            Button {
+                issueLinks.setLinked(false, issue: issue.clientId, part: part.clientId)
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.footnote.weight(.bold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 32, height: 32)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.borderless)
+            .accessibilityLabel("Verknüpfung mit \(issue.title) lösen")
+        }
+        .padding(.vertical, 2)
+    }
+
+    private func bikeLabel(_ motorcycleId: Int) -> String? {
+        cachedMotorcycle(id: motorcycleId).map { "\($0.make) \($0.model)" }
+    }
+
+    /// "Hoch · seit 01.10.2026", like the webapp.
+    static func priorityLine(priority: String, date: String) -> String {
+        let label = switch priority.lowercased() {
+        case "high": "Hoch"
+        case "low": "Niedrig"
+        default: "Mittel"
+        }
+        let day = date.prefix(10).split(separator: "-")
+        guard day.count == 3 else { return label }
+        return "\(label) · seit \(day[2]).\(day[1]).\(day[0])"
     }
 
     // MARK: - Hero
@@ -745,8 +844,18 @@ struct AddPartConsumptionView: View {
 
     @State private var quantity = 1
     @State private var date = Date()
-    @State private var notes = ""
+    // No declaration default: set once in init (iOS 27 drops the init value
+    // when both are present).
+    @State private var notes: String
     @State private var errorMessage: String?
+
+    /// `initialNotes` prefills the note, e.g. "Mangel: …" when booking a
+    /// piece against a linked defect.
+    init(viewModel: PartsViewModel, part: SDPart, initialNotes: String = "") {
+        self.viewModel = viewModel
+        self.part = part
+        _notes = State(initialValue: initialNotes)
+    }
 
     private var onHand: Int { viewModel.onHand(for: part) }
 

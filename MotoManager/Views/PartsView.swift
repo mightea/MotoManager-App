@@ -25,6 +25,7 @@ struct PartsView: View {
     @State private var showingAddPart = false
     enum Destination: Hashable { case part(SDPart), location(SDStorageLocation), shopping }
     @ObservedObject private var planningStore = PartsPlanningStore.shared
+    @ObservedObject private var linkStore = IssuePartLinkStore.shared
     /// The part a scanned label opened the quick booking sheet for.
     @State private var quickBook: SDPart?
     /// Set while the camera scanner is up, so its result opens quick booking
@@ -33,7 +34,7 @@ struct PartsView: View {
     /// Groups the list by storage place instead of stock level.
     @State private var groupByPlace = false
 
-    private var planner: PartsPlanner { PartsPlanner(parts: viewModel, bike: detailVM, store: planningStore) }
+    private var planner: PartsPlanner { PartsPlanner(parts: viewModel, bike: detailVM, store: planningStore, links: linkStore) }
     @State private var selection: Destination?
     @State private var partPendingDeletion: SDPart?
     @State private var showingScanner = false

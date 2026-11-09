@@ -67,21 +67,43 @@ struct PartsPlanningTests {
         #expect(ShoppingList.items(parts: [lower], neededForIssue: [], manual: [], dismissed: [carb: 1], quantities: [:]).count == 1)
     }
 
-    @Test func storePersistsLinksAndList() {
+    @Test func storePersistsList() {
         let name = "planning-\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: name)!
         defer { defaults.removePersistentDomain(forName: name) }
         let store = PartsPlanningStore(defaults: defaults)
-        let issue = UUID()
-        store.toggleLink(issue: issue, part: regulator)
         store.addToList(plug)
         store.setQuantity(3, for: plug)
         let reloaded = PartsPlanningStore(defaults: defaults)
-        #expect(reloaded.isLinked(issue: issue, part: regulator))
         #expect(reloaded.manual == [plug])
         #expect(reloaded.quantities[plug] == 3)
         reloaded.clear(plug, onHand: 4)
         #expect(PartsPlanningStore(defaults: defaults).manual.isEmpty)
+    }
+
+    /// Snapshots from before the links moved to the server still decode;
+    /// their links are handed over once and then gone from the device.
+    @Test func legacySnapshotHandsOverLinksOnce() throws {
+        let name = "planning-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: name)!
+        defer { defaults.removePersistentDomain(forName: name) }
+        let issue = UUID()
+        // The snapshot shape the app wrote before (links non-optional).
+        struct OldSnapshot: Codable {
+            var manual: Set<UUID>
+            var dismissed: [UUID: Int]
+            var quantities: [UUID: Int]
+            var links: [UUID: Set<UUID>]
+        }
+        let old = OldSnapshot(manual: [plug], dismissed: [:], quantities: [:], links: [issue: [regulator]])
+        defaults.set(try JSONEncoder().encode(old), forKey: "com.motomanager.partsPlanning")
+        let store = PartsPlanningStore(defaults: defaults)
+        #expect(store.manual == [plug])
+        #expect(store.takeLegacyLinks() == [issue: [regulator]])
+        #expect(store.takeLegacyLinks().isEmpty)
+        let reloaded = PartsPlanningStore(defaults: defaults)
+        #expect(reloaded.takeLegacyLinks().isEmpty)
+        #expect(reloaded.manual == [plug])
     }
 
     @Test func shareTextListsGroups() {

@@ -678,6 +678,26 @@ class NetworkManager {
         return wrapper.entries
     }
 
+    // MARK: - Part ↔ defect links (server ids)
+
+    /// Every link of the user (`GET /api/issue-parts`).
+    func fetchIssuePartLinks() async throws -> [ServerIssuePartLink] {
+        let wrapper: IssuePartLinksResponse = try await get("/api/issue-parts")
+        return wrapper.links
+    }
+
+    /// Idempotent on the server.
+    func linkIssuePart(issueId: Int, partId: Int) async throws {
+        let request = try makeRequest(path: "/api/issues/\(issueId)/parts/\(partId)", method: "PUT", authorized: true)
+        _ = try await performRequest(request)
+    }
+
+    /// 404 when there was no such link.
+    func unlinkIssuePart(issueId: Int, partId: Int) async throws {
+        let request = try makeRequest(path: "/api/issues/\(issueId)/parts/\(partId)", method: "DELETE", authorized: true)
+        _ = try await performRequest(request)
+    }
+
     // MARK: - Parts inventory (user-scoped, not motorcycle-scoped)
 
     /// Prefix a server-relative image path ("/images/x.jpg") with the base URL.

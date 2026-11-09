@@ -60,6 +60,9 @@ struct MaintenanceLogsView: View {
     @State private var resolvingIssue: SDIssue?
     /// Resolved defects stay out of the way until asked for.
     @State private var showingDoneIssues = false
+    /// A spare part linked to a defect, opened from under the defect's row.
+    @State private var openedPart: SDPart?
+    @ObservedObject private var issueLinks = IssuePartLinkStore.shared
 
     private var serviceRecords: [SDMaintenanceRecord] {
         viewModel.serviceRecords
@@ -227,7 +230,7 @@ struct MaintenanceLogsView: View {
                 .glassSheet()
         }
         .sheet(item: $editingIssue) { issue in
-            AddIssueView(viewModel: viewModel, existingIssue: issue)
+            AddIssueView(viewModel: viewModel, existingIssue: issue, partsVM: partsVM)
                 .glassSheet()
         }
         .sheet(isPresented: $showingAddMaintenance) {
@@ -275,6 +278,11 @@ struct MaintenanceLogsView: View {
         .navigationDestination(isPresented: $showingStatistics) {
             StatisticsView(fleetVM: fleetVM, detailVM: viewModel, pushed: true)
         }
+        .navigationDestination(item: $openedPart) { part in
+            PartDetailView(part: part, viewModel: partsVM)
+        }
+        // The linked-part lines under defects read the inventory.
+        .onAppear { if partsVM.parts.isEmpty { partsVM.reloadLocal() } }
         .alignsWorkspaceColumn(.list)
         .tracksWorkspaceHeader()
         .workspaceListStyle()
@@ -495,10 +503,18 @@ struct MaintenanceLogsView: View {
     /// the defect) and delete.
     private func issueRow(_ issue: SDIssue) -> some View {
         let done = Self.isDone(issue)
-        return Button { editingIssue = issue } label: {
-            IssueRow(issue: issue)
+        let linkedParts = issueLinks.parts(forIssue: issue.clientId)
+            .compactMap { partsVM.part(clientId: $0) }
+            .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+        return VStack(alignment: .leading, spacing: 6) {
+            Button { editingIssue = issue } label: {
+                IssueRow(issue: issue)
+            }
+            .buttonStyle(.plain)
+            ForEach(linkedParts, id: \.clientId) { part in
+                linkedPartLine(part)
+            }
         }
-        .buttonStyle(.plain)
         // Explicit, like the maintenance rows: the wide-layout list column
         // otherwise paints unstyled rows grey.
         .listRowBackground(Theme.Colors.backgroundElevated)
@@ -548,6 +564,29 @@ struct MaintenanceLogsView: View {
         .sensoryFeedback(.success, trigger: issue.status) { _, new in new.lowercased() == "done" }
     }
 
+
+    /// "Teil auf Lager: Bremsbeläge · 2 Stk →" / "Teil verknüpft: … · nicht
+    /// auf Lager" under a defect, like the webapp; opens the part.
+    private func linkedPartLine(_ part: SDPart) -> some View {
+        let onHand = partsVM.onHand(for: part)
+        let text = onHand > 0
+            ? "Teil auf Lager: \(part.name) · \(onHand) Stk →"
+            : "Teil verknüpft: \(part.name) · nicht auf Lager"
+        return Button { openedPart = part } label: {
+            Text(text.uppercased())
+                .scaledFont(11, weight: .semibold)
+                .monospaced()
+                .foregroundStyle(onHand > 0 ? Theme.Colors.primary : Color.secondary)
+                .lineLimit(2)
+                .multilineTextAlignment(.leading)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.leading, 42) // under the title, past the status icon
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.borderless)
+        .accessibilityLabel(text)
+        .accessibilityIdentifier("service.issue.part.\(part.clientId)")
+    }
 
     // MARK: - Attention card
 

@@ -10,6 +10,7 @@ struct PartsPlanner {
     let parts: PartsViewModel
     let bike: MotorcycleDetailViewModel
     let store: PartsPlanningStore
+    let links: IssuePartLinkStore
 
     func fits(_ part: SDPart) -> Bool {
         guard let seriesId = bike.motorcycle.seriesId else { return true }
@@ -32,7 +33,7 @@ struct PartsPlanner {
         PartNeeds.needs(
             parts: parts.parts.map { .init(id: $0.clientId, name: $0.name, fitsBike: fits($0)) },
             issues: openIssues.map { .init(id: $0.clientId, title: $0.title, text: $0.recordDescription ?? "") },
-            intervals: intervals, links: store.links)
+            intervals: intervals, links: links.partsByIssue)
     }
 
     var items: [ShoppingItem] {
@@ -142,12 +143,13 @@ struct ShoppingListView: View {
     @ObservedObject var parts: PartsViewModel
     @ObservedObject var bike: MotorcycleDetailViewModel
     @ObservedObject private var store = PartsPlanningStore.shared
+    @ObservedObject private var links = IssuePartLinkStore.shared
     @State private var booking: SDPart?
     @State private var bookingQuantity = 1
     @State private var onHandBeforeBooking = 0
     @State private var showingPicker = false
 
-    private var planner: PartsPlanner { PartsPlanner(parts: parts, bike: bike, store: store) }
+    private var planner: PartsPlanner { PartsPlanner(parts: parts, bike: bike, store: store, links: links) }
 
     var body: some View {
         let items = planner.items
@@ -268,6 +270,7 @@ struct ShoppingListView: View {
 /// Search and pick a part (shopping list, issue links).
 struct PartPickerSheet: View {
     let parts: [SDPart]
+    var title = "Teil vormerken"
     let onPick: (SDPart) -> Void
     @Environment(\.dismiss) private var dismiss
     @State private var query = ""
@@ -294,7 +297,7 @@ struct PartPickerSheet: View {
                 .buttonStyle(.plain)
             }
             .searchable(text: $query, prompt: "Name oder Teilenummer")
-            .navigationTitle("Teil vormerken")
+            .navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {

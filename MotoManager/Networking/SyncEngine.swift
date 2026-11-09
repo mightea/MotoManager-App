@@ -83,6 +83,11 @@ final class SyncEngine: ObservableObject {
             // motorcycle). Runs after the per-motorcycle pull so consumption
             // records can link to freshly pulled maintenance records.
             try await pullPartsInventory()
+            // Part↔defect links: a separate table that doesn't bump
+            // issues.updatedAt, so the issue pull can't see changes. Runs
+            // last, when freshly pushed issues/parts have their server ids.
+            // Never throws; failures stay queued in the store.
+            await IssuePartLinkStore.shared.sync()
             isSyncing = false
             lastSyncDate = Date()
             UserDefaults.standard.set(lastSyncDate, forKey: Self.lastSyncDateKey)

@@ -15,9 +15,8 @@ struct PartNeed: Equatable {
 }
 
 /// Infers which stocked parts a bike will need soon, from its open issues
-/// and its service intervals coming due. There is no part↔issue link on the
-/// server, so this matches on names (plus links the user set by hand on the
-/// device). Pure, so it can be tested.
+/// and its service intervals coming due: the part↔defect links (server-backed,
+/// see `IssuePartLinkStore`) plus matching on names. Pure, so it can be tested.
 enum PartNeeds {
     struct Part { let id: UUID; let name: String; let fitsBike: Bool }
     struct Issue { let id: UUID; let title: String; let text: String }
@@ -165,8 +164,10 @@ enum ShoppingList {
 
 // MARK: - On-device state
 
-/// Shopping-list state and hand-made issue↔part links, kept on this device
-/// (the server has no place for either yet).
+/// Shopping-list state, kept on this device (the server has no place for it
+/// yet). Part↔defect links used to live here too; they moved to the server
+/// (`IssuePartLinkStore`), and old snapshots still decode so they can be
+/// handed over once.
 @MainActor
 final class PartsPlanningStore: ObservableObject {
     static let shared = PartsPlanningStore()
@@ -174,7 +175,8 @@ final class PartsPlanningStore: ObservableObject {
     @Published private(set) var manual: Set<UUID>
     @Published private(set) var dismissed: [UUID: Int]
     @Published private(set) var quantities: [UUID: Int]
-    @Published private(set) var links: [UUID: Set<UUID>]
+    /// Links from before the move to the server, until taken.
+    private var legacyLinks: [UUID: Set<UUID>]
 
     private let defaults: UserDefaults
     private static let key = "com.motomanager.partsPlanning"
@@ -183,7 +185,8 @@ final class PartsPlanningStore: ObservableObject {
         var manual: Set<UUID> = []
         var dismissed: [UUID: Int] = [:]
         var quantities: [UUID: Int] = [:]
-        var links: [UUID: Set<UUID>] = [:]
+        /// Legacy: only read, never written once taken.
+        var links: [UUID: Set<UUID>]?
     }
 
     init(defaults: UserDefaults = .standard) {
@@ -193,7 +196,7 @@ final class PartsPlanningStore: ObservableObject {
         manual = snapshot.manual
         dismissed = snapshot.dismissed
         quantities = snapshot.quantities
-        links = snapshot.links
+        legacyLinks = snapshot.links ?? [:]
     }
 
     func addToList(_ partId: UUID) {
@@ -215,25 +218,23 @@ final class PartsPlanningStore: ObservableObject {
         persist()
     }
 
-    func isLinked(issue: UUID, part: UUID) -> Bool { links[issue]?.contains(part) == true }
-
-    func toggleLink(issue: UUID, part: UUID) {
-        if isLinked(issue: issue, part: part) {
-            links[issue]?.remove(part)
-            if links[issue]?.isEmpty == true { links[issue] = nil }
-        } else {
-            links[issue, default: []].insert(part)
-        }
+    /// Hands the pre-server links over (once) and drops them from the device.
+    func takeLegacyLinks() -> [UUID: Set<UUID>] {
+        let taken = legacyLinks
+        guard !taken.isEmpty else { return [:] }
+        legacyLinks = [:]
         persist()
+        return taken
     }
 
     func clearAll() {
-        manual = []; dismissed = [:]; quantities = [:]; links = [:]
+        manual = []; dismissed = [:]; quantities = [:]; legacyLinks = [:]
         persist()
     }
 
     private func persist() {
-        let snapshot = Snapshot(manual: manual, dismissed: dismissed, quantities: quantities, links: links)
+        let snapshot = Snapshot(manual: manual, dismissed: dismissed, quantities: quantities,
+                                links: legacyLinks.isEmpty ? nil : legacyLinks)
         if let data = try? JSONEncoder().encode(snapshot) { defaults.set(data, forKey: Self.key) }
     }
 }
