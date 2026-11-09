@@ -108,7 +108,7 @@ struct PartDetailView: View {
                 .accessibilityLabel("Bearbeiten")
                 Menu {
                     Button(planning.manual.contains(part.clientId) ? "Auf der Einkaufsliste" : "Auf die Einkaufsliste",
-                           systemImage: "cart.badge.plus") { planning.addToList(part.clientId) }
+                           systemImage: "cart.badge.plus") { planning.addToList(part.clientId, onHand: onHand) }
                         .disabled(planning.manual.contains(part.clientId))
                     if !openIssues.isEmpty {
                         Menu("Für Mangel vormerken") {

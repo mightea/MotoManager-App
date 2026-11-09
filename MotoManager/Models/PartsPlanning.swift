@@ -164,13 +164,16 @@ enum ShoppingList {
     /// Frequently used parts at one piece or none (`RestockRule`), parts an
     /// open issue needs (unless enough are stocked) and manual entries. A part the user cleared stays off
     /// until its stock changes.
+    /// `manualOnHand` is the stock when a part was added by hand: once stock
+    /// rises above it (e.g. a scanned receipt), the entry counts as bought.
     static func items(parts: [Part], neededForIssue: Set<UUID>, manual: Set<UUID>,
-                      dismissed: [UUID: Int], quantities: [UUID: Int]) -> [ShoppingItem] {
+                      dismissed: [UUID: Int], quantities: [UUID: Int],
+                      manualOnHand: [UUID: Int] = [:]) -> [ShoppingItem] {
         parts.compactMap { part -> ShoppingItem? in
             let group: ShoppingItem.Group
             if neededForIssue.contains(part.id) && part.onHand <= 1 { group = .issue }
             else if RestockRule.isLow(onHand: part.onHand, repairUses: part.repairUses) { group = .low }
-            else if manual.contains(part.id) { group = .manual }
+            else if manual.contains(part.id) && !isBought(part, manualOnHand: manualOnHand) { group = .manual }
             else { return nil }
             if !manual.contains(part.id), let cleared = dismissed[part.id], cleared == part.onHand { return nil }
             let suggested = max(1, 2 - part.onHand)
@@ -178,6 +181,11 @@ enum ShoppingList {
                                 quantity: max(1, quantities[part.id] ?? suggested), unitPrice: part.unitPrice)
         }
         .sorted { ($0.group, $0.name) < ($1.group, $1.name) }
+    }
+
+    /// A hand-added part whose stock rose since it was added.
+    static func isBought(_ part: Part, manualOnHand: [UUID: Int]) -> Bool {
+        manualOnHand[part.id].map { part.onHand > $0 } ?? false
     }
 
     /// Plain text to share with a shop or a friend.
@@ -207,6 +215,8 @@ final class PartsPlanningStore: ObservableObject {
     @Published private(set) var manual: Set<UUID>
     @Published private(set) var dismissed: [UUID: Int]
     @Published private(set) var quantities: [UUID: Int]
+    /// Stock when each manual entry was added (see `ShoppingList.isBought`).
+    @Published private(set) var manualOnHand: [UUID: Int]
     /// Links from before the move to the server, until taken.
     private var legacyLinks: [UUID: Set<UUID>]
 
@@ -217,6 +227,8 @@ final class PartsPlanningStore: ObservableObject {
         var manual: Set<UUID> = []
         var dismissed: [UUID: Int] = [:]
         var quantities: [UUID: Int] = [:]
+        /// Optional so snapshots from before it still decode.
+        var manualOnHand: [UUID: Int]?
         /// Legacy: only read, never written once taken.
         var links: [UUID: Set<UUID>]?
     }
@@ -228,11 +240,13 @@ final class PartsPlanningStore: ObservableObject {
         manual = snapshot.manual
         dismissed = snapshot.dismissed
         quantities = snapshot.quantities
+        manualOnHand = snapshot.manualOnHand ?? [:]
         legacyLinks = snapshot.links ?? [:]
     }
 
-    func addToList(_ partId: UUID) {
+    func addToList(_ partId: UUID, onHand: Int) {
         manual.insert(partId)
+        manualOnHand[partId] = onHand
         dismissed[partId] = nil
         persist()
     }
@@ -240,8 +254,20 @@ final class PartsPlanningStore: ObservableObject {
     /// Takes the part off the list until its stock changes.
     func clear(_ partId: UUID, onHand: Int) {
         manual.remove(partId)
+        manualOnHand[partId] = nil
         dismissed[partId] = onHand
         quantities[partId] = nil
+        persist()
+    }
+
+    /// Drops manual entries whose stock rose since they were added.
+    func removeBought(onHand: [UUID: Int]) {
+        let bought = manual.filter { id in
+            guard let before = manualOnHand[id], let now = onHand[id] else { return false }
+            return now > before
+        }
+        guard !bought.isEmpty else { return }
+        for id in bought { manual.remove(id); manualOnHand[id] = nil; quantities[id] = nil }
         persist()
     }
 
@@ -260,12 +286,13 @@ final class PartsPlanningStore: ObservableObject {
     }
 
     func clearAll() {
-        manual = []; dismissed = [:]; quantities = [:]; legacyLinks = [:]
+        manual = []; dismissed = [:]; quantities = [:]; manualOnHand = [:]; legacyLinks = [:]
         persist()
     }
 
     private func persist() {
         let snapshot = Snapshot(manual: manual, dismissed: dismissed, quantities: quantities,
+                                manualOnHand: manualOnHand.isEmpty ? nil : manualOnHand,
                                 links: legacyLinks.isEmpty ? nil : legacyLinks)
         if let data = try? JSONEncoder().encode(snapshot) { defaults.set(data, forKey: Self.key) }
     }

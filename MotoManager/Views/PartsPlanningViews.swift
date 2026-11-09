@@ -43,7 +43,7 @@ struct PartsPlanner {
                                            unitPrice: parts.lastUnitPrice(for: $0),
                                            repairUses: parts.repairUses(for: $0)) },
             neededForIssue: issueNeeds, manual: store.manual, dismissed: store.dismissed,
-            quantities: store.quantities)
+            quantities: store.quantities, manualOnHand: store.manualOnHand)
     }
 
     func part(_ id: UUID) -> SDPart? { parts.part(clientId: id) }
@@ -189,7 +189,7 @@ struct ShoppingListView: View {
                 }
             }
             Section {
-                Text("Knapp im Lager = höchstens 1 Stück eines Teils, das in mehr als \(RestockRule.frequentRepairUses) Reparaturen verbaut wurde. Die Liste zeigt nur, was zu bestellen ist, und ändert keinen Bestand: Gekauftes kommt über den Beleg-Scan ins Lager. Die Liste bleibt auf diesem Gerät.")
+                Text("Knapp im Lager = höchstens 1 Stück eines Teils, das in mehr als \(RestockRule.frequentRepairUses) Reparaturen verbaut wurde. Die Liste zeigt nur, was zu bestellen ist, und ändert keinen Bestand: Gekauftes kommt über den Beleg-Scan ins Lager, danach verschwinden vorgemerkte Teile von selbst. Die Liste bleibt auf diesem Gerät.")
                     .font(.footnote).foregroundStyle(.secondary)
             }
             .listRowBackground(Color.clear)
@@ -210,7 +210,11 @@ struct ShoppingListView: View {
             }
         }
         .sheet(isPresented: $showingPicker) {
-            PartPickerSheet(parts: parts.parts) { store.addToList($0.clientId) }
+            PartPickerSheet(parts: parts.parts) { store.addToList($0.clientId, onHand: parts.onHand(for: $0)) }
+        }
+        .onAppear {
+            store.removeBought(onHand: Dictionary(parts.parts.map { ($0.clientId, parts.onHand(for: $0)) },
+                                                  uniquingKeysWith: { first, _ in first }))
         }
         .accessibilityIdentifier("shopping.list")
     }

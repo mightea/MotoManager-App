@@ -85,6 +85,28 @@ struct PartsPlanningTests {
         #expect(uses[carb] == nil)
     }
 
+    /// A hand-added part leaves the list once its stock rises (a scanned
+    /// receipt), and the store forgets it for good.
+    @Test func manualEntriesLeaveOnceStockRises() {
+        let before = ShoppingList.Part(id: plug, name: "Zündkerze W8AC", onHand: 2, unitPrice: nil)
+        let after = ShoppingList.Part(id: plug, name: "Zündkerze W8AC", onHand: 4, unitPrice: nil)
+        #expect(ShoppingList.items(parts: [before], neededForIssue: [], manual: [plug], dismissed: [:],
+                                   quantities: [:], manualOnHand: [plug: 2]).count == 1)
+        #expect(ShoppingList.items(parts: [after], neededForIssue: [], manual: [plug], dismissed: [:],
+                                   quantities: [:], manualOnHand: [plug: 2]).isEmpty)
+
+        let name = "planning-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: name)!
+        defer { defaults.removePersistentDomain(forName: name) }
+        let store = PartsPlanningStore(defaults: defaults)
+        store.addToList(plug, onHand: 2)
+        store.addToList(filter, onHand: 0)
+        store.removeBought(onHand: [plug: 2, filter: 0])
+        #expect(store.manual == [plug, filter])
+        store.removeBought(onHand: [plug: 4, filter: 0])
+        #expect(PartsPlanningStore(defaults: defaults).manual == [filter])
+    }
+
     @Test func clearedItemsStayOffUntilStockChanges() {
         let part = ShoppingList.Part(id: carb, name: "Vergaser-Dichtsatz", onHand: 1, unitPrice: nil, repairUses: 4)
         #expect(ShoppingList.items(parts: [part], neededForIssue: [], manual: [], dismissed: [carb: 1], quantities: [:]).isEmpty)
@@ -97,7 +119,7 @@ struct PartsPlanningTests {
         let defaults = UserDefaults(suiteName: name)!
         defer { defaults.removePersistentDomain(forName: name) }
         let store = PartsPlanningStore(defaults: defaults)
-        store.addToList(plug)
+        store.addToList(plug, onHand: 4)
         store.setQuantity(3, for: plug)
         let reloaded = PartsPlanningStore(defaults: defaults)
         #expect(reloaded.manual == [plug])
