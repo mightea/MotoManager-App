@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.20.0](https://github.com/mightea/MotoManager-App/compare/v0.19.0...v0.20.0) (2026-11-09)
+
+
+### Features
+
+* add document types with a library filter, upload and edit pickers ([1589688](https://github.com/mightea/MotoManager-App/commit/15896885526447b7048bd217200ed9d91728f2a5))
+* drop hand-added shopping list parts once their stock rises ([0a4ba5c](https://github.com/mightea/MotoManager-App/commit/0a4ba5c39ebb63845b8e90670816ac203ba5ad6b))
+* list only parts used in more than three repairs as low in stock ([149d532](https://github.com/mightea/MotoManager-App/commit/149d532973b1df1c442d9a630791a6554702b6a3))
+* make the shopping list informational instead of booking stock ([1a6d10a](https://github.com/mightea/MotoManager-App/commit/1a6d10a9107579a0fc92e5a836a1b3d2d2984c91))
+* sync part-defect links with the server and show them on parts and defects ([168fd8e](https://github.com/mightea/MotoManager-App/commit/168fd8eab5ece8240c55cc1709b6fa3d6689838e))
+
 ## [0.19.0](https://github.com/mightea/MotoManager-App/compare/v0.18.0...v0.19.0) (2026-11-08)
 
 
