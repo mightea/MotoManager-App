@@ -368,7 +368,7 @@ struct PartsView: View {
             }
         }
         if lowStockOnly {
-            result = result.filter { viewModel.onHand(for: $0) <= 1 }
+            result = result.filter { viewModel.isLow($0) }
         }
         let query = searchText.trimmingCharacters(in: .whitespaces).lowercased()
         if !query.isEmpty {
@@ -407,7 +407,7 @@ struct PartsView: View {
     }
 
     private var lowStockCount: Int {
-        viewModel.parts.filter { viewModel.onHand(for: $0) <= 1 }.count
+        viewModel.parts.filter { viewModel.isLow($0) }.count
     }
 
     @ViewBuilder
@@ -481,8 +481,8 @@ struct PartsView: View {
                     if !empty.isEmpty { groupHeader("Ohne Teile", count: empty.count, tint: nil) }
                 }
             }
-            let low = groupByPlace ? [] : filteredParts.filter { viewModel.onHand(for: $0) <= 1 }
-            let stocked = groupByPlace ? [] : filteredParts.filter { viewModel.onHand(for: $0) > 1 }
+            let low = groupByPlace ? [] : filteredParts.filter { viewModel.isLow($0) }
+            let stocked = groupByPlace ? [] : filteredParts.filter { !viewModel.isLow($0) }
             if !low.isEmpty {
                 Section {
                     ForEach(low, id: \.clientId) { partRow($0) }
@@ -494,7 +494,7 @@ struct PartsView: View {
                 Section {
                     ForEach(stocked, id: \.clientId) { partRow($0) }
                 } header: {
-                    groupHeader("Auf Lager", count: stocked.count, tint: nil)
+                    groupHeader(low.isEmpty ? "Teile" : "Weitere Teile", count: stocked.count, tint: nil)
                 }
             }
             if sizeClass != .regular {
@@ -880,9 +880,10 @@ private struct PartCard: View {
         .padding(.vertical, 4)
     }
 
-    /// Orange at one piece, red at none.
+    /// Orange at one piece, red at none — only for frequently used parts.
     private var stockTint: Color {
-        onHand <= 0 ? Theme.Colors.accent : onHand == 1 ? .orange : Theme.Colors.primary
+        guard viewModel.isLow(part) else { return Theme.Colors.primary }
+        return onHand <= 0 ? Theme.Colors.accent : .orange
     }
 
     var body: some View {

@@ -40,7 +40,8 @@ struct PartsPlanner {
         let issueNeeds = Set(needs.filter { if case .issue = $0.reason { true } else { false } }.map(\.partId))
         return ShoppingList.items(
             parts: parts.parts.map { .init(id: $0.clientId, name: $0.name, onHand: parts.onHand(for: $0),
-                                           unitPrice: parts.lastUnitPrice(for: $0)) },
+                                           unitPrice: parts.lastUnitPrice(for: $0),
+                                           repairUses: parts.repairUses(for: $0)) },
             neededForIssue: issueNeeds, manual: store.manual, dismissed: store.dismissed,
             quantities: store.quantities)
     }
@@ -190,7 +191,7 @@ struct ShoppingListView: View {
                 }
             }
             Section {
-                Text("Abhaken = gekauft: fragt nach Preis und Lagerort und bucht den Bestand. Die Liste bleibt auf diesem Gerät.")
+                Text("Knapp im Lager = höchstens 1 Stück eines Teils, das in mehr als \(RestockRule.frequentRepairUses) Reparaturen verbaut wurde. Abhaken = gekauft: fragt nach Preis und Lagerort und bucht den Bestand. Die Liste bleibt auf diesem Gerät.")
                     .font(.footnote).foregroundStyle(.secondary)
             }
             .listRowBackground(Color.clear)

@@ -394,18 +394,20 @@ struct PartDetailView: View {
 
     // MARK: - Stock card
 
-    /// Orange at one piece, red at none.
+    /// Orange at one piece, red at none — only for frequently used parts.
+    private var isLow: Bool { viewModel.isLow(part) }
     private var stockTint: Color {
-        onHand <= 0 ? Theme.Colors.accent : onHand == 1 ? .orange : Theme.Colors.primary
+        guard isLow else { return Theme.Colors.primary }
+        return onHand <= 0 ? Theme.Colors.accent : .orange
     }
 
     private var stockCardSection: some View {
         Section {
             HStack(spacing: Theme.Spacing.m - 4) {
                 VStack(alignment: .leading, spacing: 1) {
-                    Text(onHand <= 1 ? "Knapp · \(onHand) auf Lager" : "Auf Lager")
+                    Text(isLow ? "Knapp · \(onHand) auf Lager" : "Auf Lager")
                         .font(.caption.weight(.bold))
-                        .foregroundStyle(onHand <= 1 ? AnyShapeStyle(stockTint) : AnyShapeStyle(.secondary))
+                        .foregroundStyle(isLow ? AnyShapeStyle(stockTint) : AnyShapeStyle(.secondary))
                     HStack(alignment: .firstTextBaseline, spacing: 5) {
                         Text("\(onHand)")
                             .font(.system(size: 30, weight: .heavy))

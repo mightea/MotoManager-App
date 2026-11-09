@@ -51,7 +51,7 @@ struct PartsPlanningTests {
         let items = ShoppingList.items(
             parts: [.init(id: carb, name: "Vergaser-Dichtsatz", onHand: 1, unitPrice: 38),
                     .init(id: plug, name: "Zündkerze W8AC", onHand: 4, unitPrice: 5),
-                    .init(id: filter, name: "Ölfilter", onHand: 0, unitPrice: 12.5),
+                    .init(id: filter, name: "Ölfilter", onHand: 0, unitPrice: 12.5, repairUses: 4),
                     .init(id: regulator, name: "Regler Wehrle", onHand: 3, unitPrice: nil)],
             neededForIssue: [carb], manual: [regulator], dismissed: [:], quantities: [:])
         #expect(items.map(\.name) == ["Vergaser-Dichtsatz", "Ölfilter", "Regler Wehrle"])
@@ -60,10 +60,35 @@ struct PartsPlanningTests {
         #expect(items[1].estimate == 25)
     }
 
+    /// Low stock alone is no reason to buy: only parts booked in more than
+    /// three repairs land in "Knapp im Lager".
+    @Test func lowGroupOnlyHoldsFrequentlyUsedParts() {
+        let items = ShoppingList.items(
+            parts: [.init(id: filter, name: "Ölfilter", onHand: 0, unitPrice: nil, repairUses: 3),
+                    .init(id: plug, name: "Zündkerze W8AC", onHand: 1, unitPrice: nil, repairUses: 4),
+                    .init(id: regulator, name: "Regler Wehrle", onHand: 2, unitPrice: nil, repairUses: 9)],
+            neededForIssue: [], manual: [], dismissed: [:], quantities: [:])
+        #expect(items.map(\.name) == ["Zündkerze W8AC"])
+        #expect(items.map(\.group) == [.low])
+    }
+
+    @Test func repairUsesCountDistinctRepairs() {
+        let repair = UUID()
+        let uses = RestockRule.repairUses([
+            .init(partId: plug, repairClientId: repair, repairServerId: nil),
+            .init(partId: plug, repairClientId: repair, repairServerId: 7),
+            .init(partId: plug, repairClientId: nil, repairServerId: 8),
+            .init(partId: plug, repairClientId: nil, repairServerId: nil),
+            .init(partId: filter, repairClientId: nil, repairServerId: 8)])
+        #expect(uses[plug] == 2)
+        #expect(uses[filter] == 1)
+        #expect(uses[carb] == nil)
+    }
+
     @Test func clearedItemsStayOffUntilStockChanges() {
-        let part = ShoppingList.Part(id: carb, name: "Vergaser-Dichtsatz", onHand: 1, unitPrice: nil)
+        let part = ShoppingList.Part(id: carb, name: "Vergaser-Dichtsatz", onHand: 1, unitPrice: nil, repairUses: 4)
         #expect(ShoppingList.items(parts: [part], neededForIssue: [], manual: [], dismissed: [carb: 1], quantities: [:]).isEmpty)
-        let lower = ShoppingList.Part(id: carb, name: "Vergaser-Dichtsatz", onHand: 0, unitPrice: nil)
+        let lower = ShoppingList.Part(id: carb, name: "Vergaser-Dichtsatz", onHand: 0, unitPrice: nil, repairUses: 4)
         #expect(ShoppingList.items(parts: [lower], neededForIssue: [], manual: [], dismissed: [carb: 1], quantities: [:]).count == 1)
     }
 

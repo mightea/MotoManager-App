@@ -103,6 +103,20 @@ class PartsViewModel: ObservableObject {
         return stocked - consumed
     }
 
+    /// Repairs the part was booked in (manual bookings don't count).
+    func repairUses(for part: SDPart) -> Int {
+        let bookings = consumptionsByPart[part.clientId, default: []].map {
+            RestockRule.Booking(partId: part.clientId, repairClientId: $0.maintenanceClientId,
+                                repairServerId: $0.maintenanceServerId)
+        }
+        return RestockRule.repairUses(bookings)[part.clientId] ?? 0
+    }
+
+    /// "Knapp": one piece or none of a frequently used part (`RestockRule`).
+    func isLow(_ part: SDPart) -> Bool {
+        RestockRule.isLow(onHand: onHand(for: part), repairUses: repairUses(for: part))
+    }
+
     func stocks(for part: SDPart) -> [SDPartStock] {
         stocksByPart[part.clientId, default: []]
     }

@@ -96,6 +96,34 @@ enum PartNeeds {
     }
 }
 
+// MARK: - Knapp im Lager
+
+/// A part only counts as "knapp" (worth restocking) when it is used often:
+/// booked in more than `frequentRepairUses` repairs (service records).
+/// One-off parts at one piece or none are no reason to buy. Same rule as
+/// the webapp (`app/utils/restock.ts`).
+enum RestockRule {
+    static let frequentRepairUses = 3
+
+    /// One part booking: the repair it belongs to, by local or server id.
+    struct Booking { let partId: UUID; let repairClientId: UUID?; let repairServerId: Int? }
+
+    /// Distinct repairs per part; bookings without a repair don't count.
+    static func repairUses(_ bookings: [Booking]) -> [UUID: Int] {
+        var repairs: [UUID: Set<String>] = [:]
+        for booking in bookings {
+            guard let key = booking.repairClientId.map({ "c\($0)" }) ?? booking.repairServerId.map({ "s\($0)" })
+            else { continue }
+            repairs[booking.partId, default: []].insert(key)
+        }
+        return repairs.mapValues(\.count)
+    }
+
+    static func isLow(onHand: Int, repairUses: Int) -> Bool {
+        onHand <= 1 && repairUses > frequentRepairUses
+    }
+}
+
 // MARK: - Einkaufsliste
 
 /// One line of the shopping list.
@@ -127,17 +155,21 @@ struct ShoppingItem: Equatable, Identifiable {
 /// Builds the shopping list from stock levels, needs and the user's own
 /// entries. Pure, so it can be tested.
 enum ShoppingList {
-    struct Part { let id: UUID; let name: String; let onHand: Int; let unitPrice: Double? }
+    struct Part {
+        let id: UUID; let name: String; let onHand: Int; let unitPrice: Double?
+        /// Repairs the part was booked in (see `RestockRule`).
+        var repairUses: Int = 0
+    }
 
-    /// Parts at one piece or none, parts an open issue needs (unless enough
-    /// are stocked) and manual entries. A part the user cleared stays off
+    /// Frequently used parts at one piece or none (`RestockRule`), parts an
+    /// open issue needs (unless enough are stocked) and manual entries. A part the user cleared stays off
     /// until its stock changes.
     static func items(parts: [Part], neededForIssue: Set<UUID>, manual: Set<UUID>,
                       dismissed: [UUID: Int], quantities: [UUID: Int]) -> [ShoppingItem] {
         parts.compactMap { part -> ShoppingItem? in
             let group: ShoppingItem.Group
             if neededForIssue.contains(part.id) && part.onHand <= 1 { group = .issue }
-            else if part.onHand <= 1 { group = .low }
+            else if RestockRule.isLow(onHand: part.onHand, repairUses: part.repairUses) { group = .low }
             else if manual.contains(part.id) { group = .manual }
             else { return nil }
             if !manual.contains(part.id), let cleared = dismissed[part.id], cleared == part.onHand { return nil }
