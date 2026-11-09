@@ -174,16 +174,31 @@ struct DocumentLibraryView: View {
     let isUploading: Bool
     let onUpload: () -> Void
     let onScan: () -> Void
+    /// Opens the title/type editor; offered only on documents the user owns.
+    var onEdit: ((Document) -> Void)? = nil
     /// Set in the iPad list column, which has no navigation bar of its own.
     var onBack: (() -> Void)? = nil
 
     @State private var searchText = ""
     @State private var filter: DocumentFilter = .all
+    @State private var typeFilter: DocumentTypeFilter = .all
 
     private var query: String { searchText.trimmingCharacters(in: .whitespaces) }
 
+    /// Types present across the library; empty (filter hidden) when no
+    /// document has one.
+    private var typeOptions: [DocumentTypeFilter] {
+        DocumentTypeFilter.options(for: viewModel.documents + viewModel.commonDocuments)
+    }
+
+    /// The picked type filter, or "all" once no document of that type is left.
+    private var activeTypeFilter: DocumentTypeFilter {
+        typeOptions.contains(typeFilter) ? typeFilter : .all
+    }
+
     private func matches(_ document: Document) -> Bool {
         guard query.isEmpty || document.title.localizedStandardContains(query) else { return false }
+        guard activeTypeFilter.matches(document) else { return false }
         if filter == .offline { return offlineStore.status(of: document) == .available }
         return true
     }
@@ -344,6 +359,7 @@ struct DocumentLibraryView: View {
                     chip(.common, "Allgemein", count: viewModel.commonDocuments.count)
                 }
                 chip(.offline, "Offline", count: offlineCount)
+                if !typeOptions.isEmpty { typeMenu }
             }
         }
         .scrollClipDisabled()
@@ -367,6 +383,39 @@ struct DocumentLibraryView: View {
         .accessibilityAddTraits(active ? .isSelected : [])
     }
 
+    /// "Typ" filter: a chip that opens a menu of the types present, styled
+    /// like the other chips and filled while a type is picked.
+    private var typeMenu: some View {
+        let active = activeTypeFilter != .all
+        return Menu {
+            Picker("Typ", selection: $typeFilter) {
+                Text(DocumentTypeFilter.all.label).tag(DocumentTypeFilter.all)
+                ForEach(typeOptions, id: \.self) { option in
+                    if case .type(let type) = option {
+                        Label(option.label, systemImage: type.systemImage).tag(option)
+                    } else {
+                        Text(option.label).tag(option)
+                    }
+                }
+            }
+        } label: {
+            HStack(spacing: 4) {
+                Text(active ? activeTypeFilter.label : "Typ").lineLimit(1)
+                Image(systemName: "chevron.down").imageScale(.small).opacity(0.7)
+            }
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(active ? Color.white : Color.primary)
+            .padding(.horizontal, 12)
+            .frame(minHeight: 34)
+            .background(active ? Theme.Colors.primary : Theme.Colors.backgroundElevated, in: Capsule())
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Typ-Filter")
+        .accessibilityValue(activeTypeFilter.label)
+        .accessibilityIdentifier("documents.typeFilter")
+    }
+
     private func header(_ title: String, count: Int) -> some View {
         HStack {
             Text(title)
@@ -383,10 +432,11 @@ struct DocumentLibraryView: View {
                     Text(document.title)
                         .font(.subheadline.weight(.semibold))
                         .lineLimit(1)
-                    Text(subtitle(document, shared: shared))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
+                    // Chip beside the date; stacked when Dynamic Type leaves no room.
+                    ViewThatFits(in: .horizontal) {
+                        HStack(spacing: 6) { rowMeta(document, shared: shared) }
+                        VStack(alignment: .leading, spacing: 2) { rowMeta(document, shared: shared) }
+                    }
                 }
                 Spacer(minLength: 0)
                 DocumentOfflineMark(status: offlineStore.status(of: document))
@@ -397,7 +447,12 @@ struct DocumentLibraryView: View {
         }
         .buttonStyle(.plain)
         .selectedRecord(selection?.id == document.id)
-        .contextMenu { DocumentOfflineMenu(document: document, store: offlineStore) }
+        .contextMenu {
+            if let onEdit, viewModel.canEdit(document) {
+                Button("Titel und Typ bearbeiten", systemImage: "pencil") { onEdit(document) }
+            }
+            DocumentOfflineMenu(document: document, store: offlineStore)
+        }
         .swipeActions(edge: .trailing, allowsFullSwipe: true) {
             if offlineStore.status(of: document) == .available {
                 Button { offlineStore.removeOffline(document) } label: {
@@ -411,6 +466,15 @@ struct DocumentLibraryView: View {
             }
         }
         .accessibilityIdentifier("documents.row.\(document.id)")
+    }
+
+    @ViewBuilder
+    private func rowMeta(_ document: Document, shared: Bool) -> some View {
+        DocumentTypeChip(type: document.documentType)
+        Text(subtitle(document, shared: shared))
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
     }
 
     private func subtitle(_ document: Document, shared: Bool) -> String {

@@ -100,4 +100,7 @@ struct Document: Codable, Identifiable, Hashable {
     let createdAt: String
     let updatedAt: String
     let motorcycleIds: [Int]?
+    /// Type key (see `DocumentType`); `nil` when unset or from an older API /
+    /// cache that has no `docType` key.
+    var docType: String? = nil
 }

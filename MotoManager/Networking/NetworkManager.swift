@@ -450,6 +450,7 @@ class NetworkManager {
     func createDocument(
         title: String,
         motorcycleIds: [Int],
+        docType: DocumentType? = nil,
         fileName: String,
         mimeType: String,
         data: Data
@@ -458,11 +459,25 @@ class NetworkManager {
             ("title", title),
             ("isPrivate", "false"),
         ]
+        if let docType { fields.append(("docType", docType.key)) }
         fields.append(contentsOf: motorcycleIds.map { ("motorcycleIds", String($0)) })
         let request = try makeMultipartRequest(
             path: "/api/documents",
             fields: fields,
             file: ("file", fileName, mimeType, data)
+        )
+        let response = try await performRequest(request)
+        return try Self.decode(DocumentResponse.self, from: response).document
+    }
+
+    /// Owner-only edit of a document's title and type (`PUT /api/documents/{id}`,
+    /// multipart). Fields left out keep their value; an empty `docType`
+    /// clears the type. Assignments and the file are untouched.
+    func updateDocument(id: Int, title: String, docType: DocumentType?) async throws -> Document {
+        let request = try makeMultipartRequest(
+            path: "/api/documents/\(id)",
+            method: "PUT",
+            fields: [("title", title), ("docType", DocumentType.formValue(docType))]
         )
         let response = try await performRequest(request)
         return try Self.decode(DocumentResponse.self, from: response).document

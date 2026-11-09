@@ -33,6 +33,11 @@ struct WorkshopView: View {
     /// column on wide layouts.
     @State private var showingLibrary = false
     @State private var showingScanner = false
+    /// The scan the scanner handed back, offered for upload once it closed.
+    @State private var scannedPDF: Data?
+    /// A picked file or scan waiting for its title and type.
+    @State private var pendingUpload: PendingDocumentUpload?
+    @State private var editingDocument: Document?
     // Read the workspace width before NavigationSplitView narrows its columns.
     @Environment(\.horizontalSizeClass) private var sizeClass
 
@@ -125,7 +130,8 @@ struct WorkshopView: View {
                     referenceList
                 }
             } detail: { document in
-                DocumentViewerView(document: document)
+                DocumentViewerView(document: document,
+                                   onEdit: viewModel.canEdit(document) ? { editingDocument = document } : nil)
             }
         }
         .onChange(of: viewModel.documents + viewModel.commonDocuments) { _, documents in
@@ -156,14 +162,33 @@ struct WorkshopView: View {
             AddTirePressureView(viewModel: viewModel)
                 .glassSheet()
         }
-        .fullScreenCover(isPresented: $showingScanner) {
+        .fullScreenCover(isPresented: $showingScanner, onDismiss: {
+            // Ask for title and type only once the scanner is gone — a sheet
+            // presented while the cover dismisses would be dropped.
+            guard let pdf = scannedPDF else { return }
+            scannedPDF = nil
+            let stamp = Date().formatted(.dateTime.day().month(.twoDigits).year().locale(Formatters.displayLocale))
+            pendingUpload = PendingDocumentUpload(title: "Scan \(stamp)", fileName: "Scan.pdf",
+                                                  mimeType: "application/pdf") { pdf }
+        }) {
             DocumentScannerView { pdf in
+                scannedPDF = pdf
                 showingScanner = false
-                guard let pdf else { return }
-                let stamp = Date().formatted(.dateTime.day().month(.twoDigits).year().locale(Formatters.displayLocale))
-                upload(title: "Scan \(stamp)", fileName: "Scan.pdf", mimeType: "application/pdf") { pdf }
             }
             .ignoresSafeArea()
+        }
+        .sheet(item: $pendingUpload) { pending in
+            DocumentFormView(mode: .upload(pending), viewModel: viewModel, onUpload: { pending, title, docType in
+                upload(title: title, docType: docType, fileName: pending.fileName, mimeType: pending.mimeType,
+                       data: pending.data)
+            })
+            .glassSheet()
+        }
+        .sheet(item: $editingDocument) { document in
+            DocumentFormView(mode: .edit(document), viewModel: viewModel, onSaved: { updated in
+                if presentedDocument?.id == updated.id { presentedDocument = updated }
+            })
+            .glassSheet()
         }
         .fileImporter(
             isPresented: $showingDocumentImporter,
@@ -585,18 +610,20 @@ struct WorkshopView: View {
                             isUploading: isUploadingDocument,
                             onUpload: { showingDocumentImporter = true },
                             onScan: { showingScanner = true },
+                            onEdit: { editingDocument = $0 },
                             onBack: onBack)
     }
 
     /// Uploads one file and reports failures in the shared alert.
-    private func upload(title: String, fileName: String, mimeType: String,
+    private func upload(title: String, docType: DocumentType?, fileName: String, mimeType: String,
                         data: @escaping @Sendable () throws -> Data) {
         isUploadingDocument = true
         Task {
             defer { isUploadingDocument = false }
             do {
                 let bytes = try await Task.detached(priority: .userInitiated) { try data() }.value
-                try await viewModel.uploadDocument(title: title, fileName: fileName, mimeType: mimeType, data: bytes)
+                try await viewModel.uploadDocument(title: title, docType: docType, fileName: fileName,
+                                                   mimeType: mimeType, data: bytes)
             } catch {
                 documentUploadError = error.localizedDescription
             }
@@ -607,9 +634,11 @@ struct WorkshopView: View {
         do {
             guard let url = try result.get().first else { return }
             let type = UTType(filenameExtension: url.pathExtension)
-            upload(title: url.deletingPathExtension().lastPathComponent,
-                   fileName: url.lastPathComponent,
-                   mimeType: type?.preferredMIMEType ?? "application/octet-stream") {
+            pendingUpload = PendingDocumentUpload(
+                title: url.deletingPathExtension().lastPathComponent,
+                fileName: url.lastPathComponent,
+                mimeType: type?.preferredMIMEType ?? "application/octet-stream"
+            ) {
                 let hasAccess = url.startAccessingSecurityScopedResource()
                 defer { if hasAccess { url.stopAccessingSecurityScopedResource() } }
                 return try Data(contentsOf: url, options: .mappedIfSafe)

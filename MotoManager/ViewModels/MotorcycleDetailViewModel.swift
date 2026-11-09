@@ -164,6 +164,7 @@ class MotorcycleDetailViewModel: ObservableObject {
     /// online-only, unlike the SwiftData-backed write entities.
     func uploadDocument(
         title: String,
+        docType: DocumentType? = nil,
         fileName: String,
         mimeType: String,
         data: Data
@@ -171,10 +172,30 @@ class MotorcycleDetailViewModel: ObservableObject {
         _ = try await NetworkManager.shared.createDocument(
             title: title,
             motorcycleIds: [motorcycle.id],
+            docType: docType,
             fileName: fileName,
             mimeType: mimeType,
             data: data
         )
+        try await reloadDocuments()
+    }
+
+    /// Whether the signed-in user owns `document` — only owners may edit its
+    /// title and type. The garage only lists the user's own motorcycles, so
+    /// the bike's `userId` is the current user.
+    func canEdit(_ document: Document) -> Bool {
+        document.ownerId == motorcycle.userId
+    }
+
+    /// Saves a document's title and type (online-only, like uploads) and
+    /// returns the updated document.
+    func updateDocument(_ document: Document, title: String, docType: DocumentType?) async throws -> Document {
+        let updated = try await NetworkManager.shared.updateDocument(id: document.id, title: title, docType: docType)
+        try await reloadDocuments()
+        return (documents + commonDocuments).first { $0.id == updated.id } ?? updated
+    }
+
+    private func reloadDocuments() async throws {
         let allDocs = try await NetworkManager.shared.fetchDocuments()
         documents = allDocs.filter { $0.motorcycleIds?.contains(motorcycle.id) ?? false }
         commonDocuments = allDocs.filter { ($0.motorcycleIds ?? []).isEmpty }

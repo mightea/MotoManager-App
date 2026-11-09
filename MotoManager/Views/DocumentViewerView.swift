@@ -10,6 +10,8 @@ import SwiftUI
 /// offline use follows Einstellungen › Offline-Dokumente.
 struct DocumentViewerView: View {
     let document: Document
+    /// Opens the title/type editor; `nil` for documents the user doesn't own.
+    var onEdit: (() -> Void)? = nil
 
     @ObservedObject private var offlineStore = DocumentOfflineStore.shared
     @StateObject private var reader = PDFReaderController()
@@ -37,7 +39,8 @@ struct DocumentViewerView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .principal) {
-                    ReaderTitle(title: document.title, status: statusLine, statusColor: statusColor)
+                    ReaderTitle(title: document.title, type: document.documentType, status: statusLine,
+                                statusColor: statusColor)
                 }
                 ToolbarItemGroup(placement: .topBarTrailing) { toolbarButtons }
             }
@@ -114,7 +117,7 @@ struct DocumentViewerView: View {
             Button("Vollbild", systemImage: "arrow.up.left.and.arrow.down.right") { showingFullScreen = true }
                 .accessibilityIdentifier("reader.fullScreen")
         }
-        ReaderMoreMenu(document: document, shareURL: shareURL, keepScreenOn: $keepScreenOn)
+        ReaderMoreMenu(document: document, shareURL: shareURL, keepScreenOn: $keepScreenOn, onEdit: onEdit)
     }
 
     // MARK: - Offline state
@@ -696,6 +699,7 @@ private struct PageThumbnail: View {
 
 private struct ReaderTitle: View {
     let title: String
+    let type: DocumentType?
     let status: String
     let statusColor: Color
 
@@ -703,6 +707,15 @@ private struct ReaderTitle: View {
         VStack(spacing: 0) {
             Text(title).font(.subheadline.weight(.bold)).lineLimit(1)
             HStack(spacing: 4) {
+                if let type {
+                    // Plain caps here: the bar has no room for a chip's padding.
+                    Text(type.label.uppercased())
+                        .font(.system(.caption2, design: .monospaced).weight(.heavy))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .accessibilityLabel("Typ: \(type.label)")
+                    Text("·").font(.caption2).foregroundStyle(.secondary).accessibilityHidden(true)
+                }
                 if statusColor == .green { Circle().fill(.green).frame(width: 6, height: 6) }
                 Text(status).font(.caption2.weight(.medium)).foregroundStyle(statusColor).lineLimit(1)
             }
@@ -748,10 +761,15 @@ private struct ReaderMoreMenu: View {
     let document: Document
     let shareURL: URL?
     @Binding var keepScreenOn: Bool
+    let onEdit: (() -> Void)?
     @ObservedObject private var offlineStore = DocumentOfflineStore.shared
 
     var body: some View {
         Menu {
+            if let onEdit {
+                Button("Titel und Typ bearbeiten", systemImage: "pencil", action: onEdit)
+                    .accessibilityIdentifier("reader.edit")
+            }
             if let shareURL {
                 ShareLink(item: shareURL, subject: Text(document.title)) {
                     Label("Teilen", systemImage: "square.and.arrow.up")
