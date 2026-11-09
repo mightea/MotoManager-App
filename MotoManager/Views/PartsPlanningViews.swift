@@ -139,15 +139,13 @@ struct NeededPartsRows: View {
 // MARK: - Einkaufsliste
 
 /// The shopping list: fills itself from low stock and from parts open issues
-/// need, plus the user's own entries. Ticking an item books it in.
+/// need, plus the user's own entries. Informational only — what to order;
+/// it never books stock (purchases come in by scanning the receipt).
 struct ShoppingListView: View {
     @ObservedObject var parts: PartsViewModel
     @ObservedObject var bike: MotorcycleDetailViewModel
     @ObservedObject private var store = PartsPlanningStore.shared
     @ObservedObject private var links = IssuePartLinkStore.shared
-    @State private var booking: SDPart?
-    @State private var bookingQuantity = 1
-    @State private var onHandBeforeBooking = 0
     @State private var showingPicker = false
 
     private var planner: PartsPlanner { PartsPlanner(parts: parts, bike: bike, store: store, links: links) }
@@ -191,7 +189,7 @@ struct ShoppingListView: View {
                 }
             }
             Section {
-                Text("Knapp im Lager = höchstens 1 Stück eines Teils, das in mehr als \(RestockRule.frequentRepairUses) Reparaturen verbaut wurde. Abhaken = gekauft: fragt nach Preis und Lagerort und bucht den Bestand. Die Liste bleibt auf diesem Gerät.")
+                Text("Knapp im Lager = höchstens 1 Stück eines Teils, das in mehr als \(RestockRule.frequentRepairUses) Reparaturen verbaut wurde. Die Liste zeigt nur, was zu bestellen ist, und ändert keinen Bestand: Gekauftes kommt über den Beleg-Scan ins Lager. Die Liste bleibt auf diesem Gerät.")
                     .font(.footnote).foregroundStyle(.secondary)
             }
             .listRowBackground(Color.clear)
@@ -211,10 +209,6 @@ struct ShoppingListView: View {
                 }
             }
         }
-        .sheet(item: $booking, onDismiss: finishBooking) { part in
-            AddPartStockView(viewModel: parts, part: part, initialQuantity: bookingQuantity)
-                .glassSheet()
-        }
         .sheet(isPresented: $showingPicker) {
             PartPickerSheet(parts: parts.parts) { store.addToList($0.clientId) }
         }
@@ -223,24 +217,13 @@ struct ShoppingListView: View {
 
     private func row(_ item: ShoppingItem) -> some View {
         HStack(spacing: Theme.Spacing.m - 4) {
-            Button {
-                guard let part = planner.part(item.partId) else { return }
-                bookingQuantity = item.quantity
-                onHandBeforeBooking = item.onHand
-                booking = part
-            } label: {
-                Image(systemName: "circle")
-                    .font(.title3)
-                    .foregroundStyle(.secondary)
-                    .frame(width: 44, height: 44)
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("\(item.name) gekauft, Bestand verbuchen")
+            StockPill(onHand: item.onHand)
             VStack(alignment: .leading, spacing: 2) {
                 Text(item.name).font(.subheadline.weight(.bold)).lineLimit(2)
                 Text(subtitle(item)).font(.caption).foregroundStyle(.secondary).lineLimit(1)
             }
             Spacer(minLength: 0)
+            // Quantity to order — changes only the list, never the stock.
             Stepper(value: Binding(get: { item.quantity }, set: { store.setQuantity($0, for: item.partId) }), in: 1...99) {
                 Text("\(item.quantity)").font(.subheadline.weight(.heavy)).monospacedDigit()
             }
@@ -256,15 +239,6 @@ struct ShoppingListView: View {
         var parts = [item.onHand <= 0 ? "nicht an Lager" : "\(item.onHand) an Lager"]
         if let price = item.unitPrice { parts.append("zuletzt " + Formatters.currency(price, code: "CHF")) }
         return parts.joined(separator: " · ")
-    }
-
-    /// A manual entry leaves the list once the purchase is booked.
-    private func finishBooking() {
-        for id in store.manual {
-            if let part = planner.part(id), parts.onHand(for: part) > onHandBeforeBooking {
-                store.clear(id, onHand: parts.onHand(for: part))
-            }
-        }
     }
 }
 
