@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.21.0](https://github.com/mightea/MotoManager-App/compare/v0.20.0...v0.21.0) (2026-11-10)
+
+
+### Features
+
+* add the required medium iPhone screenshots and an iPhone Duo set ([2d8b077](https://github.com/mightea/MotoManager-App/commit/2d8b0773176d8366320b080cb43097854fba2958))
+* align the app store version with the newest release tag on every push ([1f85777](https://github.com/mightea/MotoManager-App/commit/1f85777c984cb259f5cb1de3d5309c7419c9a667))
+* manage territory availability and keep review details updatable ([5cb45e9](https://github.com/mightea/MotoManager-App/commit/5cb45e9db13687e4d67faf61e8c1063b488534f5))
+* refresh the app store listing for submission ([342cfba](https://github.com/mightea/MotoManager-App/commit/342cfbab42f098d7332b3dbf83ea3c2b2772fd0e))
+* rename the app store version and attach the matching build ([026826d](https://github.com/mightea/MotoManager-App/commit/026826da5005f0d491ef63fe9d43275cdd4a58d3))
+* ship builds without a prefilled server URL ([ceb7abf](https://github.com/mightea/MotoManager-App/commit/ceb7abf76e5430f31f0537a86e246e30e56c2563))
+
+
+### Bug Fixes
+
+* include the territory relationship when reading availability ([4f9074b](https://github.com/mightea/MotoManager-App/commit/4f9074b94fbe7df5fdaf33ae44efad3797e7709e))
+* restore the build attachment dropped by the availability change ([9018d27](https://github.com/mightea/MotoManager-App/commit/9018d276f292e6dd857e2ee481b7f443dc09bb8a))
+
 ## [0.20.0](https://github.com/mightea/MotoManager-App/compare/v0.19.0...v0.20.0) (2026-11-09)
 
 
