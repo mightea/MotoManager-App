@@ -28,9 +28,12 @@ Source of truth is the repo:
         territories"
 
     appstore/screenshots/<locale>/<DISPLAY_TYPE>/*.png
-        DISPLAY_TYPE is the raw App Store Connect enum value, e.g.
-        APP_IPHONE_67 (top iPhone slot — takes all 6.9" sizes) or
-        APP_IPAD_PRO_3GEN_129 (13" iPad, 2064x2752).
+        DISPLAY_TYPE is the raw App Store Connect enum value:
+        APP_IPHONE_61 (REQUIRED — "iPhone with Dynamic Island, medium",
+        1206x2622), APP_IPHONE_67 (large display, 1260x2736),
+        APP_IPHONE_DUO (iPhone Duo outer 1398x2034 / inner 2007x2853; not
+        yet in Apple's OpenAPI enum but accepted by the live API) and
+        APP_IPAD_PRO_3GEN_129 (REQUIRED for iPad, 2064x2752).
         Files are uploaded in sorted filename order (01-..., 02-..., ...).
 
 --version X.Y.Z targets (creating or renaming) the editable App Store

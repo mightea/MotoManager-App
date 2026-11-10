@@ -1,17 +1,30 @@
 #!/bin/zsh
 # Generate the App Store screenshots in appstore/screenshots/de-DE/ against
 # the live demo server — clean 9:41 status bar, exact App Store pixel sizes
-# (iPhone 1260x2736, iPad 13" 2064x2752 — per Apple's current screenshot
-# spec; both verified accepted by the ASC API).
+# per Apple's screenshot spec:
+#   APP_IPHONE_61          iPhone 17 Pro   1206x2622  (REQUIRED: "iPhone with
+#                                                     Dynamic Island, medium")
+#   APP_IPHONE_67          iPhone Air      1260x2736  (large display)
+#   APP_IPHONE_DUO         iPhone Duo      1398x2034  (outer display; the
+#                                                     inner 2007x2853 needs an
+#                                                     unfolded simulator, which
+#                                                     Xcode 27.1 can't set up
+#                                                     from the CLI; required
+#                                                     from April 2027 for
+#                                                     iOS 27.1 SDK builds —
+#                                                     undocumented in the ASC
+#                                                     OpenAPI enum but accepted)
+#   APP_IPAD_PRO_3GEN_129  iPad Pro 13"    2064x2752  (REQUIRED for iPad apps)
 #
 # What it does:
 #   1. builds the app + UI test bundle once for the simulator (skip with
 #      --skip-build)
-#   2. per device (iPhone Air, iPad Pro 13-inch): fresh-installs the app,
-#      resets the keychain, overrides the status bar, then runs the
-#      `AppStoreScreenshots` XCUITest (MotoManagerUITests/), which signs in
-#      to the demo server and captures every listing slot
-#   3. copies the PNGs into appstore/screenshots/de-DE/<DISPLAY_TYPE>/
+#   2. per device: fresh-installs the app, resets the keychain, overrides the
+#      status bar, then runs the `AppStoreScreenshots` XCUITest
+#      (MotoManagerUITests/), which signs in to the demo server and captures
+#      every listing slot on every screen of the device
+#   3. keeps the PNGs whose pixel size matches the slot and copies them into
+#      appstore/screenshots/de-DE/<DISPLAY_TYPE>/
 #
 # Data comes from the demo instance (moto-api-demo.herrmann.ltd), seeded
 # with the curated demo garage. Override DEMO_SERVER_URL / DEMO_USER /
@@ -37,8 +50,12 @@ DEMO_PASSWORD="${DEMO_PASSWORD:-demo-admin-2026}"
 BUNDLE_ID="ltd.herrmann.MotoManager"
 TMP="$(mktemp -d)"
 
-IPHONE_NAME="iPhone Air"             # 420x912 pt @3x = 1260x2736 px
-IPAD_NAME="iPad Pro 13-inch (M5)"    # 2064x2752 px
+# device name → display type → accepted pixel sizes (WxH)
+typeset -A SIZES
+SIZES[APP_IPHONE_61]="1206x2622 1179x2556"
+SIZES[APP_IPHONE_67]="1260x2736 1290x2796 1320x2868"
+SIZES[APP_IPHONE_DUO]="1398x2034 2007x2853"
+SIZES[APP_IPAD_PRO_3GEN_129]="2064x2752 2048x2732"
 
 # --- 1. Build ----------------------------------------------------------------
 if [[ "${1:-}" != "--skip-build" ]]; then
@@ -62,6 +79,8 @@ find_udid() {
     awk -v n="$1 (" 'index($0, n) && match($0, /[0-9A-F]{8}-[0-9A-F-]{27}/) \
       {print substr($0, RSTART, RLENGTH)}' | tail -1
 }
+
+px() { sips -g pixelWidth -g pixelHeight "$1" | awk '/pixelWidth/{w=$2} /pixelHeight/{h=$2} END{print w"x"h}'; }
 
 shoot() {  # shoot <device name> <display type>
   local name="$1" display_type="$2" udid
@@ -95,14 +114,26 @@ shoot() {  # shoot <device name> <display type>
 
   mkdir -p "$OUT/$display_type"
   rm -f "$OUT/$display_type"/*.png
-  cp "$shots"/*.png "$OUT/$display_type/"
-  for f in "$OUT/$display_type"/*.png; do
-    echo "    $display_type/$(basename "$f") $(sips -g pixelWidth -g pixelHeight "$f" | awk '/pixel/{printf "%s ", $2}')"
+  local kept=0
+  for f in "$shots"/*.png; do
+    local size; size=$(px "$f")
+    if [[ " ${SIZES[$display_type]} " == *" $size "* ]]; then
+      # Secondary screens (Duo) carry a "-screen-N" suffix; keep the slot
+      # name so the upload order stays by number.
+      cp "$f" "$OUT/$display_type/$(basename "$f" | sed -E 's/-screen-[0-9]+//')"
+      echo "    $display_type/$(basename "$f") $size"
+      kept=$((kept + 1))
+    else
+      echo "    skipped $(basename "$f") ($size is not a $display_type size)"
+    fi
   done
+  [[ $kept -gt 0 ]] || { echo "No $display_type-sized screenshot from $name"; exit 1; }
 }
 
-shoot "$IPHONE_NAME" APP_IPHONE_67          # top iPhone slot; takes all 6.9" sizes
-shoot "$IPAD_NAME"   APP_IPAD_PRO_3GEN_129
+shoot "iPhone 17 Pro"          APP_IPHONE_61           # required slot
+shoot "iPhone Air"             APP_IPHONE_67
+shoot "iPhone Duo"             APP_IPHONE_DUO
+shoot "iPad Pro 13-inch (M5)"  APP_IPAD_PRO_3GEN_129   # required for iPad
 
 rm -rf "$TMP"
 echo "==> Done. Review the PNGs in $OUT before committing."

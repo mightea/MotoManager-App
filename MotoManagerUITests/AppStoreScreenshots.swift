@@ -5,7 +5,10 @@ import XCTest
 /// server credentials and an output directory (`MM_UI_TEST_SHOTS`).
 ///
 /// One PNG per listing slot, written at the simulator's native pixel size
-/// (iPhone Air 1260x2736, iPad Pro 13" 2064x2752 — the App Store sizes).
+/// (iPhone 17 Pro 1206x2622, iPhone Air 1260x2736, iPhone Duo outer display
+/// 1398x2034, iPad Pro 13" 2064x2752 — the App Store sizes). Devices with
+/// several screens (Duo) get one file per screen; the script keeps the
+/// ones with a listing size.
 final class AppStoreScreenshots: XCTestCase {
     @MainActor
     func testShootListing() throws {
@@ -39,9 +42,12 @@ final class AppStoreScreenshots: XCTestCase {
 
         func shot(_ name: String, settle: TimeInterval = 2.5) {
             RunLoop.current.run(until: Date().addingTimeInterval(settle))
-            let png = XCUIScreen.main.screenshot().pngRepresentation
-            let url = URL(fileURLWithPath: outDir).appendingPathComponent("\(name).png")
-            XCTAssertNoThrow(try png.write(to: url))
+            for (index, screen) in XCUIScreen.screens.enumerated() {
+                let png = screen.screenshot().pngRepresentation
+                let file = index == 0 ? "\(name).png" : "\(name)-screen-\(index).png"
+                let url = URL(fileURLWithPath: outDir).appendingPathComponent(file)
+                XCTAssertNoThrow(try png.write(to: url))
+            }
         }
         func tab(_ title: String) {
             let cell = app.cells.matching(NSPredicate(format: "label == %@", title)).firstMatch

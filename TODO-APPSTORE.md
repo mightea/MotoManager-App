@@ -63,6 +63,12 @@ sonst nicht aus).
       `admin-demo` / `demo-admin-2026` funktioniert (Reviewer loggen sich
       damit ein; Server nicht während der Review neu seeden).
 - [ ] Listing im App Store Connect einmal durchlesen (Umbrüche, Umlaute).
+- [ ] Screenshots: vier Sets im Repo – `APP_IPHONE_61` (Pflicht, iPhone 17
+      Pro), `APP_IPHONE_67` (iPhone Air), `APP_IPHONE_DUO` (nur Aussendisplay;
+      der Simulator lässt sich unter Xcode 27.1 nicht per CLI aufklappen,
+      Innendisplay-Shots 2007×2853 später nachreichen – ab April 2027
+      Pflicht) und `APP_IPAD_PRO_3GEN_129` (Pflicht). Im Browser prüfen,
+      dass alle vier Slots gefüllt sind und der Duo-Badge erscheint.
 - [ ] **Submit for Review.** Bei «Metadata Rejected» Texte im Repo anpassen
       und pushen – die Version bleibt bearbeitbar.
 

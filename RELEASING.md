@@ -95,12 +95,17 @@ The store listing lives in the repo and is pushed by
 - **Screenshots** — `appstore/screenshots/de-DE/<DISPLAY_TYPE>/*.png`,
   uploaded in filename order, re-uploaded only when checksums change.
   Regenerate them locally with `scripts/make-screenshots.sh`: it builds the
-  app and the UI-test bundle, fresh-installs on an iPhone Air and an iPad
-  Pro 13-inch simulator, and runs the `AppStoreScreenshots` XCUITest
-  (`MotoManagerUITests/`), which signs in to the live demo server
-  (`moto-api-demo.herrmann.ltd`, `admin-demo` — override via
-  `DEMO_SERVER_URL`/`DEMO_USER`/`DEMO_PASSWORD`), walks the tabs and writes
-  pixel-exact PNGs (1260×2736 / 2064×2752). Review the images, commit.
+  app and the UI-test bundle, fresh-installs on the iPhone 17 Pro, iPhone
+  Air, iPhone Duo and iPad Pro 13-inch simulators, and runs the
+  `AppStoreScreenshots` XCUITest (`MotoManagerUITests/`), which signs in to
+  the live demo server (`moto-api-demo.herrmann.ltd`, `admin-demo` —
+  override via `DEMO_SERVER_URL`/`DEMO_USER`/`DEMO_PASSWORD`), walks the
+  tabs and writes pixel-exact PNGs. Slots: `APP_IPHONE_61` (1206×2622, the
+  one Apple requires), `APP_IPHONE_67` (1260×2736), `APP_IPHONE_DUO`
+  (1398×2034 outer display — the simulator can't be unfolded from the CLI
+  on Xcode 27.1, so the inner 2007×2853 size is not shot; Duo screenshots
+  become mandatory in April 2027 for iOS 27.1 SDK builds) and
+  `APP_IPAD_PRO_3GEN_129` (2064×2752, required). Review the images, commit.
   No `idb` involved (it no longer works with Xcode 27).
 
 Two one-time settings, both in the browser:
