@@ -18,8 +18,14 @@ Source of truth is the repo:
         notes.txt              -> App Review notes (per version, 4000 chars)
         demo_account.txt       -> reviewer demo account username
         demo_password.txt      -> reviewer demo account password
-        (contact name/phone/email stay in App Store Connect — personal data
-        is not kept in the repo; the existing values are left untouched)
+        (contact name/phone/email come from the ASC_REVIEW_CONTACT_FIRST_NAME
+        / _LAST_NAME / _PHONE / _EMAIL environment or the values already in
+        App Store Connect — personal data is not kept in the repo)
+
+    appstore/availability.txt
+        territory codes (ISO 3166-1 alpha-3, one per line) the app is sold
+        in; everything else is switched off, as is "available in new
+        territories"
 
     appstore/screenshots/<locale>/<DISPLAY_TYPE>/*.png
         DISPLAY_TYPE is the raw App Store Connect enum value, e.g.
@@ -270,8 +276,21 @@ def push_app_info_metadata(client, app_id, locale_dir, locale, dry_run):
     log(f"  {locale}: set app-level {sorted(fields)}")
 
 
+REVIEW_CONTACT_ENV = {
+    "contactFirstName": "ASC_REVIEW_CONTACT_FIRST_NAME",
+    "contactLastName": "ASC_REVIEW_CONTACT_LAST_NAME",
+    "contactPhone": "ASC_REVIEW_CONTACT_PHONE",
+    "contactEmail": "ASC_REVIEW_CONTACT_EMAIL",
+}
+
+
 def push_review_details(client, version, review_dir, dry_run):
-    """Notes + demo account shown to App Review (appStoreReviewDetail)."""
+    """Notes + demo account shown to App Review (appStoreReviewDetail).
+
+    App Store Connect requires the four contact attributes on every update,
+    so they are taken from the ASC_REVIEW_CONTACT_* environment (secrets)
+    or, failing that, from the values already stored in App Store Connect.
+    Personal data never lives in the repo."""
     fields = {}
     notes = read_field(review_dir, "notes.txt", 4000)
     if notes is not None:
@@ -292,51 +311,127 @@ def push_review_details(client, version, review_dir, dry_run):
         if "404" not in str(err):
             raise
         existing = None
+    stored = (existing or {}).get("attributes", {})
+    for attr, env_name in REVIEW_CONTACT_ENV.items():
+        value = os.environ.get(env_name, "").strip() or stored.get(attr)
+        if value:
+            fields[attr] = value
+    missing = [a for a in REVIEW_CONTACT_ENV if a not in fields]
     if dry_run:
         verb = "update" if existing else "create"
-        log(f"[dry-run] review details: would {verb} {sorted(fields)}")
+        log(f"[dry-run] review details: would {verb} {sorted(fields)}"
+            + (f" (contact missing: {missing})" if missing else ""))
         return
-    if existing:
-        client.call("PATCH", f"/v1/appStoreReviewDetails/{existing['id']}", {
-            "data": {"id": existing["id"], "type": "appStoreReviewDetails",
-                     "attributes": fields}})
-    else:
-        client.call("POST", "/v1/appStoreReviewDetails", {
-            "data": {"type": "appStoreReviewDetails",
-                     "attributes": fields,
-                     "relationships": {"appStoreVersion": {
-                         "data": {"type": "appStoreVersions",
-                                  "id": version["id"]}}}}})
+    try:
+        if existing:
+            client.call("PATCH", f"/v1/appStoreReviewDetails/{existing['id']}", {
+                "data": {"id": existing["id"], "type": "appStoreReviewDetails",
+                         "attributes": fields}})
+        else:
+            client.call("POST", "/v1/appStoreReviewDetails", {
+                "data": {"type": "appStoreReviewDetails",
+                         "attributes": fields,
+                         "relationships": {"appStoreVersion": {
+                             "data": {"type": "appStoreVersions",
+                                      "id": version["id"]}}}}})
+    except RuntimeError as err:
+        if "contact" in str(err):
+            log(f"  review details: NOT updated — App Store Connect requires "
+                f"the review contact ({', '.join(missing) or 'all fields'}). "
+                "Set the ASC_REVIEW_CONTACT_* secrets or enter the contact "
+                "once in App Store Connect → App Review Information.")
+            return
+        raise
     log(f"  review details: set {sorted(fields)}")
 
 
-def attach_build(client, app_id, version, dry_run):
-    """Select the newest processed build whose marketing version matches the
-    App Store version. The listing's icon in App Store Connect comes from
-    this build, so a version without one shows the placeholder grid."""
-    vstring = version["attributes"]["versionString"]
-    current = client.call(
-        "GET", f"/v1/appStoreVersions/{version['id']}/build").get("data")
-    builds = client.call(
-        "GET", f"/v1/builds?filter[app]={app_id}"
-               f"&filter[preReleaseVersion.version]={vstring}"
-               f"&filter[processingState]=VALID&sort=-uploadedDate&limit=1"
-    )["data"]
-    if not builds:
-        log(f"  no processed build with version {vstring} — upload one "
-            "(TestFlight workflow) before attaching")
+# --- availability --------------------------------------------------------------
+
+def read_territories(path):
+    if not path.is_file():
+        return None
+    codes = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        code = line.split("#", 1)[0].strip().upper()
+        if code:
+            codes.append(code)
+    return codes
+
+
+def territory_rows(client, availability_id):
+    rows = client.paged(
+        f"/v2/appAvailabilities/{availability_id}/territoryAvailabilities"
+        "?fields[territoryAvailabilities]=available,territory&limit=200")
+    return {r["relationships"]["territory"]["data"]["id"]: r for r in rows}
+
+
+def push_availability(client, app_id, wanted, dry_run):
+    """Make the app available in exactly the listed territories (ISO 3166-1
+    alpha-3, e.g. CHE) and not in territories Apple adds later."""
+    wanted = set(wanted)
+    availability = client.call(
+        "GET", f"/v1/apps/{app_id}/appAvailabilityV2")["data"]
+    avail_id = availability["id"]
+    new_territories = availability["attributes"].get("availableInNewTerritories")
+    rows = territory_rows(client, avail_id)
+    current = {code for code, r in rows.items() if r["attributes"]["available"]}
+    unknown = wanted - set(rows)
+    if unknown:
+        sys.exit(f"availability: unknown territory codes {sorted(unknown)}")
+    if current == wanted and new_territories is False:
+        log(f"  availability: unchanged ({', '.join(sorted(wanted))})")
         return
-    build = builds[0]
-    number = build["attributes"]["version"]
-    if current and current["id"] == build["id"]:
-        log(f"  build {vstring} ({number}) already attached")
-        return
+    log(f"  availability: {len(current)} territories now, want "
+        f"{', '.join(sorted(wanted))}; new territories: {new_territories}")
     if dry_run:
-        log(f"[dry-run] would attach build {vstring} ({number})")
+        log("[dry-run] availability: would replace the territory set")
         return
-    client.call("PATCH", f"/v1/appStoreVersions/{version['id']}/relationships/build",
-                {"data": {"type": "builds", "id": build["id"]}})
-    log(f"  attached build {vstring} ({number})")
+    # A POST creates a replacement availability for the app (this is what
+    # the "Pricing and Availability" page does); included resources use
+    # temporary ${...} ids.
+    included, links = [], []
+    for code in sorted(wanted):
+        tmp = "${ta-" + code.lower() + "}"
+        links.append({"type": "territoryAvailabilities", "id": tmp})
+        included.append({
+            "type": "territoryAvailabilities", "id": tmp,
+            "attributes": {"available": True},
+            "relationships": {"territory": {
+                "data": {"type": "territories", "id": code}}}})
+    try:
+        client.call("POST", "/v2/appAvailabilities", {
+            "data": {"type": "appAvailabilities",
+                     "attributes": {"availableInNewTerritories": False},
+                     "relationships": {
+                         "app": {"data": {"type": "apps", "id": app_id}},
+                         "territoryAvailabilities": {"data": links}}},
+            "included": included})
+    except RuntimeError as err:
+        log(f"  availability: replace failed ({str(err)[:300]}) — "
+            "falling back to per-territory updates")
+    # Verify, and fix any territory the replacement left untouched.
+    availability = client.call(
+        "GET", f"/v1/apps/{app_id}/appAvailabilityV2")["data"]
+    rows = territory_rows(client, availability["id"])
+    fixed = 0
+    for code, row in sorted(rows.items()):
+        should = code in wanted
+        if row["attributes"]["available"] != should:
+            client.call("PATCH", f"/v1/territoryAvailabilities/{row['id']}", {
+                "data": {"id": row["id"], "type": "territoryAvailabilities",
+                         "attributes": {"available": should}}})
+            fixed += 1
+    final = {c for c, r in territory_rows(client, availability["id"]).items()
+             if r["attributes"]["available"]}
+    new_territories = availability["attributes"].get("availableInNewTerritories")
+    log(f"  availability: now {', '.join(sorted(final)) or 'nowhere'}"
+        f" ({fixed} territories patched); new territories: {new_territories}")
+    if final != wanted:
+        sys.exit("availability: territory set still differs — check "
+                 "Pricing and Availability in App Store Connect")
+    if new_territories is not False:
+        log("  availability: WARNING — 'available in new territories' is still "
+            "on; switch it off under Pricing and Availability")
 
 
 # --- screenshots --------------------------------------------------------------
@@ -475,6 +570,9 @@ def main():
     ap.add_argument("--screenshots-dir", type=Path,
                     default=Path("appstore/screenshots"))
     ap.add_argument("--review-dir", type=Path, default=Path("appstore/review"))
+    ap.add_argument("--availability", type=Path,
+                    default=Path("appstore/availability.txt"),
+                    help="territory codes the app is sold in (one per line)")
     ap.add_argument("--attach-build", action="store_true",
                     help="select the newest processed build whose marketing "
                          "version equals the App Store version")
@@ -510,6 +608,11 @@ def main():
                                   locale_dir.name, args.dry_run)
             push_app_info_metadata(client, app_id, locale_dir,
                                    locale_dir.name, args.dry_run)
+
+    territories = read_territories(args.availability)
+    if not args.skip_metadata and territories:
+        log("Availability:")
+        push_availability(client, app_id, territories, args.dry_run)
 
     if not args.skip_metadata and args.review_dir.is_dir():
         log("App Review:")

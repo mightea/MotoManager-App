@@ -40,11 +40,17 @@ sonst nicht aus).
 - [ ] **Kategorie:** primär *Utilities* (alternativ *Lifestyle*), sekundär
       optional *Productivity*.
 - [ ] **Copyright:** `2026 Tobias Herrmann`.
-- [ ] **Preis & Verfügbarkeit:** kostenlos, alle Länder (oder nur CH/DE/AT –
-      das Listing ist nur Deutsch).
-- [ ] **App Review Information → Kontakt:** Name, Telefon, E-Mail eintragen
-      (bleibt absichtlich nicht im Repo). Demo-Account und Hinweise kommen
-      aus `appstore/review/`.
+- [ ] **Preis:** kostenlos (Preisstufe 0). Verfügbarkeit ist repo-verwaltet
+      (`appstore/availability.txt` → nur Schweiz, «in neuen Ländern
+      verfügbar» aus) – im Browser nur kontrollieren.
+- [ ] **App Review Information → Kontakt:** Name, Telefon, E-Mail. Entweder
+      einmal von Hand in App Store Connect eintragen oder als Secrets im
+      Environment `testflight` hinterlegen (`gh secret set --env testflight
+      ASC_REVIEW_CONTACT_FIRST_NAME` usw.). Ohne Kontakt lehnt ASC jede
+      Änderung der Review-Details ab – der Lauf vom 2026-11-10 hat deshalb
+      nur Notizen und Demo-Account vom ersten Lauf drin, Updates folgen
+      sobald der Kontakt existiert. Demo-Account und Hinweise kommen aus
+      `appstore/review/`.
 - [ ] **Build prüfen:** nach dem Dispatch zeigt die Version den Build und
       das Icon; sonst von Hand den TestFlight-Build der Zielversion wählen.
 - [ ] **Anmelden-Hinweis prüfen:** Guideline 5.1.1 verlangt, dass eine

@@ -1,7 +1,8 @@
 # Push App Store listing assets (metadata + screenshots) to App Store Connect.
 #
-# Source of truth is the repo: appstore/metadata/<locale>/*.txt and
-# appstore/screenshots/<locale>/<DISPLAY_TYPE>/*.png — see
+# Source of truth is the repo: appstore/metadata/<locale>/*.txt,
+# appstore/review/ (App Review notes + demo account), appstore/availability.txt
+# (territories) and appstore/screenshots/<locale>/<DISPLAY_TYPE>/*.png — see
 # scripts/appstore_assets.py for the exact layout. Screenshots are generated
 # locally with scripts/make-screenshots.sh and committed.
 #
@@ -87,6 +88,12 @@ jobs:
           ASC_API_KEY_ID: ${{ secrets.ASC_API_KEY_ID }}
           ASC_API_ISSUER_ID: ${{ secrets.ASC_API_ISSUER_ID }}
           ASC_API_KEY_P8: ${{ secrets.ASC_API_KEY_P8 }}
+          # App Review contact (required by ASC on every review-detail
+          # update; optional secrets — falls back to what ASC already holds)
+          ASC_REVIEW_CONTACT_FIRST_NAME: ${{ secrets.ASC_REVIEW_CONTACT_FIRST_NAME }}
+          ASC_REVIEW_CONTACT_LAST_NAME: ${{ secrets.ASC_REVIEW_CONTACT_LAST_NAME }}
+          ASC_REVIEW_CONTACT_PHONE: ${{ secrets.ASC_REVIEW_CONTACT_PHONE }}
+          ASC_REVIEW_CONTACT_EMAIL: ${{ secrets.ASC_REVIEW_CONTACT_EMAIL }}
           VERSION: ${{ steps.version.outputs.version }}
           DRY_RUN: ${{ inputs.dry_run }}
           # Push-triggered runs have no inputs → attach by default.

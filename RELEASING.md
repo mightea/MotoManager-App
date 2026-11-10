@@ -83,8 +83,15 @@ The store listing lives in the repo and is pushed by
   `demo_password.txt` (the public demo server's `admin-demo` account) fill
   the version's "App Review Information". Reviewers can't run a server, so
   the notes tell them to enter `https://moto-api-demo.herrmann.ltd` on the
-  login screen. Contact name/phone/email are personal data and stay in App
-  Store Connect (entered once by hand; the script never touches them).
+  login screen. App Store Connect insists on the review contact
+  (name/phone/email) with every update; it is personal data, so it comes
+  from the optional `testflight` environment secrets
+  `ASC_REVIEW_CONTACT_FIRST_NAME` / `_LAST_NAME` / `_PHONE` / `_EMAIL`, or
+  from what is already stored in App Store Connect. Without either, the
+  run logs a warning and leaves the review details alone.
+- **Availability** — `appstore/availability.txt` lists the territories the
+  app is sold in (ISO 3166-1 alpha-3; currently only `CHE`). Every other
+  territory and "available in new territories" are switched off.
 - **Screenshots** — `appstore/screenshots/de-DE/<DISPLAY_TYPE>/*.png`,
   uploaded in filename order, re-uploaded only when checksums change.
   Regenerate them locally with `scripts/make-screenshots.sh`: it builds the

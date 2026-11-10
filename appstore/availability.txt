@@ -1,0 +1,3 @@
+# Territories the app is sold in (ISO 3166-1 alpha-3, one per line).
+# Everything not listed is switched off, and so is "available in new territories".
+CHE
