@@ -345,6 +345,35 @@ def push_review_details(client, version, review_dir, dry_run):
     log(f"  review details: set {sorted(fields)}")
 
 
+def attach_build(client, app_id, version, dry_run):
+    """Select the newest processed build whose marketing version matches the
+    App Store version. The listing's icon in App Store Connect comes from
+    this build, so a version without one shows the placeholder grid."""
+    vstring = version["attributes"]["versionString"]
+    current = client.call(
+        "GET", f"/v1/appStoreVersions/{version['id']}/build").get("data")
+    builds = client.call(
+        "GET", f"/v1/builds?filter[app]={app_id}"
+               f"&filter[preReleaseVersion.version]={vstring}"
+               f"&filter[processingState]=VALID&sort=-uploadedDate&limit=1"
+    )["data"]
+    if not builds:
+        log(f"  no processed build with version {vstring} — upload one "
+            "(TestFlight workflow) before attaching")
+        return
+    build = builds[0]
+    number = build["attributes"]["version"]
+    if current and current["id"] == build["id"]:
+        log(f"  build {vstring} ({number}) already attached")
+        return
+    if dry_run:
+        log(f"[dry-run] would attach build {vstring} ({number})")
+        return
+    client.call("PATCH", f"/v1/appStoreVersions/{version['id']}/relationships/build",
+                {"data": {"type": "builds", "id": build["id"]}})
+    log(f"  attached build {vstring} ({number})")
+
+
 # --- availability --------------------------------------------------------------
 
 def read_territories(path):
