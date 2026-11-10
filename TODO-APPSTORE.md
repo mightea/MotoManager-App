@@ -68,6 +68,10 @@ sonst nicht aus).
 
 ## Merkzettel
 
+- Das Secret `DEFAULT_SERVER_URL` im Environment `testflight` wird seit
+  2026-11-10 nicht mehr gelesen (Builds enthalten keine Server-Adresse mehr)
+  → löschen: `gh secret delete DEFAULT_SERVER_URL --env testflight`.
+
 - Jährlich: Distribution-Zertifikat und Provisioning Profile laufen zusammen
   ab → neues `.p12`/Profil exportieren, `DIST_CERT_P12`,
   `DIST_CERT_PASSWORD`, `DIST_PROFILE_B64` aktualisieren.

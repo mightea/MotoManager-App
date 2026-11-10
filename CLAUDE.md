@@ -1,6 +1,6 @@
 # MotoManager (iOS)
 
-**MotoManager** is a SwiftUI iOS app for managing a personal motorcycle fleet — fuel logs and consumption analytics, service/maintenance records, issues, torque specs, a parts inventory, and a document vault. It is backed by the Rust/Axum API in `../MotoManagerApi` (self-hosted; the server URL is entered on the login screen, and TestFlight builds get a pre-filled default injected from a CI secret).
+**MotoManager** is a SwiftUI iOS app for managing a personal motorcycle fleet — fuel logs and consumption analytics, service/maintenance records, issues, torque specs, a parts inventory, and a document vault. It is backed by the Rust/Axum API in `../MotoManagerApi` (self-hosted; the server URL is entered on the login screen; builds carry no default server).
 
 > **`AGENTS.md` in this directory is the canonical, detailed guide.** Read it first. This file only summarizes the essentials and the gotchas that bite most often.
 

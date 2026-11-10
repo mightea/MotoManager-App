@@ -6,20 +6,12 @@ class NetworkManager {
 
     private let baseURLKey = "com.motomanager.baseURL"
 
-    /// Baked in at build time via the `MMDefaultBaseURL` Info.plist key
-    /// (`MM_DEFAULT_BASE_URL` build setting — empty in repo builds, injected
-    /// from a CI secret for TestFlight). Empty means the login screen's
-    /// server field starts blank and the user supplies their own server.
-    private var defaultBaseURL: String {
-        (Bundle.main.object(forInfoDictionaryKey: "MMDefaultBaseURL") as? String)?
-            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-    }
-
-    // User-editable from the login screen (self-hosted deployments); persists
-    // across launches and falls back to the build's default when never set.
+    // Entered by the user on the login screen (self-hosted deployments) and
+    // persisted across launches. Builds carry no default: the field starts
+    // blank, so no release can point users at a server they don't own.
     var baseURL: String {
         get {
-            UserDefaults.standard.string(forKey: baseURLKey) ?? defaultBaseURL
+            UserDefaults.standard.string(forKey: baseURLKey) ?? ""
         }
         set {
             UserDefaults.standard.set(newValue, forKey: baseURLKey)

@@ -13,8 +13,6 @@
 			</array>
 		</dict>
 	</array>
-	<key>MMDefaultBaseURL</key>
-	<string>$(MM_DEFAULT_BASE_URL)</string>
 	<key>NSBonjourServices</key>
 	<array>
 		<string>_pdl-datastream._tcp</string>

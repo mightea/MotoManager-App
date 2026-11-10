@@ -4,7 +4,7 @@ Guidance for AI coding agents working in this repository. Read this before explo
 
 ## Project Summary
 
-**MotoManager** is a SwiftUI iOS app for managing a personal motorcycle fleet — fuel logs and consumption analytics, service/maintenance records, issues, torque specs, a parts inventory, and a document vault. It is backed by the self-hosted Rust/Axum API in `../MotoManagerApi` (opaque bearer session tokens, with passkey/WebAuthn support); the server URL is entered on the login screen (TestFlight builds get a pre-filled default injected from a CI secret).
+**MotoManager** is a SwiftUI iOS app for managing a personal motorcycle fleet — fuel logs and consumption analytics, service/maintenance records, issues, torque specs, a parts inventory, and a document vault. It is backed by the self-hosted Rust/Axum API in `../MotoManagerApi` (opaque bearer session tokens, with passkey/WebAuthn support); the server URL is entered on the login screen (no build carries a default server).
 
 ## Build & Run
 
@@ -125,7 +125,7 @@ MotoManager/
 
 Singleton at `MotoManager/Networking/NetworkManager.swift`.
 
-- **Base URL**: stored in `UserDefaults` under `com.motomanager.baseURL`, entered by the user on the login screen. The build-time default comes from the `MMDefaultBaseURL` Info.plist key (`MM_DEFAULT_BASE_URL` build setting — empty in repo builds, injected from the `DEFAULT_SERVER_URL` CI secret for TestFlight). Always go through `NetworkManager.shared.baseURL` — do not hardcode a URL.
+- **Base URL**: stored in `UserDefaults` under `com.motomanager.baseURL`, entered by the user on the login screen. There is deliberately no build-time default (the former `MMDefaultBaseURL` injection was removed so no release can prefill a server). Always go through `NetworkManager.shared.baseURL` — do not hardcode a URL.
 - **Auth**: opaque Bearer session token stored server-side (14-day expiry, deleted on logout) — **not a JWT**, despite the legacy `jwt-token` Keychain account name; its expiry cannot be inspected client-side. Stored in Keychain via `MotoManager/Networking/KeychainHelper.swift` (service `com.motomanager.auth`, account `jwt-token`). Use `NetworkManager.saveToken(_:)`, `getToken()`, `deleteToken()` — do not touch the Keychain directly from elsewhere.
 - **401 handling**: `NetworkManager.performRequest` posts `NetworkManager.unauthorizedNotification` (`com.motomanager.unauthorized`) on a 401 response. `AuthViewModel` observes this and clears the session.
 - **Passkey login**: WebAuthn types live in `Models/AuthModels.swift`; `NetworkManager` exposes `fetchPasskeyLoginOptions` / `verifyPasskeyLogin`.

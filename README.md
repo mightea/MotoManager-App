@@ -43,9 +43,9 @@ it up as the linker driver and the link phase fails.
 
 ### Local backend for testing
 
-The login screen has a server field (persisted; repo builds start blank,
-while CI-built TestFlight binaries pre-fill a default injected from the
-`DEFAULT_SERVER_URL` secret). The app can therefore be pointed at a locally
+The login screen has a server field (persisted; every build starts blank —
+the app is a self-hosted client and ships without a default server). The
+app can therefore be pointed at a locally
 running `MotoManagerApi` with a throwaway database — useful for self-hosted
 deployments and for reproducing states a production account can't, such as
 a freshly created motorcycle:
