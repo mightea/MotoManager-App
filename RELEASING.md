@@ -75,16 +75,26 @@ The store listing lives in the repo and is pushed by
 `ASC_API_KEY_*` secrets — no signing material involved):
 
 - **Metadata** — `appstore/metadata/de-DE/*.txt` (description, keywords,
-  promo text, name/subtitle, URLs). Edit the files, push to `main`, done.
-  `release_notes.txt` (optional) becomes the version's "What's New".
+  promo text, name/subtitle, support/marketing/privacy-policy URLs). Edit the
+  files, push to `main`, done. `release_notes.txt` (optional) becomes the
+  version's "What's New". The privacy policy URL points at
+  [`PRIVACY.md`](PRIVACY.md) in this repo.
+- **App Review** — `appstore/review/notes.txt` plus `demo_account.txt` /
+  `demo_password.txt` (the public demo server's `admin-demo` account) fill
+  the version's "App Review Information". Reviewers can't run a server, so
+  the notes tell them to enter `https://moto-api-demo.herrmann.ltd` on the
+  login screen. Contact name/phone/email are personal data and stay in App
+  Store Connect (entered once by hand; the script never touches them).
 - **Screenshots** — `appstore/screenshots/de-DE/<DISPLAY_TYPE>/*.png`,
   uploaded in filename order, re-uploaded only when checksums change.
   Regenerate them locally with `scripts/make-screenshots.sh`: it builds the
-  app, signs in to the live demo server (`moto-api-demo.herrmann.ltd`,
-  `admin-demo` account — override via `DEMO_SERVER_URL`/`DEMO_USER`/
-  `DEMO_PASSWORD`), drives the login and all four tabs on an iPhone Air and
-  iPad Pro 13-inch simulator via `idb`, and writes pixel-exact PNGs
-  (1260×2736 / 2064×2752). Review the images, commit.
+  app and the UI-test bundle, fresh-installs on an iPhone Air and an iPad
+  Pro 13-inch simulator, and runs the `AppStoreScreenshots` XCUITest
+  (`MotoManagerUITests/`), which signs in to the live demo server
+  (`moto-api-demo.herrmann.ltd`, `admin-demo` — override via
+  `DEMO_SERVER_URL`/`DEMO_USER`/`DEMO_PASSWORD`), walks the tabs and writes
+  pixel-exact PNGs (1260×2736 / 2064×2752). Review the images, commit.
+  No `idb` involved (it no longer works with Xcode 27).
 
 Two one-time settings, both in the browser:
 
@@ -97,7 +107,14 @@ Two one-time settings, both in the browser:
 Metadata is only writable while a version is editable (Prepare for
 Submission / rejected). To start a new version's listing, dispatch the
 workflow manually with the version input — it creates the App Store version
-if needed.
+if needed. The version string must match the `MARKETING_VERSION` of the
+build you will attach (= the release tag without `v`).
+
+## Submitting to the App Store
+
+Everything the repo can hold is in `appstore/`; the rest is a short manual
+pass in App Store Connect — see [TODO-APPSTORE.md](TODO-APPSTORE.md) for the
+checklist.
 
 ## Annual chore
 

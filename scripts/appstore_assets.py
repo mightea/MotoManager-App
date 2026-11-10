@@ -14,6 +14,13 @@ Source of truth is the repo:
         support_url.txt        -> support URL        (per version)
         marketing_url.txt      -> marketing URL      (per version)
 
+    appstore/review/
+        notes.txt              -> App Review notes (per version, 4000 chars)
+        demo_account.txt       -> reviewer demo account username
+        demo_password.txt      -> reviewer demo account password
+        (contact name/phone/email stay in App Store Connect — personal data
+        is not kept in the repo; the existing values are left untouched)
+
     appstore/screenshots/<locale>/<DISPLAY_TYPE>/*.png
         DISPLAY_TYPE is the raw App Store Connect enum value, e.g.
         APP_IPHONE_67 (top iPhone slot — takes all 6.9" sizes) or
@@ -244,6 +251,46 @@ def push_app_info_metadata(client, app_id, locale_dir, locale, dry_run):
     log(f"  {locale}: set app-level {sorted(fields)}")
 
 
+def push_review_details(client, version, review_dir, dry_run):
+    """Notes + demo account shown to App Review (appStoreReviewDetail)."""
+    fields = {}
+    notes = read_field(review_dir, "notes.txt", 4000)
+    if notes is not None:
+        fields["notes"] = notes
+    demo_user = read_field(review_dir, "demo_account.txt")
+    demo_password = read_field(review_dir, "demo_password.txt")
+    if demo_user and demo_password:
+        fields.update({"demoAccountName": demo_user,
+                       "demoAccountPassword": demo_password,
+                       "demoAccountRequired": True})
+    if not fields:
+        return
+    try:
+        existing = client.call(
+            "GET",
+            f"/v1/appStoreVersions/{version['id']}/appStoreReviewDetail")["data"]
+    except RuntimeError as err:
+        if "404" not in str(err):
+            raise
+        existing = None
+    if dry_run:
+        verb = "update" if existing else "create"
+        log(f"[dry-run] review details: would {verb} {sorted(fields)}")
+        return
+    if existing:
+        client.call("PATCH", f"/v1/appStoreReviewDetails/{existing['id']}", {
+            "data": {"id": existing["id"], "type": "appStoreReviewDetails",
+                     "attributes": fields}})
+    else:
+        client.call("POST", "/v1/appStoreReviewDetails", {
+            "data": {"type": "appStoreReviewDetails",
+                     "attributes": fields,
+                     "relationships": {"appStoreVersion": {
+                         "data": {"type": "appStoreVersions",
+                                  "id": version["id"]}}}}})
+    log(f"  review details: set {sorted(fields)}")
+
+
 # --- screenshots --------------------------------------------------------------
 
 def upload_binary(client, upload_operations, data):
@@ -379,6 +426,7 @@ def main():
     ap.add_argument("--metadata-dir", type=Path, default=Path("appstore/metadata"))
     ap.add_argument("--screenshots-dir", type=Path,
                     default=Path("appstore/screenshots"))
+    ap.add_argument("--review-dir", type=Path, default=Path("appstore/review"))
     ap.add_argument("--skip-metadata", action="store_true")
     ap.add_argument("--skip-screenshots", action="store_true")
     ap.add_argument("--dry-run", action="store_true")
@@ -407,6 +455,10 @@ def main():
                                   locale_dir.name, args.dry_run)
             push_app_info_metadata(client, app_id, locale_dir,
                                    locale_dir.name, args.dry_run)
+
+    if not args.skip_metadata and args.review_dir.is_dir():
+        log("App Review:")
+        push_review_details(client, version, args.review_dir, args.dry_run)
 
     if not args.skip_screenshots and args.screenshots_dir.is_dir():
         log("Screenshots:")

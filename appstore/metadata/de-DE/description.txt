@@ -1,31 +1,37 @@
-MotoManager ist das Cockpit für deinen Motorrad-Fuhrpark: Tankbuch mit Verbrauchsanalyse, komplette Wartungshistorie, offene Arbeiten, Drehmomentwerte, Ersatzteillager und Dokumentenablage — für ein Motorrad oder die ganze Sammlung.
+MotoManager ist die App für deine Motorrad-Garage: Tankbuch mit Verbrauchsanalyse, Wartungshistorie mit Service-Intervallen, technische Daten mit Drehmomentwerten und Dokumenten, Ersatzteillager mit Einkaufsliste und Kostenstatistik – für ein Motorrad oder die ganze Sammlung.
 
-TANKBUCH & VERBRAUCH
+MotoManager verbindet sich mit dem MotoManager-Server, den du selbst betreibst. Deine Daten bleiben auf deinem Server – kein Konto bei uns, kein Tracking, keine Werbung.
+
+TANKEN
 • Tankstopps in Sekunden erfassen: Kilometerstand, Liter, Preis
-• Verbrauch und Kosten werden automatisch berechnet
-• Trends und Statistiken pro Motorrad
-• Tankstellen-Erkennung per GPS
+• Kilometerstand per Kamera vom Kombiinstrument ablesen
+• Verbrauch und Kosten werden automatisch berechnet, mit Verlauf und Vergleich zum eigenen Schnitt
+• Tankstelle per Standort erkennen oder automatisch anlegen
 
-SERVICE & WARTUNG
+WARTUNG
 • Lückenlose Historie: Öl, Reifen, Batterie, Bremsen, Kette und mehr
-• Reifen mit Position, Grösse und DOT-Code
+• Service-Intervalle nach Zeit und Kilometern, Reifenalter aus dem DOT-Code, optionale Erinnerungen
+• Offene Mängel mit Priorität verwalten und direkt als Wartung erfassen
 • Kosten je Motorrad und Kategorie im Blick
 
-WERKSTATT
-• Offene Mängel und anstehende Arbeiten mit Priorität verwalten
-• Drehmomentwerte je Motorrad hinterlegen
-• Reifendrücke immer zur Hand
+TECHNIK
+• Fahrzeugdaten, Drehmomentwerte und Reifendrücke immer zur Hand
+• Handbücher, Checklisten und Rechnungen als Dokumente – auch offline lesbar
 
-ERSATZTEILLAGER
+TEILE
 • Teilekatalog mit Beständen und Lagerorten
-• Einbau bucht den Bestand automatisch ab
+• Bald gebrauchte Teile und Einkaufsliste für offene Arbeiten
+• Einbau bucht den Bestand automatisch ab, Etiketten per Scan buchen
 • Etikettendruck über Brother-Beschriftungsdrucker
+
+STATISTIK
+• Kosten pro Monat und Jahr, pro Motorrad oder für die ganze Garage
 
 OFFLINE-FIRST
 • Alle Daten liegen lokal auf dem Gerät, synchronisiert wird im Hintergrund
 • Funktioniert auch in der Garage ohne Empfang
 
 DEIN SERVER, DEINE DATEN
-MotoManager verbindet sich mit deinem selbst gehosteten MotoManager-Server. Deine Daten bleiben bei dir — kein Fremd-Konto, kein Tracking, keine Werbung. Anmeldung per Passkey oder Passwort.
+Die App bietet kein Hosting und benötigt kein Konto bei uns. Du meldest dich mit Passkey oder Passwort an deinem eigenen MotoManager-Server an; die Server-Adresse trägst du beim Anmelden ein. Der Server ist Open Source: https://github.com/mightea/MotoManager-Api
 
-Hinweis: Für die Nutzung wird ein eigener MotoManager-Server benötigt; die Adresse wird beim Anmelden eingetragen.
+Hinweis: Zur Nutzung der App ist ein eigener, laufender MotoManager-Server erforderlich. Ohne Server kann die App nicht verwendet werden.

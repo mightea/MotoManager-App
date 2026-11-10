@@ -177,13 +177,18 @@ The app is **native-first with a motorsport accent**, and it **supports light an
 
 ## App Store listing assets
 
-The store listing (description, keywords, screenshots) is repo-managed and
-pushed to App Store Connect by `.github/workflows/appstore.yml` →
-`scripts/appstore_assets.py`. Metadata: `appstore/metadata/de-DE/*.txt`.
-Screenshots: `appstore/screenshots/de-DE/<DISPLAY_TYPE>/*.png`, regenerated
-locally with `scripts/make-screenshots.sh` (builds the app, signs in to the
-live demo server as `admin-demo`, drives both simulators via idb) —
-always review the PNGs before committing. Details in RELEASING.md.
+The store listing (description, keywords, screenshots, App Review notes) is
+repo-managed and pushed to App Store Connect by
+`.github/workflows/appstore.yml` → `scripts/appstore_assets.py`. Metadata:
+`appstore/metadata/de-DE/*.txt` (privacy policy URL → `PRIVACY.md`). Review
+notes + demo account: `appstore/review/`. Screenshots:
+`appstore/screenshots/de-DE/<DISPLAY_TYPE>/*.png`, regenerated locally with
+`scripts/make-screenshots.sh` (builds the app + UI tests, runs the
+`AppStoreScreenshots` XCUITest against the live demo server as `admin-demo`
+on the iPhone Air / iPad Pro 13" simulators; no idb) — always review the
+PNGs before committing. The app is a self-hosted client: the description
+must keep saying that users need their own server. Details in RELEASING.md
+and TODO-APPSTORE.md.
 
 ## Commit Messages — Conventional Commits (no scope)
 
