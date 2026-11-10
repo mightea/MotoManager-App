@@ -17,7 +17,10 @@
 #
 # Metadata is only editable while a version is in an editable state
 # (Prepare for Submission, rejected, …). With no editable version the run
-# fails with a hint; dispatch with a version input to create one.
+# fails with a hint; dispatch with a version input to create one (or to
+# rename the editable one — ASC only allows a single editable version).
+# "attach_build" selects the newest processed build whose marketing version
+# equals that version string; the listing's icon comes from that build.
 
 name: App Store assets
 
@@ -34,6 +37,11 @@ on:
         description: "Version string to target (created if missing), e.g. 1.2.0"
         required: false
         type: string
+      attach_build:
+        description: "Attach the newest processed build matching the version"
+        required: false
+        type: boolean
+        default: false
       dry_run:
         description: "Log what would change without writing"
         required: false
@@ -63,9 +71,11 @@ jobs:
           ASC_API_KEY_P8: ${{ secrets.ASC_API_KEY_P8 }}
           VERSION: ${{ inputs.version }}
           DRY_RUN: ${{ inputs.dry_run }}
+          ATTACH_BUILD: ${{ inputs.attach_build }}
         run: |
           set -euo pipefail
           pip install --quiet PyJWT cryptography
           python3 scripts/appstore_assets.py \
             ${VERSION:+--version "$VERSION"} \
+            $([ "${ATTACH_BUILD:-false}" = "true" ] && echo --attach-build) \
             $([ "${DRY_RUN:-false}" = "true" ] && echo --dry-run)

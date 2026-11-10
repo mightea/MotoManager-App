@@ -27,6 +27,10 @@ Source of truth is the repo:
         APP_IPAD_PRO_3GEN_129 (13" iPad, 2064x2752).
         Files are uploaded in sorted filename order (01-..., 02-..., ...).
 
+--version X.Y.Z targets (creating or renaming) the editable App Store
+version; --attach-build selects the newest processed build with that
+marketing version, which is also what gives the listing its icon.
+
 Missing files are simply skipped, so partial metadata directories are fine.
 Screenshot sets are only re-uploaded when the local files differ (MD5) from
 what App Store Connect already has, so the workflow is idempotent.
@@ -153,6 +157,21 @@ def find_or_create_version(client, app_id, version_string, dry_run):
         for v in editable:
             if v["attributes"]["versionString"] == version_string:
                 return v
+        if editable:
+            # Only one version can be editable at a time, so a differing
+            # string means the placeholder version must be renamed (ASC
+            # allows that while it is still in preparation). Builds are only
+            # selectable when their marketing version matches this string.
+            v = editable[0]
+            current = v["attributes"]["versionString"]
+            if dry_run:
+                log(f"[dry-run] would rename App Store version {current} "
+                    f"-> {version_string}")
+                return v
+            log(f"Renaming App Store version {current} -> {version_string}")
+            return client.call("PATCH", f"/v1/appStoreVersions/{v['id']}", {
+                "data": {"id": v["id"], "type": "appStoreVersions",
+                         "attributes": {"versionString": version_string}}})["data"]
         if dry_run:
             log(f"[dry-run] would create App Store version {version_string}")
             return None
@@ -291,6 +310,35 @@ def push_review_details(client, version, review_dir, dry_run):
     log(f"  review details: set {sorted(fields)}")
 
 
+def attach_build(client, app_id, version, dry_run):
+    """Select the newest processed build whose marketing version matches the
+    App Store version. The listing's icon in App Store Connect comes from
+    this build, so a version without one shows the placeholder grid."""
+    vstring = version["attributes"]["versionString"]
+    current = client.call(
+        "GET", f"/v1/appStoreVersions/{version['id']}/build").get("data")
+    builds = client.call(
+        "GET", f"/v1/builds?filter[app]={app_id}"
+               f"&filter[preReleaseVersion.version]={vstring}"
+               f"&filter[processingState]=VALID&sort=-uploadedDate&limit=1"
+    )["data"]
+    if not builds:
+        log(f"  no processed build with version {vstring} — upload one "
+            "(TestFlight workflow) before attaching")
+        return
+    build = builds[0]
+    number = build["attributes"]["version"]
+    if current and current["id"] == build["id"]:
+        log(f"  build {vstring} ({number}) already attached")
+        return
+    if dry_run:
+        log(f"[dry-run] would attach build {vstring} ({number})")
+        return
+    client.call("PATCH", f"/v1/appStoreVersions/{version['id']}/relationships/build",
+                {"data": {"type": "builds", "id": build["id"]}})
+    log(f"  attached build {vstring} ({number})")
+
+
 # --- screenshots --------------------------------------------------------------
 
 def upload_binary(client, upload_operations, data):
@@ -427,6 +475,9 @@ def main():
     ap.add_argument("--screenshots-dir", type=Path,
                     default=Path("appstore/screenshots"))
     ap.add_argument("--review-dir", type=Path, default=Path("appstore/review"))
+    ap.add_argument("--attach-build", action="store_true",
+                    help="select the newest processed build whose marketing "
+                         "version equals the App Store version")
     ap.add_argument("--skip-metadata", action="store_true")
     ap.add_argument("--skip-screenshots", action="store_true")
     ap.add_argument("--dry-run", action="store_true")
@@ -446,6 +497,10 @@ def main():
     elif args.dry_run:
         log("[dry-run] stopping — version does not exist yet")
         return
+
+    if args.attach_build and version:
+        log("Build:")
+        attach_build(client, app_id, version, args.dry_run)
 
     if not args.skip_metadata and args.metadata_dir.is_dir():
         log("Metadata:")

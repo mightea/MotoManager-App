@@ -5,16 +5,32 @@ Screenshots, Datenschutzerklärung und Review-Hinweise liegen im Repo
 (`appstore/`, `PRIVACY.md`) und werden von `appstore.yml` hochgeladen.
 Übrig bleiben die Schritte, die nur im Browser gehen.
 
-## Version
+## Version & Build (auch die Ursache für das fehlende App-Icon)
 
-- [ ] **Versionsnummer festlegen.** release-please zählt bei `0.x` weiter
-      (nächste wäre 0.20.0). Für einen 1.0-Launch einen Commit mit Footer
-      `Release-As: 1.0.0` auf `main` pushen, Release-PR mergen → Tag
-      `v1.0.0` → TestFlight-Build mit `MARKETING_VERSION=1.0.0`.
-- [ ] **App-Store-Version anlegen:** `appstore.yml` manuell mit
-      `version=1.0.0` dispatchen (legt die Version an und spielt Metadaten,
-      Review-Hinweise und Screenshots ein). Danach reicht jeder Push auf
-      `appstore/**`.
+Das App-Icon im App Store Connect kommt nicht aus dem Listing, sondern aus
+dem Build, der an die App-Store-Version gehängt ist. Version «1.0» hat noch
+keinen Build → Platzhalter-Raster. Builds sind nur auswählbar, wenn ihre
+Marketing-Version exakt dem Versions-String entspricht; alle TestFlight-
+Builds sind bisher `0.x.y`, deshalb ist die Build-Liste leer bzw. ausgegraut.
+Das Icon selbst ist in Ordnung: `MotoManager/AppIcon.icon` (Icon Composer,
+Liquid Glass) plus 1024-px-Fallbacks in `Assets.xcassets/AppIcon.appiconset`,
+und jeder TestFlight-Upload wurde von Apple akzeptiert (ITMS-90704 bliebe
+sonst nicht aus).
+
+- [x] **Versions-String an den Build angleichen (2026-11-10):**
+      `appstore.yml` mit `version=<neuester TestFlight-Build>` und
+      `attach_build=true` dispatchen. Das benennt die vorbereitete Version
+      um (ASC erlaubt nur eine bearbeitbare Version), spielt Metadaten,
+      Review-Hinweise und Screenshots ein und hängt den neuesten
+      verarbeiteten Build dieser Version an – damit erscheint auch das Icon.
+      Kommt vor der Einreichung ein weiterer Release-Tag, den Dispatch mit
+      der neuen Nummer wiederholen; Pushes auf `appstore/**` allein
+      behalten die Version bei.
+- [ ] Optional für einen «1.0»-Launch: Commit mit Footer `Release-As: 1.0.0`
+      auf `main`, Release-PR mergen → Tag `v1.0.0` → TestFlight-Build, dann
+      den Dispatch mit `version=1.0.0` wiederholen. (Die
+      `MARKETING_VERSION = 1.0` im Projekt ist nur der Debug-Wert; CI setzt
+      sie aus dem Tag.)
 
 ## App Store Connect – einmalig von Hand
 
@@ -31,8 +47,8 @@ Screenshots, Datenschutzerklärung und Review-Hinweise liegen im Repo
 - [ ] **App Review Information → Kontakt:** Name, Telefon, E-Mail eintragen
       (bleibt absichtlich nicht im Repo). Demo-Account und Hinweise kommen
       aus `appstore/review/`.
-- [ ] **Build auswählen:** den TestFlight-Build der Zielversion an die
-      App-Store-Version hängen.
+- [ ] **Build prüfen:** nach dem Dispatch zeigt die Version den Build und
+      das Icon; sonst von Hand den TestFlight-Build der Zielversion wählen.
 - [ ] **Anmelden-Hinweis prüfen:** Guideline 5.1.1 verlangt, dass eine
       Login-Pflicht begründet ist – die Beschreibung sagt es (eigener Server),
       die Review-Notes erklären es dem Reviewer nochmals.
