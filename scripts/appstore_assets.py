@@ -388,10 +388,19 @@ def read_territories(path):
 
 
 def territory_rows(client, availability_id):
+    # The territory relationship is only serialized when it is included.
     rows = client.paged(
         f"/v2/appAvailabilities/{availability_id}/territoryAvailabilities"
-        "?fields[territoryAvailabilities]=available,territory&limit=200")
-    return {r["relationships"]["territory"]["data"]["id"]: r for r in rows}
+        "?include=territory&fields[territoryAvailabilities]=available,territory"
+        "&fields[territories]=currency&limit=200")
+    out = {}
+    for r in rows:
+        territory = r.get("relationships", {}).get("territory", {}).get("data")
+        if not territory:
+            sys.exit(f"availability: territory missing on row {r.get('id')} "
+                     f"(keys: {sorted(r)})")
+        out[territory["id"]] = r
+    return out
 
 
 def push_availability(client, app_id, wanted, dry_run):
