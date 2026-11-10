@@ -16,11 +16,14 @@
 # before it starts.
 #
 # Metadata is only editable while a version is in an editable state
-# (Prepare for Submission, rejected, …). With no editable version the run
-# fails with a hint; dispatch with a version input to create one (or to
-# rename the editable one — ASC only allows a single editable version).
-# "attach_build" selects the newest processed build whose marketing version
-# equals that version string; the listing's icon comes from that build.
+# (Prepare for Submission, rejected, …). ASC only allows a single editable
+# version and only lists builds whose marketing version equals its version
+# string, so every run aligns the two: the version string defaults to the
+# newest release tag (v* → MARKETING_VERSION of the TestFlight build), the
+# editable version is renamed/created to match, and the newest processed
+# build of that version is attached — which is also what gives the listing
+# its icon. A manual dispatch can override the version (e.g. 1.0.0 after a
+# `Release-As` release) or switch the build attachment off.
 
 name: App Store assets
 
@@ -34,14 +37,14 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Version string to target (created if missing), e.g. 1.2.0"
+        description: "Version string to target (default: newest v* tag); the editable version is renamed/created to match"
         required: false
         type: string
       attach_build:
         description: "Attach the newest processed build matching the version"
         required: false
         type: boolean
-        default: false
+        default: true
       dry_run:
         description: "Log what would change without writing"
         required: false
@@ -64,18 +67,34 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      - name: Resolve target version
+        id: version
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$VERSION" ]]; then
+            git fetch --tags --force --depth=1 origin
+            LATEST=$(git tag --list 'v*' --sort=-v:refname | head -1)
+            VERSION="${LATEST#v}"
+          fi
+          [[ -n "$VERSION" ]] || { echo "No v* tag and no version input"; exit 1; }
+          echo "Target App Store version: $VERSION"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
       - name: Push to App Store Connect
         env:
           ASC_API_KEY_ID: ${{ secrets.ASC_API_KEY_ID }}
           ASC_API_ISSUER_ID: ${{ secrets.ASC_API_ISSUER_ID }}
           ASC_API_KEY_P8: ${{ secrets.ASC_API_KEY_P8 }}
-          VERSION: ${{ inputs.version }}
+          VERSION: ${{ steps.version.outputs.version }}
           DRY_RUN: ${{ inputs.dry_run }}
-          ATTACH_BUILD: ${{ inputs.attach_build }}
+          # Push-triggered runs have no inputs → attach by default.
+          ATTACH_BUILD: ${{ github.event_name == 'push' || inputs.attach_build }}
         run: |
           set -euo pipefail
           pip install --quiet PyJWT cryptography
           python3 scripts/appstore_assets.py \
-            ${VERSION:+--version "$VERSION"} \
+            --version "$VERSION" \
             $([ "${ATTACH_BUILD:-false}" = "true" ] && echo --attach-build) \
             $([ "${DRY_RUN:-false}" = "true" ] && echo --dry-run)

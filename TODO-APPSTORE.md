@@ -17,18 +17,16 @@ Liquid Glass) plus 1024-px-Fallbacks in `Assets.xcassets/AppIcon.appiconset`,
 und jeder TestFlight-Upload wurde von Apple akzeptiert (ITMS-90704 bliebe
 sonst nicht aus).
 
-- [x] **Versions-String an den Build angleichen (2026-11-10):**
-      `appstore.yml` mit `version=<neuester TestFlight-Build>` und
-      `attach_build=true` dispatchen. Das benennt die vorbereitete Version
-      um (ASC erlaubt nur eine bearbeitbare Version), spielt Metadaten,
-      Review-Hinweise und Screenshots ein und hängt den neuesten
-      verarbeiteten Build dieser Version an – damit erscheint auch das Icon.
-      Kommt vor der Einreichung ein weiterer Release-Tag, den Dispatch mit
-      der neuen Nummer wiederholen; Pushes auf `appstore/**` allein
-      behalten die Version bei.
+- [x] **Versions-String an den Build angleichen (2026-11-10):** jeder
+      Lauf von `appstore.yml` nimmt den neuesten `v*`-Tag als Versions-String,
+      benennt die vorbereitete Version entsprechend um (ASC erlaubt nur eine
+      bearbeitbare Version) und hängt den neuesten verarbeiteten Build dieser
+      Version an – damit erscheint auch das Icon. Nach einem neuen Release-Tag
+      genügt ein Push auf `appstore/**` oder ein manueller Dispatch.
 - [ ] Optional für einen «1.0»-Launch: Commit mit Footer `Release-As: 1.0.0`
       auf `main`, Release-PR mergen → Tag `v1.0.0` → TestFlight-Build, dann
-      den Dispatch mit `version=1.0.0` wiederholen. (Die
+      den Dispatch mit `version=1.0.0` wiederholen (oder einfach pushen –
+      der Tag ist dann der neueste). (Die
       `MARKETING_VERSION = 1.0` im Projekt ist nur der Debug-Wert; CI setzt
       sie aus dem Tag.)
 

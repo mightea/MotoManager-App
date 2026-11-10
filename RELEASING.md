@@ -105,10 +105,14 @@ Two one-time settings, both in the browser:
   stay manual in App Store Connect.
 
 Metadata is only writable while a version is editable (Prepare for
-Submission / rejected). To start a new version's listing, dispatch the
-workflow manually with the version input — it creates the App Store version
-if needed. The version string must match the `MARKETING_VERSION` of the
-build you will attach (= the release tag without `v`).
+Submission / rejected). Every run aligns the App Store version with the
+builds: the version string defaults to the newest `v*` tag (which is the
+`MARKETING_VERSION` of the TestFlight build), the single editable version
+is renamed or created to match, and the newest processed build of that
+version is attached — App Store Connect only offers builds whose version
+matches, and the listing's icon comes from the attached build. A manual
+dispatch can override the version (e.g. `1.0.0` after a `Release-As`
+release) or skip the build attachment.
 
 ## Submitting to the App Store
 
