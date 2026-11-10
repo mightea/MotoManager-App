@@ -28,6 +28,10 @@
 #     DIST_CERT_PASSWORD   password of that p12
 #     DIST_PROFILE_B64     App Store provisioning profile for the app's
 #                          bundle id, base64 .mobileprovision
+#     MOTO_WEB_HOST        host of the deployed webapp (no scheme): passkey
+#                          relying-party id, Associated Domains host and
+#                          default label-QR origin. The repo only holds a
+#                          placeholder (Supporting/Deployment.xcconfig).
 #   (Builds never carry a server URL: the app is a self-hosted client and
 #   the login screen's server field starts blank. The former
 #   DEFAULT_SERVER_URL secret is unused and can be deleted.)
@@ -156,8 +160,15 @@ jobs:
         env:
           APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
           PROFILE_NAME: ${{ steps.profile.outputs.name }}
+          MOTO_WEB_HOST: ${{ secrets.MOTO_WEB_HOST }}
         run: |
           set -euo pipefail
+          # The real webapp host only exists as a secret. Never ship the
+          # repo's placeholder: passkeys and universal links would be dead.
+          if [[ -z "$MOTO_WEB_HOST" || "$MOTO_WEB_HOST" == *example.com || "$MOTO_WEB_HOST" == *"/"* ]]; then
+            echo "::error::MOTO_WEB_HOST secret is missing or not a bare host name"
+            exit 1
+          fi
           # Manual signing with the imported distribution cert + installed
           # profile. Automatic signing here would mint a fresh Apple
           # Development certificate on every run (the runner never has an
@@ -173,9 +184,17 @@ jobs:
             CODE_SIGN_IDENTITY="Apple Distribution" \
             PROVISIONING_PROFILE_SPECIFIER="$PROFILE_NAME" \
             DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
+            MOTO_WEB_HOST="$MOTO_WEB_HOST" \
             CURRENT_PROJECT_VERSION="${{ steps.version.outputs.build_number }}" \
             ${{ steps.version.outputs.marketing_args }} \
             | tail -60
+          # Prove the host reached both consumers before anything is uploaded.
+          APP="$RUNNER_TEMP/MotoManager.xcarchive/Products/Applications/MotoManager.app"
+          [[ "$(plutil -extract MotoWebHost raw "$APP/Info.plist")" == "$MOTO_WEB_HOST" ]] \
+            || { echo "::error::MotoWebHost missing from the archived Info.plist"; exit 1; }
+          ENTITLEMENTS=$(codesign -d --entitlements - --xml "$APP" 2>/dev/null)
+          [[ "$ENTITLEMENTS" == *"webcredentials:$MOTO_WEB_HOST"* && "$ENTITLEMENTS" == *"applinks:$MOTO_WEB_HOST"* ]] \
+            || { echo "::error::Associated Domains entitlement lacks the webapp host"; exit 1; }
 
       - name: Upload to App Store Connect
         env:

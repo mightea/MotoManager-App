@@ -15,7 +15,10 @@ Source of truth is the repo:
         marketing_url.txt      -> marketing URL      (per version)
 
     appstore/review/
-        notes.txt              -> App Review notes (per version, 4000 chars)
+        notes.txt              -> App Review notes (per version, 4000 chars);
+                                  {{DEMO_SERVER_URL}} is filled from the
+                                  environment — the host is not kept in
+                                  the repo
         demo_account.txt       -> reviewer demo account username
         demo_password.txt      -> reviewer demo account password
         (contact name/phone/email come from the ASC_REVIEW_CONTACT_FIRST_NAME
@@ -55,6 +58,7 @@ import base64
 import hashlib
 import json
 import os
+import re
 import sys
 import time
 import urllib.error
@@ -148,6 +152,19 @@ def read_field(directory, filename, limit=None):
     if limit and len(text) > limit:
         sys.exit(f"{p}: {len(text)} chars exceeds the {limit}-char limit")
     return text
+
+
+def expand_placeholders(text, source):
+    """Fill {{NAME}} from the environment; deployment hosts are secrets, not
+    repo content. An unset placeholder aborts the run rather than shipping
+    "{{...}}" to App Review."""
+    def value_of(match):
+        value = os.environ.get(match.group(1), "").strip()
+        if not value:
+            sys.exit(f"{source}: {match.group(0)} needs the {match.group(1)} "
+                     "environment variable (GitHub secret)")
+        return value
+    return re.sub(r"\{\{([A-Z][A-Z0-9_]*)\}\}", value_of, text)
 
 
 def state_of(resource):
@@ -297,7 +314,7 @@ def push_review_details(client, version, review_dir, dry_run):
     fields = {}
     notes = read_field(review_dir, "notes.txt", 4000)
     if notes is not None:
-        fields["notes"] = notes
+        fields["notes"] = expand_placeholders(notes, review_dir / "notes.txt")
     demo_user = read_field(review_dir, "demo_account.txt")
     demo_password = read_field(review_dir, "demo_password.txt")
     if demo_user and demo_password:

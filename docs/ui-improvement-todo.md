@@ -121,7 +121,7 @@ currency, appearance override.
 - Motorcycle edit sheet with photo (library/camera), VIN scan + server decode
   (series link), delete with full-history warning. Entry points: header name,
   Technik "Fahrzeug" section, garage row swipe/context menu.
-- Universal links: `applinks:moto.herrmann.ltd` entitlement + AASA `applinks`
+- Universal links: `applinks:$(MOTO_WEB_HOST)` entitlement + AASA `applinks`
   section in the webapp; `/parts/<id>` and `/storage-locations/<id>` open the
   record in the app via `QuickActionRouter.openLabel`. Apple's CDN caches the
   AASA, so reinstall the app (or wait ~24 h) after the webapp deploy.

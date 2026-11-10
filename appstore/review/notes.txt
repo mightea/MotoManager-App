@@ -1,7 +1,7 @@
 MotoManager is a client app for a self-hosted server. There is no hosted service and no account with us: every user runs their own MotoManager server (open source, https://github.com/mightea/MotoManager-Api), which is why the app starts with a login screen that asks for a server address.
 
 To review the app, enter on the login screen:
-  Server: https://moto-api-demo.herrmann.ltd
+  Server: {{DEMO_SERVER_URL}}
   Username / password: the demo account below (password login — passkeys are optional)
 
 The demo server is a public, shared instance seeded with sample data (motorcycles, fuel log, maintenance history, parts). Feel free to add or edit records.

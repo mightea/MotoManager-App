@@ -26,10 +26,11 @@
 #   3. keeps the PNGs whose pixel size matches the slot and copies them into
 #      appstore/screenshots/de-DE/<DISPLAY_TYPE>/
 #
-# Data comes from the demo instance (moto-api-demo.herrmann.ltd), seeded
-# with the curated demo garage. Override DEMO_SERVER_URL / DEMO_USER /
-# DEMO_PASSWORD to shoot against a different instance (e.g. a local scratch
-# API).
+# Data comes from the demo instance, seeded with the curated demo garage.
+# Its address is not kept in the repo: DEMO_SERVER_URL is REQUIRED (export it
+# in your shell / direnv; CI holds the same value as a secret). Set it and
+# DEMO_USER / DEMO_PASSWORD to shoot against a different instance (e.g. a
+# local scratch API).
 #
 # The test navigates by accessibility labels/identifiers (tab titles,
 # `statistics.link`, `fuel.record.*`), so it survives layout changes; after
@@ -44,7 +45,7 @@ set -euo pipefail
 APP_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 OUT="$APP_DIR/appstore/screenshots/de-DE"
 DERIVED="$APP_DIR/build/DerivedData"
-SERVER_URL="${DEMO_SERVER_URL:-https://moto-api-demo.herrmann.ltd}"
+SERVER_URL="${DEMO_SERVER_URL:?set DEMO_SERVER_URL to the demo server base URL (not kept in the repo)}"
 DEMO_USER="${DEMO_USER:-admin-demo}"
 DEMO_PASSWORD="${DEMO_PASSWORD:-demo-admin-2026}"
 BUNDLE_ID="ltd.herrmann.MotoManager"

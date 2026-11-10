@@ -28,9 +28,15 @@ automated.
    Keychain Access, export that certificate (with private key) as a `.p12`
    with a strong password.
 4. **Associated domains / passkeys** — the AASA file served at
-   `https://moto.herrmann.ltd/.well-known/apple-app-site-association` must
+   `https://<MOTO_WEB_HOST>/.well-known/apple-app-site-association` must
    list the paid team's prefix: `<TeamID>.ltd.herrmann.MotoManager`.
-   Without this, passkey login fails in TestFlight builds.
+   Without this, passkey login fails in TestFlight builds. `MOTO_WEB_HOST`
+   is the deployed webapp's host; it is not kept in the repo (the committed
+   `Supporting/Deployment.xcconfig` only holds an `example.com`
+   placeholder). CI takes it from the `testflight` environment secret
+   `MOTO_WEB_HOST`; for local builds put
+   `MOTO_WEB_HOST = <host>` into the gitignored
+   `Supporting/Deployment.local.xcconfig`.
 
 ### GitHub
 
@@ -82,8 +88,11 @@ The store listing lives in the repo and is pushed by
 - **App Review** — `appstore/review/notes.txt` plus `demo_account.txt` /
   `demo_password.txt` (the public demo server's `admin-demo` account) fill
   the version's "App Review Information". Reviewers can't run a server, so
-  the notes tell them to enter `https://moto-api-demo.herrmann.ltd` on the
-  login screen. App Store Connect insists on the review contact
+  the notes tell them to enter the demo server's address on the login
+  screen. That address is not kept in the repo: `notes.txt` carries a
+  `{{DEMO_SERVER_URL}}` placeholder that the push script fills from the
+  `testflight` environment secret `DEMO_SERVER_URL` (the run aborts when it
+  is missing). App Store Connect insists on the review contact
   (name/phone/email) with every update; it is personal data, so it comes
   from the optional `testflight` environment secrets
   `ASC_REVIEW_CONTACT_FIRST_NAME` / `_LAST_NAME` / `_PHONE` / `_EMAIL`, or
@@ -98,8 +107,8 @@ The store listing lives in the repo and is pushed by
   app and the UI-test bundle, fresh-installs on the iPhone 17 Pro, iPhone
   Air, iPhone Duo and iPad Pro 13-inch simulators, and runs the
   `AppStoreScreenshots` XCUITest (`MotoManagerUITests/`), which signs in to
-  the live demo server (`moto-api-demo.herrmann.ltd`, `admin-demo` —
-  override via `DEMO_SERVER_URL`/`DEMO_USER`/`DEMO_PASSWORD`), walks the
+  the live demo server (`DEMO_SERVER_URL`, required in the environment;
+  account `admin-demo`, override via `DEMO_USER`/`DEMO_PASSWORD`), walks the
   tabs and writes pixel-exact PNGs. Slots: `APP_IPHONE_61` (1206×2622, the
   one Apple requires), `APP_IPHONE_67` (1260×2736), `APP_IPHONE_DUO`
   (1398×2034 outer display — the simulator can't be unfolded from the CLI

@@ -2,3 +2,5 @@
 build/
 xcuserdata/
 *.xcuserstate
+# Real deployment hosts (see Supporting/Deployment.xcconfig)
+Supporting/Deployment.local.xcconfig

@@ -1,0 +1,16 @@
+// Deployment-specific hosts, injected at build time so no real host name is
+// committed to this (public) repository.
+//
+// MOTO_WEB_HOST is the host of the deployed webapp. It is the passkey
+// relying-party id, the Associated Domains host (webcredentials + applinks in
+// MotoManager.entitlements) and the default origin of printed label QR codes.
+// It reaches the code via the `MotoWebHost` key in Supporting/Info.plist.
+//
+// Host only, no scheme: `//` starts a comment in xcconfig files.
+//
+// Override the placeholder locally in Supporting/Deployment.local.xcconfig
+// (gitignored); CI passes MOTO_WEB_HOST from the `testflight` environment
+// secret on the xcodebuild command line (see .github/workflows/testflight.yml).
+MOTO_WEB_HOST = moto.example.com
+
+#include? "Deployment.local.xcconfig"

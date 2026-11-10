@@ -19,8 +19,8 @@ struct LabelLinkTests {
     }
 
     @Test func defaultOriginURLsParse() {
-        #expect(LabelWebLinks.parse("https://moto.herrmann.ltd/parts/123") == .part(serverId: 123))
-        #expect(LabelWebLinks.parse("https://moto.herrmann.ltd/storage-locations/9")
+        #expect(LabelWebLinks.parse("https://moto.example.com/parts/123") == .part(serverId: 123))
+        #expect(LabelWebLinks.parse("https://moto.example.com/storage-locations/9")
             == .storageLocation(serverId: 9))
     }
 
@@ -40,16 +40,16 @@ struct LabelLinkTests {
     }
 
     @Test func surroundingWhitespaceIsTolerated() {
-        #expect(LabelWebLinks.parse("  https://moto.herrmann.ltd/parts/1\n") == .part(serverId: 1))
+        #expect(LabelWebLinks.parse("  https://moto.example.com/parts/1\n") == .part(serverId: 1))
     }
 
     @Test(arguments: [
-        "https://moto.herrmann.ltd/parts/abc",     // non-numeric id
-        "https://moto.herrmann.ltd/parts",         // missing id
-        "https://moto.herrmann.ltd/parts/1/edit",  // extra path component
-        "https://moto.herrmann.ltd/bikes/3",       // unknown resource
-        "https://moto.herrmann.ltd/parts/0",       // non-positive id
-        "https://moto.herrmann.ltd/parts/-4",      // negative id
+        "https://moto.example.com/parts/abc",     // non-numeric id
+        "https://moto.example.com/parts",         // missing id
+        "https://moto.example.com/parts/1/edit",  // extra path component
+        "https://moto.example.com/bikes/3",       // unknown resource
+        "https://moto.example.com/parts/0",       // non-positive id
+        "https://moto.example.com/parts/-4",      // negative id
         "mailto:x@y.z",                            // non-http scheme
         "just some text",                          // arbitrary QR payload
         "",

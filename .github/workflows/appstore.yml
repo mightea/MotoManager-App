@@ -94,6 +94,9 @@ jobs:
           ASC_REVIEW_CONTACT_LAST_NAME: ${{ secrets.ASC_REVIEW_CONTACT_LAST_NAME }}
           ASC_REVIEW_CONTACT_PHONE: ${{ secrets.ASC_REVIEW_CONTACT_PHONE }}
           ASC_REVIEW_CONTACT_EMAIL: ${{ secrets.ASC_REVIEW_CONTACT_EMAIL }}
+          # Fills {{DEMO_SERVER_URL}} in appstore/review/notes.txt — the demo
+          # server's address is a secret, not repo content.
+          DEMO_SERVER_URL: ${{ secrets.DEMO_SERVER_URL }}
           VERSION: ${{ steps.version.outputs.version }}
           DRY_RUN: ${{ inputs.dry_run }}
           # Push-triggered runs have no inputs → attach by default.

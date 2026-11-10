@@ -20,6 +20,6 @@ struct ConnectLinkTests {
         #expect(parse("motomanager://connect?server=ftp://x.example") == nil)
         #expect(parse("motomanager://connect?user=marc") == nil)
         #expect(parse("motomanager://other?server=https://api.example.com") == nil)
-        #expect(parse("https://moto.herrmann.ltd/parts/1") == nil)
+        #expect(parse("https://moto.example.com/parts/1") == nil)
     }
 }

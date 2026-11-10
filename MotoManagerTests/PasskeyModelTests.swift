@@ -14,11 +14,11 @@ struct PasskeyModelTests {
          "options":{"publicKey":{
            "allowCredentials":[{"id":"Y2eylQKXFNt7wGWTYl9nfQkVqIg","type":"public-key"}],
            "challenge":"WOWAAhGw0EnyxYh-R7RObNKGzDCxyXeZ8BcW2tsx4dE",
-           "rpId":"moto.herrmann.ltd","timeout":300000,"userVerification":"required"}}}
+           "rpId":"moto.example.com","timeout":300000,"userVerification":"required"}}}
         """
         let response = try JSONDecoder().decode(PasskeyOptionsResponse.self, from: Data(json.utf8))
         #expect(response.challengeId == "4946fe23-3fac-4c98-b18e-107c43f224f9")
-        #expect(response.options.publicKey.rpId == "moto.herrmann.ltd")
+        #expect(response.options.publicKey.rpId == "moto.example.com")
         #expect(response.options.publicKey.challenge == "WOWAAhGw0EnyxYh-R7RObNKGzDCxyXeZ8BcW2tsx4dE")
         #expect(response.options.publicKey.allowCredentials?.count == 1)
     }
@@ -26,10 +26,10 @@ struct PasskeyModelTests {
     @Test func decodesBareOptionsFallback() throws {
         let json = """
         {"challengeId":"abc",
-         "options":{"challenge":"Y2hhbGxlbmdl","rpId":"moto.herrmann.ltd"}}
+         "options":{"challenge":"Y2hhbGxlbmdl","rpId":"moto.example.com"}}
         """
         let response = try JSONDecoder().decode(PasskeyOptionsResponse.self, from: Data(json.utf8))
         #expect(response.options.publicKey.challenge == "Y2hhbGxlbmdl")
-        #expect(response.options.publicKey.rpId == "moto.herrmann.ltd")
+        #expect(response.options.publicKey.rpId == "moto.example.com")
     }
 }

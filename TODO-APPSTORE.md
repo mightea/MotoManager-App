@@ -59,7 +59,7 @@ sonst nicht aus).
 
 ## Vor dem Absenden
 
-- [ ] Demo-Server `https://moto-api-demo.herrmann.ltd` erreichbar und
+- [ ] Demo-Server (Secret `DEMO_SERVER_URL`) erreichbar und
       `admin-demo` / `demo-admin-2026` funktioniert (Reviewer loggen sich
       damit ein; Server nicht während der Review neu seeden).
 - [ ] Listing im App Store Connect einmal durchlesen (Umbrüche, Umlaute).

@@ -28,6 +28,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		F6C0DE012F90300000000001 /* Deployment.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = Deployment.xcconfig; path = Supporting/Deployment.xcconfig; sourceTree = "<group>"; };
 		F643E1AF2F901D3F007719D8 /* MotoManager.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MotoManager.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		F643E1BE2F901D41007719D8 /* MotoManagerTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MotoManagerTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		F643E1C82F901D41007719D8 /* MotoManagerUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MotoManagerUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -83,6 +84,7 @@
 				F643E1B12F901D3F007719D8 /* MotoManager */,
 				F643E1C12F901D41007719D8 /* MotoManagerTests */,
 				F643E1CB2F901D41007719D8 /* MotoManagerUITests */,
+				F6C0DE012F90300000000001 /* Deployment.xcconfig */,
 				F643E1B02F901D3F007719D8 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -399,6 +401,7 @@
 		};
 		F643E1D32F901D41007719D8 /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = F6C0DE012F90300000000001 /* Deployment.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
@@ -438,6 +441,7 @@
 		};
 		F643E1D42F901D41007719D8 /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = F6C0DE012F90300000000001 /* Deployment.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;

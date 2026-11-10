@@ -25,7 +25,7 @@ nonisolated struct LabelContent {
 /// own setting with the deployed webapp as default.
 nonisolated enum LabelWebLinks {
     static let originKey = "com.motomanager.labelWebOrigin"
-    static let defaultOrigin = "https://moto.herrmann.ltd"
+    static var defaultOrigin: String { "https://\(AuthConfig.webHost)" }
 
     static var origin: String {
         let stored = UserDefaults.standard.string(forKey: originKey)

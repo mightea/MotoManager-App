@@ -1,0 +1,28 @@
+# Keeps real deployment host names out of this public repository. They are
+# injected at build/deploy time instead: MOTO_WEB_HOST (Supporting/
+# Deployment.xcconfig) and DEMO_SERVER_URL (appstore/review/notes.txt,
+# scripts/make-screenshots.sh) come from secrets or a gitignored local file.
+
+name: Hygiene
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  no-private-hosts:
+    name: No private host names
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: No private host names
+        run: |
+          if git grep -nIE '[A-Za-z0-9-]+\.herrmann\.ltd' -- .; then
+            echo "::error::Private host name committed. Use an example.com placeholder and inject the real value."
+            exit 1
+          fi
