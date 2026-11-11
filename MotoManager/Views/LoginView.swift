@@ -43,16 +43,7 @@ struct LoginView: View {
     /// The entered server URL, trimmed and without trailing slashes — or nil
     /// when it isn't a usable http(s) URL. Requests append `/api/...` paths,
     /// so the stored base must not end in a slash.
-    private var normalizedServerURL: String? {
-        var trimmed = serverURL.trimmingCharacters(in: .whitespacesAndNewlines)
-        while trimmed.hasSuffix("/") { trimmed = String(trimmed.dropLast()) }
-        guard let url = URL(string: trimmed),
-              let scheme = url.scheme?.lowercased(),
-              scheme == "http" || scheme == "https",
-              url.host() != nil
-        else { return nil }
-        return trimmed
-    }
+    private var normalizedServerURL: String? { ServerAddress.normalize(serverURL) }
 
     private var canSubmit: Bool {
         normalizedServerURL != nil
@@ -494,9 +485,11 @@ struct LoginView: View {
     }
 
     /// Persists the entered server URL so the login request (and every call
-    /// after it) targets the chosen backend.
+    /// after it) targets the chosen backend. Always written, even when it
+    /// equals the current value: an address that is merely displayed but
+    /// never stored is lost with the next change to where it came from.
     private func applyServerURL() {
-        guard let base = normalizedServerURL, base != NetworkManager.shared.baseURL else { return }
+        guard let base = normalizedServerURL else { return }
         NetworkManager.shared.baseURL = base
     }
 

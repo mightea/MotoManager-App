@@ -15,6 +15,10 @@ class AuthViewModel: NSObject, ObservableObject {
     /// Phase and spinner are left as they are when this turns false, so the
     /// login screen fades out unchanged instead of flashing back to idle.
     @Published private(set) var isAwaitingGarage = false
+    /// Signed in, but the server address is unknown and could not be
+    /// recovered: the root view asks for it instead of showing an app that
+    /// cannot sync. See `restoreServerAddressIfMissing()`.
+    @Published private(set) var needsServerAddress = false
 
     /// True from tapping a login button until the garage is on screen (or the
     /// attempt failed). Fields and buttons are locked meanwhile. Stays true
@@ -43,8 +47,39 @@ class AuthViewModel: NSObject, ObservableObject {
     
     func checkAuth() {
         if NetworkManager.shared.getToken() != nil {
+            restoreServerAddressIfMissing()
             isAuthenticated = true
         }
+    }
+
+    /// A session without a server address cannot sync. That state is left
+    /// behind by builds up to 0.20, which could run on an address baked into
+    /// the build without storing it — 0.21 removed the baked value. Recover
+    /// the address from the local caches (file URLs are stored absolute);
+    /// if they hold none, ask the user rather than failing silently.
+    private func restoreServerAddressIfMissing() {
+        guard NetworkManager.shared.baseURL.isEmpty else { return }
+        let recovered = ServerAddress.recover(
+            cachedMotorcycles: CacheStore.shared.load([Motorcycle].self, key: CacheKey.motorcycles) ?? [],
+            offlineDocuments: Array(DocumentOfflineStore.shared.entries.values)
+        )
+        if let recovered {
+            NetworkManager.shared.baseURL = recovered
+            AppLog.error("Server address was missing for a signed-in session; recovered it from the local cache")
+        } else {
+            needsServerAddress = true
+        }
+    }
+
+    /// Adopts the server address typed in for a session that lost it, after
+    /// checking that this server accepts the stored login. Throws without
+    /// changing anything otherwise, so the session and its unsynced changes
+    /// survive a wrong address.
+    func reconnect(to address: String) async throws {
+        guard let base = ServerAddress.normalize(address) else { throw APIError.badURL }
+        try await NetworkManager.shared.verifySession(at: base)
+        NetworkManager.shared.baseURL = base
+        needsServerAddress = false
     }
 
     private func begin(_ method: LoginMethod) {
@@ -146,6 +181,7 @@ class AuthViewModel: NSObject, ObservableObject {
         MaintenanceReminderScheduler.shared.cancelAll()
         isAuthenticated = false
         isAwaitingGarage = false
+        needsServerAddress = false
         phase = .idle
         activeMethod = nil
     }

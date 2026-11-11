@@ -265,6 +265,29 @@ class NetworkManager {
         }
     }
 
+    /// Checks that `base` is the server the stored session belongs to, without
+    /// adopting it. A rejected token is reported as `.unauthorized` but does
+    /// NOT post `unauthorizedNotification`: a mistyped address must not log
+    /// the user out and wipe changes that are still waiting to sync.
+    func verifySession(at base: String) async throws {
+        guard let token = getToken() else { throw APIError.notAuthenticated }
+        guard let url = URL(string: "\(base)/api/motorcycles") else { throw APIError.badURL }
+        var request = URLRequest(url: url)
+        request.timeoutInterval = Self.loginTimeout
+        request.addValue(Self.appVersion, forHTTPHeaderField: "X-App-Version")
+        request.addValue(Self.appBuild, forHTTPHeaderField: "X-App-Build")
+        request.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse else {
+            throw APIError.http(status: -1, message: nil)
+        }
+        if http.statusCode == 401 { throw APIError.unauthorized }
+        guard (200...299).contains(http.statusCode) else {
+            throw APIError.http(status: http.statusCode, message: Self.serverMessage(from: data))
+        }
+        _ = try Self.decode(MotorcycleListResponse.self, from: data)
+    }
+
     func login(credentials: LoginRequest) async throws -> String {
         let body = try JSONEncoder().encode(credentials)
         let request = try makeLoginRequest(path: "/api/auth/login", method: "POST", jsonBody: body)

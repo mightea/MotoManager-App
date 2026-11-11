@@ -15,6 +15,12 @@ struct ContentView: View {
                     // Hard upgrade requirement: out of support — no further
                     // backend requests until the app is updated.
                     UpdateRequiredView()
+                } else if authVM.isAuthenticated && authVM.needsServerAddress {
+                    // Signed in, but the server address is gone and could
+                    // not be recovered: ask for it, keeping the session.
+                    ServerAddressRequiredView()
+                        .environmentObject(authVM)
+                        .transition(.opacity)
                 } else if authVM.isAuthenticated && !authVM.isAwaitingGarage {
                     MainTabView()
                         .environmentObject(authVM)
@@ -85,8 +91,11 @@ struct ContentView: View {
         }
         // Drive fleet loading from the persistent root so splash dismissal does
         // not cancel the in-flight fetch. Re-runs on login/logout transitions.
-        .task(id: authVM.isAuthenticated) {
-            if authVM.isAuthenticated {
+        .task(id: [authVM.isAuthenticated, authVM.needsServerAddress]) {
+            if authVM.isAuthenticated && authVM.needsServerAddress {
+                // No server to talk to yet; this task re-runs once the
+                // address is entered. Nothing is loaded or cleared meanwhile.
+            } else if authVM.isAuthenticated {
                 // After a fresh login, hand over to the app once the garage is
                 // loaded — or after a few seconds at most, so a slow load never
                 // traps the user on the login screen (the app shows its own
