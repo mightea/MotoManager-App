@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.21.1](https://github.com/mightea/MotoManager-App/compare/v0.21.0...v0.21.1) (2026-11-11)
+
+
+### Bug Fixes
+
+* restore the server address for sessions that lost it in the update ([f7b112c](https://github.com/mightea/MotoManager-App/commit/f7b112c6ab322c4d416771f0c5fe123483f61568)), closes [#24](https://github.com/mightea/MotoManager-App/issues/24)
+
 ## [0.21.0](https://github.com/mightea/MotoManager-App/compare/v0.20.0...v0.21.0) (2026-11-10)
 
 
