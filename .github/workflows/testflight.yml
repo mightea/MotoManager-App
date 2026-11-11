@@ -33,8 +33,7 @@
 #                          default label-QR origin. The repo only holds a
 #                          placeholder (Supporting/Deployment.xcconfig).
 #   (Builds never carry a server URL: the app is a self-hosted client and
-#   the login screen's server field starts blank. The former
-#   DEFAULT_SERVER_URL secret is unused and can be deleted.)
+#   the login screen's server field starts blank.)
 #   variables:
 #     APPLE_TEAM_ID        the paid team's ID (not the personal team)
 #
