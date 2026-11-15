@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.22.0](https://github.com/mightea/MotoManager-App/compare/v0.21.1...v0.22.0) (2026-11-15)
+
+
+### Features
+
+* send the update prompt to the App Store instead of TestFlight ([91aab33](https://github.com/mightea/MotoManager-App/commit/91aab33f356323c5706ac0d7f3ba5fba7eb8102e))
+* support replaced odometers with instrument readings and totals ([d4a2095](https://github.com/mightea/MotoManager-App/commit/d4a209570fa9168ab607a5075cc9c2ead6c99d0f))
+
+
+### Bug Fixes
+
+* show a newly saved odometer reading in the header at once ([1260d06](https://github.com/mightea/MotoManager-App/commit/1260d0649699dcb3d5cc46daf6b2877af6d35f94))
+
 ## [0.21.1](https://github.com/mightea/MotoManager-App/compare/v0.21.0...v0.21.1) (2026-11-11)
 
 
