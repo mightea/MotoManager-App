@@ -53,4 +53,23 @@ struct MotorcycleSelectionTests {
         vm.applyFleet([try motorcycle(id: 1, name: "First"), try motorcycle(id: 2, name: "Saved")])
         #expect(vm.selectedMotorcycle?.make == "Saved")
     }
+
+    @Test func locallySavedOdometerRaisesTheLatestValueButNeverLowersIt() throws {
+        let defaults = try #require(UserDefaults(suiteName: UUID().uuidString))
+        let vm = MotorcycleViewModel(defaults: defaults)
+        vm.applyFleet([try motorcycle(id: 1, name: "First"), try motorcycle(id: 2, name: "Other")])
+        #expect(vm.selectedMotorcycle?.latestOdo == nil)
+
+        vm.recordOdometer(72_250, forMotorcycleId: 1)
+        #expect(vm.motorcycles.first { $0.id == 1 }?.latestOdo == 72_250)
+        #expect(vm.selectedMotorcycle?.latestOdo == 72_250)
+        #expect(vm.motorcycles.first { $0.id == 2 }?.latestOdo == nil)
+
+        vm.recordOdometer(72_100, forMotorcycleId: 1)
+        #expect(vm.selectedMotorcycle?.latestOdo == 72_250)
+
+        // Unknown bike: ignored.
+        vm.recordOdometer(5, forMotorcycleId: 99)
+        #expect(vm.motorcycles.count == 2)
+    }
 }

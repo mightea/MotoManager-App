@@ -17,8 +17,29 @@ class MotorcycleViewModel: ObservableObject {
     private let recentIdsKey = "com.motomanager.recentBikeIds"
     private let defaults: UserDefaults
 
+    private var cancellables = Set<AnyCancellable>()
+
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
+        NotificationCenter.default.publisher(for: .odometerRecorded)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] note in
+                guard let id = note.userInfo?["motorcycleId"] as? Int,
+                      let odo = note.userInfo?["odo"] as? Int else { return }
+                self?.recordOdometer(odo, forMotorcycleId: id)
+            }
+            .store(in: &cancellables)
+    }
+
+    /// A locally saved entry reached `odo`: raise the bike's `latestOdo` so the
+    /// header, garage and prefilled forms show it at once. Only ever raises;
+    /// a lowered or deleted reading is corrected by the next fleet reload.
+    func recordOdometer(_ odo: Int, forMotorcycleId id: Int) {
+        guard let index = motorcycles.firstIndex(where: { $0.id == id }),
+              odo > (motorcycles[index].latestOdo ?? motorcycles[index].initialOdo) else { return }
+        motorcycles[index].latestOdo = odo
+        if selectedMotorcycle?.id == id { selectedMotorcycle = motorcycles[index] }
+        CacheStore.shared.save(motorcycles, key: CacheKey.motorcycles)
     }
     /// Recent motorcycle IDs in MRU order (most-recently-used first), excluding the
     /// currently-selected bike. Capped to 5. Used by the picker's "Zuletzt verwendet".

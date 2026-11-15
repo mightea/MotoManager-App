@@ -30,7 +30,9 @@ struct Motorcycle: Codable, Identifiable {
     // Stats if using MotorcycleWithStats
     let openIssues: Int?
     let maintenanceCount: Int?
-    let latestOdo: Int?
+    /// Highest known total. `var` so a locally saved entry can raise it at
+    /// once instead of waiting for the next fleet reload.
+    var latestOdo: Int?
 
     /// Instrument replacements / rollovers, oldest first (backend migration
     /// 065). Optional with a default so older cached blobs and servers decode.

@@ -56,3 +56,11 @@ enum Odometer {
 struct OdometerChangeListResponse: Codable {
     let odometerChanges: [OdometerChange]
 }
+
+extension Notification.Name {
+    /// Posted when an entry with an odometer value was saved locally.
+    /// `userInfo`: `motorcycleId` (Int) and `odo` (Int, the stored total).
+    /// The fleet view model raises the bike's `latestOdo` from it, so headers,
+    /// the garage and prefilled forms follow without a server round trip.
+    static let odometerRecorded = Notification.Name("ltd.herrmann.MotoManager.odometerRecorded")
+}

@@ -325,7 +325,7 @@ class MotorcycleDetailViewModel: ObservableObject {
                         fullTank: fullTank, fuelAdditiveAdded: fuelAdditiveAdded, leadSubstituteAdded: leadSubstituteAdded,
                         locationId: locationId, latitude: latitude, longitude: longitude)
         modelContext.insert(record)
-        return persistAndSync()
+        return persistAndSync(recordingOdo: total.odo)
     }
 
     @discardableResult
@@ -346,7 +346,7 @@ class MotorcycleDetailViewModel: ObservableObject {
         // A record still waiting to be created stays pendingCreate.
         if record.syncState != .pendingCreate { record.syncState = .pendingUpdate }
         record.updatedAtLocal = Date()
-        return persistAndSync()
+        return persistAndSync(recordingOdo: total.odo)
     }
 
     @discardableResult
@@ -387,6 +387,16 @@ class MotorcycleDetailViewModel: ObservableObject {
     }
 
     @discardableResult
+    /// `persistAndSync()` for writes that carry an odometer value: on success
+    /// the bike's latest known total is raised right away.
+    private func persistAndSync(recordingOdo odo: Int) -> Bool {
+        guard persistAndSync() else { return false }
+        NotificationCenter.default.post(
+            name: .odometerRecorded, object: nil,
+            userInfo: ["motorcycleId": motorcycle.id, "odo": odo])
+        return true
+    }
+
     private func persistAndSync() -> Bool {
         guard PersistenceMonitor.shared.save(modelContext, operation: "Lokale Änderung speichern") else {
             reloadLocal()
@@ -458,7 +468,7 @@ class MotorcycleDetailViewModel: ObservableObject {
         record.odoOffset = total.offset
         apply(draft, to: record)
         modelContext.insert(record)
-        return persistAndSync() ? record : nil
+        return persistAndSync(recordingOdo: total.odo) ? record : nil
     }
 
     @discardableResult
@@ -471,7 +481,7 @@ class MotorcycleDetailViewModel: ObservableObject {
         apply(draft, to: record)
         if record.syncState != .pendingCreate { record.syncState = .pendingUpdate }
         record.updatedAtLocal = Date()
-        return persistAndSync()
+        return persistAndSync(recordingOdo: total.odo)
     }
 
     private func apply(_ draft: MaintenanceDraft, to record: SDMaintenanceRecord) {
@@ -637,7 +647,7 @@ class MotorcycleDetailViewModel: ObservableObject {
         issue.descriptionMarkup = (descriptionMarkup?.isEmpty == false) ? descriptionMarkup : nil
         issue.odoOffset = total.offset
         modelContext.insert(issue)
-        return persistAndSync()
+        return persistAndSync(recordingOdo: total.odo)
     }
 
     @discardableResult
@@ -653,7 +663,7 @@ class MotorcycleDetailViewModel: ObservableObject {
         issue.date = Self.isoDay(date)
         if issue.syncState != .pendingCreate { issue.syncState = .pendingUpdate }
         issue.updatedAtLocal = Date()
-        return persistAndSync()
+        return persistAndSync(recordingOdo: total.odo)
     }
 
     /// Status-only change (swipe "Erledigt" / "Wieder öffnen", resolving via
