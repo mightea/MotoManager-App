@@ -1,21 +1,21 @@
 import SwiftUI
 import UIKit
 
-/// Where users get a newer build. The app ships through TestFlight only, so
-/// this opens MotoManager's page in the TestFlight app; if TestFlight isn't
-/// installed, the web page that offers to install it.
+/// Where users get a newer build: MotoManager's page in the App Store. The
+/// `itms-apps` link opens the App Store app directly; the https one is the
+/// fallback and resolves to the same page.
 enum AppUpdateLink {
     /// App Store Connect → App Information → Apple ID.
     static let appleID = "6789194231"
 
-    static let testFlightApp = URL(string: "itms-beta://beta.itunes.apple.com/v1/app/\(appleID)")!
-    static let testFlightWeb = URL(string: "https://beta.itunes.apple.com/v1/app/\(appleID)")!
+    static let appStoreApp = URL(string: "itms-apps://apps.apple.com/app/id\(appleID)")!
+    static let appStoreWeb = URL(string: "https://apps.apple.com/app/id\(appleID)")!
 
     @MainActor
     static func open() {
-        UIApplication.shared.open(testFlightApp) { opened in
+        UIApplication.shared.open(appStoreApp) { opened in
             if !opened {
-                UIApplication.shared.open(testFlightWeb)
+                UIApplication.shared.open(appStoreWeb)
             }
         }
     }
@@ -43,7 +43,7 @@ struct UpdateRequiredView: View {
                 Text("Update erforderlich")
                     .scaledFont(24, weight: .black)
 
-                Text("Diese App-Version wird nicht mehr unterstützt und kann sich nicht mehr mit dem Server verbinden. Bitte installiere die neueste Version über TestFlight.")
+                Text("Diese App-Version wird nicht mehr unterstützt und kann sich nicht mehr mit dem Server verbinden. Bitte installiere die neueste Version aus dem App Store.")
                     .scaledFont(15)
                     .multilineTextAlignment(.center)
                     .foregroundStyle(.secondary)
@@ -108,7 +108,7 @@ struct AppUpdatePromptView: View {
             Text("Neue Version verfügbar")
                 .scaledFont(22, weight: .black)
 
-            Text("Für MotoManager gibt es ein Update mit Verbesserungen und Fehlerbehebungen. Installiere die neueste Version über TestFlight.")
+            Text("Für MotoManager gibt es ein Update mit Verbesserungen und Fehlerbehebungen. Installiere die neueste Version aus dem App Store.")
                 .scaledFont(15)
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.secondary)

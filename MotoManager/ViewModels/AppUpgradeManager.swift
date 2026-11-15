@@ -26,7 +26,7 @@ enum AppUpgradeStatus: Equatable {
 final class AppUpgradeManager: ObservableObject {
     static let shared = AppUpgradeManager()
 
-    /// Soft-upgrade prompt with a TestFlight link; dismissed by the user.
+    /// Soft-upgrade prompt with an App Store link; dismissed by the user.
     @Published var showUpdatePrompt = false
     /// Hard block: the app is out of support and must be updated.
     @Published var isBlocked = false

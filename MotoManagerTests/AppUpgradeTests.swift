@@ -42,8 +42,8 @@ struct AppUpgradeTests {
         #expect(info.hardUpgradeBuild == 901)
     }
 
-    @Test func updateLinksPointAtTheAppInTestFlight() {
-        #expect(AppUpdateLink.testFlightApp.absoluteString == "itms-beta://beta.itunes.apple.com/v1/app/6789194231")
-        #expect(AppUpdateLink.testFlightWeb.absoluteString == "https://beta.itunes.apple.com/v1/app/6789194231")
+    @Test func updateLinksPointAtTheAppInTheAppStore() {
+        #expect(AppUpdateLink.appStoreApp.absoluteString == "itms-apps://apps.apple.com/app/id6789194231")
+        #expect(AppUpdateLink.appStoreWeb.absoluteString == "https://apps.apple.com/app/id6789194231")
     }
 }
