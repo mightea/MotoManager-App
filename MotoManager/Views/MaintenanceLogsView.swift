@@ -28,11 +28,14 @@ struct MaintenanceLogsView: View {
     enum TimelineEntry: Identifiable {
         case record(MaintenanceGroup)
         case issue(SDIssue)
+        /// A replaced / rolled-over odometer, marked in the timeline.
+        case odometerChange(OdometerChange)
 
         var id: String {
             switch self {
             case .record(let group): "record-\(group.id)"
             case .issue(let issue): "issue-\(issue.clientId)"
+            case .odometerChange(let change): "odometer-change-\(change.id)"
             }
         }
 
@@ -41,7 +44,14 @@ struct MaintenanceLogsView: View {
             switch self {
             case .record(let group): String(group.date.prefix(10))
             case .issue(let issue): String(issue.date.prefix(10))
+            case .odometerChange(let change): String(change.date.prefix(10))
             }
+        }
+
+        /// Entries of the change's own day were read off the new instrument,
+        /// so in the newest-first list the marker sits below them.
+        var sortRank: Int {
+            if case .odometerChange = self { 1 } else { 0 }
         }
     }
 
@@ -154,8 +164,11 @@ struct MaintenanceLogsView: View {
         var entries = groups.map(TimelineEntry.record)
         if filter == .alle {
             entries += searchedIssues.map(TimelineEntry.issue)
+            if searchText.trimmingCharacters(in: .whitespaces).isEmpty {
+                entries += viewModel.motorcycle.odometerChangeList.map(TimelineEntry.odometerChange)
+            }
         }
-        entries.sort { $0.day > $1.day }
+        entries.sort { ($0.day, $1.sortRank) > ($1.day, $0.sortRank) }
 
         var sections: [(year: String, entries: [TimelineEntry], cost: Double)] = []
         for entry in entries {
@@ -843,6 +856,8 @@ struct MaintenanceLogsView: View {
                             .selectedRecord(selectedRecord?.clientId == group.primary?.clientId)
                         case .issue(let issue):
                             issueRow(issue)
+                        case .odometerChange(let change):
+                            OdometerChangeRow(change: change)
                         }
                     }
                 } header: {
@@ -853,6 +868,43 @@ struct MaintenanceLogsView: View {
         }
     }
 
+}
+
+// MARK: - Odometer change row
+
+/// Timeline marker for a replaced / rolled-over odometer. Entries above it
+/// were read off the new instrument. Edited from "Motorrad bearbeiten".
+private struct OdometerChangeRow: View {
+    let change: OdometerChange
+
+    var body: some View {
+        HStack(spacing: 10) {
+            ZStack {
+                RoundedRectangle(cornerRadius: Theme.Radius.badge)
+                    .fill(Theme.Colors.primary)
+                Image(systemName: "gauge.with.dots.needle.50percent")
+                    .scaledFont(14, weight: .semibold)
+                    .foregroundStyle(.white)
+            }
+            .frame(width: 32, height: 32)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(change.isRollover ? "Tacho übergelaufen" : "Tacho ersetzt")
+                    .scaledFont(15, weight: .semibold)
+                    .foregroundStyle(.primary)
+                Text("\(Formatters.dayMonthName(change.date)) · \(Formatters.kilometers(change.readingBefore)) → "
+                    + "\(Formatters.kilometers(change.readingAfter)) · seither "
+                    + "\(change.offset >= 0 ? "+" : "−") \(Formatters.kilometers(abs(change.offset)))")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .monospacedDigit()
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.vertical, 2)
+        .listRowBackground(Theme.Colors.primary.opacity(0.10))
+        .accessibilityElement(children: .combine)
+    }
 }
 
 // MARK: - Attention row

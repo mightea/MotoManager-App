@@ -50,6 +50,58 @@ class MotorcycleViewModel: ObservableObject {
         isLoading = false
     }
 
+    // MARK: - Odometer changes
+
+    /// Records (or, with `changeId`, updates) a replaced / rolled-over
+    /// odometer. The server re-bases the bike's records, so the fleet is
+    /// reloaded for the new totals and a sync pulls the shifted records.
+    @discardableResult
+    func saveOdometerChange(
+        for motorcycle: Motorcycle, changeId: Int?,
+        date: String, readingBefore: Int, readingAfter: Int, kind: String
+    ) async -> Bool {
+        errorMessage = nil
+        do {
+            let changes = try await NetworkManager.shared.saveOdometerChange(
+                motorcycleId: motorcycle.id, changeId: changeId,
+                payload: [
+                    "date": date, "readingBefore": readingBefore,
+                    "readingAfter": readingAfter, "kind": kind,
+                ])
+            await applyOdometerChanges(changes, to: motorcycle.id)
+            return true
+        } catch {
+            errorMessage = "Tachowechsel konnte nicht gespeichert werden: \(error.localizedDescription)"
+            return false
+        }
+    }
+
+    @discardableResult
+    func deleteOdometerChange(_ change: OdometerChange, for motorcycle: Motorcycle) async -> Bool {
+        errorMessage = nil
+        do {
+            let changes = try await NetworkManager.shared.deleteOdometerChange(
+                motorcycleId: motorcycle.id, changeId: change.id)
+            await applyOdometerChanges(changes, to: motorcycle.id)
+            return true
+        } catch {
+            errorMessage = "Tachowechsel konnte nicht gelöscht werden: \(error.localizedDescription)"
+            return false
+        }
+    }
+
+    private func applyOdometerChanges(_ changes: [OdometerChange], to motorcycleId: Int) async {
+        // Show the new list at once; the reload below brings the re-based
+        // `latestOdo` along.
+        if let index = motorcycles.firstIndex(where: { $0.id == motorcycleId }) {
+            motorcycles[index].odometerChanges = changes
+            if selectedMotorcycle?.id == motorcycleId { selectedMotorcycle = motorcycles[index] }
+            CacheStore.shared.save(motorcycles, key: CacheKey.motorcycles)
+        }
+        SyncEngine.shared.requestSync(motorcycleIds: [motorcycleId])
+        await loadMotorcycles()
+    }
+
     @discardableResult
     func createMotorcycle(
         make: String,

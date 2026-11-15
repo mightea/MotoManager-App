@@ -73,7 +73,8 @@ struct AddFuelView: View {
         _date = State(initialValue: Date())
 
         if let record = existingRecord {
-            _odo = State(initialValue: "\(record.odo)")
+            // The field holds what the instrument shows (see `Odometer`).
+            _odo = State(initialValue: "\(viewModel.instrumentReading(total: record.odo, on: record.date))")
             _liters = State(initialValue: record.fuelAmount.map { Self.numberString($0) } ?? "")
             _fuelType = State(initialValue: record.fuelType ?? "98")
             _locationName = State(initialValue: record.locationName ?? "")
@@ -100,8 +101,7 @@ struct AddFuelView: View {
                 _coupleSource = State(initialValue: .total)
             }
         } else {
-            let currentOdo = viewModel.motorcycle.latestOdo ?? viewModel.motorcycle.initialOdo
-            _odo = State(initialValue: "\(currentOdo)")
+            _odo = State(initialValue: "\(viewModel.currentInstrumentReading)")
             _currency = State(initialValue: Self.defaultCurrency(for: viewModel))
 
             // Seed price from the previous fuel entry's per-liter cost so the
@@ -258,7 +258,7 @@ struct AddFuelView: View {
     /// NavigationStack, so the items land in the keyboard bar.
     private var fieldStack: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.m) {
-            numericField("Kilometerstand", unit: "km", text: $odo, field: .odo, hint: odoHint) {
+            numericField(viewModel.odometerFieldTitle, unit: "km", text: $odo, field: .odo, hint: odoHint) {
                 Button {
                     focused = nil
                     showingOdoScanner = true
@@ -429,14 +429,22 @@ struct AddFuelView: View {
     }
 
     private var odoHint: String? {
-        if let prev = previousFuelEntry {
-            var hint = "vorherige Tankung \(Formatters.kilometers(prev.odo))"
-            if existingRecord == nil, let typed = Int(odo), typed > prev.odo {
-                hint += " · +\(Formatters.kilometers(typed - prev.odo))"
-            }
-            return hint
+        var parts: [String] = []
+        // After an odometer change the typed value is the instrument reading;
+        // say what it amounts to.
+        if let total = viewModel.odometerTotalHint(reading: odo, on: date) {
+            parts.append(total)
         }
-        return nil
+        if let prev = previousFuelEntry {
+            // Compared as the instrument showed it, like the typed value.
+            let prevReading = viewModel.instrumentReading(total: prev.odo, on: prev.date)
+            var hint = "vorherige Tankung \(Formatters.kilometers(prevReading))"
+            if existingRecord == nil, let typed = Int(odo), typed + viewModel.odometerOffset(on: date) > prev.odo {
+                hint += " · +\(Formatters.kilometers(typed + viewModel.odometerOffset(on: date) - prev.odo))"
+            }
+            parts.append(hint)
+        }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 
     private var litersHint: String? {
@@ -464,8 +472,10 @@ struct AddFuelView: View {
         let earlier = viewModel.fuelRecords
             .filter { $0.clientId != existingRecord?.clientId }
             .map { FuelStats.Fill(odo: $0.odo, liters: $0.fuelAmount, fullTank: $0.fullTank) }
+        // Earlier fills are stored totals, so compare against the total.
         return FuelStats.fullToFullConsumption(
-            odo: odoValue, liters: litersValue, fullTank: fullTank, earlier: earlier)
+            odo: odoValue + viewModel.odometerOffset(on: date),
+            liters: litersValue, fullTank: fullTank, earlier: earlier)
     }
 
     private var currencyOptions: [String] {

@@ -33,6 +33,8 @@ struct EditMotorcycleView: View {
     @State private var vinDecode: VinDecodeResult?
     @State private var vinDecodeFailed = false
     @State private var errorMessage: String?
+    /// The odometer change being edited, or a placeholder for a new one.
+    @State private var odometerChangeTarget: OdometerChangeTarget?
 
     init(viewModel: MotorcycleViewModel, motorcycle: Motorcycle) {
         self.viewModel = viewModel
@@ -125,11 +127,17 @@ struct EditMotorcycleView: View {
             FormToggleRow(title: "Beiwagen", subtitle: "Schaltet die Beiwagen-Werte beim Reifendruck frei.",
                           isOn: $hasSidecar)
 
+            odometerChangesSection
+
             if !connectivity.isOnline {
                 Label("Zum Speichern ist eine Serververbindung erforderlich.", systemImage: "wifi.slash")
                     .scaledFont(12, weight: .medium)
                     .foregroundStyle(.secondary)
             }
+        }
+        .sheet(item: $odometerChangeTarget) { target in
+            OdometerChangeSheet(viewModel: viewModel, motorcycle: motorcycle, existing: target.change)
+                .glassSheet()
         }
         .sheet(isPresented: $showingVinScanner) {
             VinScanSheet { vin = $0 }
@@ -149,6 +157,59 @@ struct EditMotorcycleView: View {
                 }
                 photoItem = nil
             }
+        }
+    }
+
+    // MARK: - Odometer changes
+
+    /// Live list (the sheet's `motorcycle` is a snapshot from when it opened).
+    private var odometerChanges: [OdometerChange] {
+        viewModel.motorcycles.first { $0.id == motorcycle.id }?.odometerChangeList
+            ?? motorcycle.odometerChangeList
+    }
+
+    private var odometerChangesSection: some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.s) {
+            FormLabel("Tachowechsel")
+            ForEach(odometerChanges) { change in
+                Button {
+                    odometerChangeTarget = OdometerChangeTarget(change: change)
+                } label: {
+                    HStack(spacing: Theme.Spacing.s) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("\(Formatters.mediumDate(change.date)) · \(change.isRollover ? "Überlauf" : "Tacho ersetzt")")
+                                .scaledFont(15, weight: .semibold)
+                                .foregroundStyle(.primary)
+                            Text("\(Formatters.kilometers(change.readingBefore)) → \(Formatters.kilometers(change.readingAfter))"
+                                + " · \(change.offset >= 0 ? "+" : "−") \(Formatters.kilometers(abs(change.offset)))")
+                                .scaledFont(13)
+                                .foregroundStyle(.secondary)
+                                .monospacedDigit()
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .scaledFont(13, weight: .semibold)
+                            .foregroundStyle(.tertiary)
+                    }
+                    .padding(.horizontal, Theme.Spacing.m)
+                    .padding(.vertical, 12)
+                    .frame(minHeight: 44)
+                    .background(Theme.Colors.glassBackground, in: RoundedRectangle(cornerRadius: Theme.Radius.field))
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+            Button {
+                odometerChangeTarget = OdometerChangeTarget(change: nil)
+            } label: {
+                Label("Tachowechsel oder Überlauf erfassen", systemImage: "plus")
+                    .scaledFont(15, weight: .semibold)
+                    .frame(minHeight: 44)
+            }
+            .disabled(!connectivity.isOnline)
+            Text("Für ersetzte Tachos und Zähler, die nach 99'999 km wieder bei 0 beginnen.")
+                .scaledFont(12)
+                .foregroundStyle(.secondary)
         }
     }
 
@@ -387,4 +448,11 @@ struct CameraPicker: UIViewControllerRepresentable {
             dismiss()
         }
     }
+}
+
+/// Sheet item for the odometer-change editor: an existing change, or nil to
+/// record a new one.
+private struct OdometerChangeTarget: Identifiable {
+    let id = UUID()
+    let change: OdometerChange?
 }

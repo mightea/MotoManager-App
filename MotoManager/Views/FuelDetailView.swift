@@ -323,7 +323,7 @@ struct FuelDetailView: View {
 
     private var detailsCard: some View {
         VStack(alignment: .leading, spacing: 0) {
-            detailRow("Kilometerstand", Formatters.kilometers(record.odo))
+            odometerRow
             Divider()
             detailRow("Tankmenge", String(format: "%.2f L", record.fuelAmount ?? 0))
             if let type = record.fuelType, !type.isEmpty {
@@ -340,6 +340,28 @@ struct FuelDetailView: View {
         }
         .padding(.horizontal, Theme.Spacing.m - 2)
         .background(Theme.Colors.backgroundElevated, in: RoundedRectangle(cornerRadius: Theme.Radius.card))
+    }
+
+    /// The stored total; after an odometer change, what the instrument showed
+    /// sits underneath so the entry can be checked against the bike.
+    private var odometerRow: some View {
+        let reading = viewModel.instrumentReading(total: record.odo, on: record.date)
+        return HStack {
+            Text("Kilometerstand").foregroundStyle(.secondary)
+            Spacer()
+            VStack(alignment: .trailing, spacing: 2) {
+                Text(Formatters.kilometers(record.odo)).fontWeight(.semibold).monospacedDigit()
+                if reading != record.odo {
+                    Text("Tacho \(Formatters.kilometers(reading))")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .monospacedDigit()
+                }
+            }
+        }
+        .font(.subheadline)
+        .padding(.vertical, Theme.Spacing.m - 4)
+        .accessibilityElement(children: .combine)
     }
 
     private func detailRow(_ label: String, _ value: String) -> some View {

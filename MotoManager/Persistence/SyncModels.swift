@@ -16,7 +16,12 @@ final class SDMaintenanceRecord {
     var motorcycleId: Int
 
     var date: String
+    /// Total distance (instrument reading + odometer-change offset).
     var odo: Int
+    /// Offset this device added to the instrument reading when `odo` was last
+    /// set locally; nil for values that came from the server. Pushed as
+    /// `odoOffset` so the server can swap in its own offset (migration 065).
+    var odoOffset: Int?
     var recordType: String
     var cost: Double?
     var normalizedCost: Double?
@@ -228,7 +233,10 @@ final class SDIssue {
     var serverId: Int?
     var motorcycleId: Int
 
+    /// Total distance; see `SDMaintenanceRecord.odo`.
     var odo: Int
+    /// See `SDMaintenanceRecord.odoOffset`.
+    var odoOffset: Int?
     var title: String
     var recordDescription: String?
     /// Formatted twin of `recordDescription` (backend migration 055).

@@ -238,6 +238,47 @@ class MotorcycleDetailViewModel: ObservableObject {
         tirePressure = nil
     }
     
+    // MARK: - Odometer changes
+
+    /// The write functions below take `odo` as the INSTRUMENT reading — what
+    /// the user typed or scanned. Stored values are totals, so the offset of
+    /// any odometer change in force on the record's day is added here, and
+    /// remembered on the record for the push (see `SDMaintenanceRecord.odoOffset`).
+    private func totalOdometer(reading: Int, on date: Date) -> (odo: Int, offset: Int) {
+        let offset = motorcycle.odometerOffset(on: Self.isoDay(date))
+        return (reading + offset, offset)
+    }
+
+    /// Instrument reading for a stored total, for prefilling the forms.
+    func instrumentReading(total: Int, on date: String) -> Int {
+        Odometer.reading(total: total, changes: motorcycle.odometerChangeList, on: date)
+    }
+
+    /// Offset in force on `date`, for the forms' "Gesamt" hint.
+    func odometerOffset(on date: Date) -> Int {
+        motorcycle.odometerOffset(on: Self.isoDay(date))
+    }
+
+    /// Instrument reading to prefill a new entry with: the latest known total
+    /// as the instrument shows it today.
+    var currentInstrumentReading: Int {
+        instrumentReading(total: motorcycle.latestOdo ?? motorcycle.initialOdo, on: Self.isoDay(Date()))
+    }
+
+    /// The odometer field is a plain "Kilometerstand" until the bike has an
+    /// odometer change; then it is explicitly what the instrument shows.
+    var odometerFieldTitle: String {
+        motorcycle.odometerChangeList.isEmpty ? "Kilometerstand" : "Tachostand"
+    }
+
+    /// "Gesamt 71'560 km" for a typed instrument reading, or nil when no
+    /// offset applies on `date` (or nothing parseable is typed).
+    func odometerTotalHint(reading: String, on date: Date) -> String? {
+        let offset = odometerOffset(on: date)
+        guard offset != 0, let value = Int(reading.trimmingCharacters(in: .whitespaces)) else { return nil }
+        return "Gesamt \(Formatters.kilometers(value + offset))"
+    }
+
     // MARK: - Fuel writes (offline-first via SwiftData + SyncEngine)
 
     /// Reload the fuel list from the local store. Cheap; call after writes and sync.
@@ -270,13 +311,15 @@ class MotorcycleDetailViewModel: ObservableObject {
         fullTank: Bool = true, fuelAdditiveAdded: Bool = false, leadSubstituteAdded: Bool = false,
         locationId: Int? = nil, latitude: Double? = nil, longitude: Double? = nil
     ) -> Bool {
+        let total = totalOdometer(reading: odo, on: date)
         let record = SDMaintenanceRecord(
             motorcycleId: motorcycle.id,
             date: Self.isoDay(date),
-            odo: odo,
+            odo: total.odo,
             recordType: "fuel",
             syncState: .pendingCreate
         )
+        record.odoOffset = total.offset
         applyFuelFields(record, amount: amount, cost: cost, pricePerUnit: pricePerUnit,
                         currency: currency, fuelType: fuelType, locationName: locationName, notes: notes,
                         fullTank: fullTank, fuelAdditiveAdded: fuelAdditiveAdded, leadSubstituteAdded: leadSubstituteAdded,
@@ -293,7 +336,9 @@ class MotorcycleDetailViewModel: ObservableObject {
         locationName: String?, notes: String?,
         fullTank: Bool = true, fuelAdditiveAdded: Bool = false, leadSubstituteAdded: Bool = false
     ) -> Bool {
-        record.odo = odo
+        let total = totalOdometer(reading: odo, on: date)
+        record.odo = total.odo
+        record.odoOffset = total.offset
         record.date = Self.isoDay(date)
         applyFuelFields(record, amount: amount, cost: cost, pricePerUnit: pricePerUnit,
                         currency: currency, fuelType: fuelType, locationName: locationName, notes: notes,
@@ -402,13 +447,15 @@ class MotorcycleDetailViewModel: ObservableObject {
     /// (e.g. part consumptions) to its clientId.
     @discardableResult
     func createMaintenance(_ draft: MaintenanceDraft) -> SDMaintenanceRecord? {
+        let total = totalOdometer(reading: draft.odo, on: draft.date)
         let record = SDMaintenanceRecord(
             motorcycleId: motorcycle.id,
             date: Self.isoDay(draft.date),
-            odo: draft.odo,
+            odo: total.odo,
             recordType: draft.type,
             syncState: .pendingCreate
         )
+        record.odoOffset = total.offset
         apply(draft, to: record)
         modelContext.insert(record)
         return persistAndSync() ? record : nil
@@ -416,8 +463,10 @@ class MotorcycleDetailViewModel: ObservableObject {
 
     @discardableResult
     func updateMaintenance(_ record: SDMaintenanceRecord, draft: MaintenanceDraft) -> Bool {
+        let total = totalOdometer(reading: draft.odo, on: draft.date)
         record.recordType = draft.type
-        record.odo = draft.odo
+        record.odo = total.odo
+        record.odoOffset = total.offset
         record.date = Self.isoDay(draft.date)
         apply(draft, to: record)
         if record.syncState != .pendingCreate { record.syncState = .pendingUpdate }
@@ -574,9 +623,10 @@ class MotorcycleDetailViewModel: ObservableObject {
 
     @discardableResult
     func createIssue(odo: Int, title: String, description: String?, descriptionMarkup: String? = nil, priority: String, status: String, date: Date) -> Bool {
+        let total = totalOdometer(reading: odo, on: date)
         let issue = SDIssue(
             motorcycleId: motorcycle.id,
-            odo: odo,
+            odo: total.odo,
             title: title,
             recordDescription: (description?.isEmpty == false) ? description : nil,
             priority: priority,
@@ -585,13 +635,16 @@ class MotorcycleDetailViewModel: ObservableObject {
             syncState: .pendingCreate
         )
         issue.descriptionMarkup = (descriptionMarkup?.isEmpty == false) ? descriptionMarkup : nil
+        issue.odoOffset = total.offset
         modelContext.insert(issue)
         return persistAndSync()
     }
 
     @discardableResult
     func updateIssue(_ issue: SDIssue, odo: Int, title: String, description: String?, descriptionMarkup: String? = nil, priority: String, status: String, date: Date) -> Bool {
-        issue.odo = odo
+        let total = totalOdometer(reading: odo, on: date)
+        issue.odo = total.odo
+        issue.odoOffset = total.offset
         issue.title = title
         issue.recordDescription = (description?.isEmpty == false) ? description : nil
         issue.descriptionMarkup = (descriptionMarkup?.isEmpty == false) ? descriptionMarkup : nil

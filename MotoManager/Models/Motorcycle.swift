@@ -32,11 +32,22 @@ struct Motorcycle: Codable, Identifiable {
     let maintenanceCount: Int?
     let latestOdo: Int?
 
+    /// Instrument replacements / rollovers, oldest first (backend migration
+    /// 065). Optional with a default so older cached blobs and servers decode.
+    var odometerChanges: [OdometerChange]? = nil
+
+    var odometerChangeList: [OdometerChange] { odometerChanges ?? [] }
+
+    /// Offset between the stored totals and the instrument on `date`.
+    func odometerOffset(on date: String) -> Int {
+        Odometer.offset(odometerChangeList, on: date)
+    }
+
     enum CodingKeys: String, CodingKey {
         case id, make, model
         case modelYear = "fabricationDate"
         case userId, vin, engineNumber, vehicleNr, numberPlate, image, isVeteran, hasSidecar, firstRegistration, initialOdo, manualOdo, purchaseDate, purchasePrice, normalizedPurchasePrice, currencyCode, fuelTankSize, seriesId
-        case openIssues, maintenanceCount, latestOdo
+        case openIssues, maintenanceCount, latestOdo, odometerChanges
     }
     
     static let mock = Motorcycle(

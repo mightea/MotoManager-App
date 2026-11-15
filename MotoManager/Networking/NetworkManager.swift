@@ -440,6 +440,33 @@ class NetworkManager {
         CacheStore.shared.remove(key: CacheKey.tirePressure(motorcycleId: motorcycleId))
     }
 
+    // MARK: Odometer changes (online-only; they live on the motorcycle DTO)
+
+    /// Records a replaced / rolled-over odometer, or updates one when
+    /// `changeId` is given. The server re-bases every record dated on or after
+    /// the change, so callers refresh the fleet and sync afterwards. Returns
+    /// the motorcycle's full, current list.
+    func saveOdometerChange(
+        motorcycleId: Int, changeId: Int?, payload: [String: Any]
+    ) async throws -> [OdometerChange] {
+        let body = try JSONSerialization.data(withJSONObject: payload)
+        let base = "/api/motorcycles/\(motorcycleId)/odometer-changes"
+        let request = try makeRequest(
+            path: changeId.map { "\(base)/\($0)" } ?? base,
+            method: changeId == nil ? "POST" : "PUT",
+            authorized: true, jsonBody: body)
+        let data = try await performRequest(request)
+        return try Self.decode(OdometerChangeListResponse.self, from: data).odometerChanges
+    }
+
+    func deleteOdometerChange(motorcycleId: Int, changeId: Int) async throws -> [OdometerChange] {
+        let request = try makeRequest(
+            path: "/api/motorcycles/\(motorcycleId)/odometer-changes/\(changeId)",
+            method: "DELETE", authorized: true)
+        let data = try await performRequest(request)
+        return try Self.decode(OdometerChangeListResponse.self, from: data).odometerChanges
+    }
+
     func fetchIssues(motorcycleId: Int, since: String? = nil) async throws -> [Issue] {
         let wrapper: IssueListResponse = try await get(syncPath(
             "/api/motorcycles/\(motorcycleId)/issues", since: since))

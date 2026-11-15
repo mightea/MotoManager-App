@@ -117,7 +117,8 @@ struct AddMaintenanceView: View {
             _fluidType = State(initialValue: normalized.fluidType ?? "engineoil")
             _viscosity = State(initialValue: r.viscosity ?? "")
             _oilType = State(initialValue: r.oilType ?? "")
-            _odo = State(initialValue: "\(r.odo)")
+            // The field holds what the instrument shows (see `Odometer`).
+            _odo = State(initialValue: "\(viewModel.instrumentReading(total: r.odo, on: r.date))")
             _cost = State(initialValue: r.cost.map { String($0) } ?? "")
             _currency = State(initialValue: r.currency ?? viewModel.motorcycle.currencyCode ?? "CHF")
             // Legacy records carry their text in `summary`; markup never
@@ -140,7 +141,7 @@ struct AddMaintenanceView: View {
             _fluidType = State(initialValue: "engineoil")
             _viscosity = State(initialValue: "")
             _oilType = State(initialValue: "")
-            _odo = State(initialValue: "\(viewModel.motorcycle.latestOdo ?? viewModel.motorcycle.initialOdo)")
+            _odo = State(initialValue: "\(viewModel.currentInstrumentReading)")
             _cost = State(initialValue: "")
             _currency = State(initialValue: viewModel.motorcycle.currencyCode ?? "CHF")
             // The defect's title (and notes) become the repair description,
@@ -183,9 +184,11 @@ struct AddMaintenanceView: View {
             typeSpecificFields
 
             FormField(
-                "Kilometerstand",
+                viewModel.odometerFieldTitle,
                 unit: "km",
-                hint: odoIsValid ? nil : "Bitte einen gültigen Kilometerstand eingeben."
+                hint: odoIsValid
+                    ? viewModel.odometerTotalHint(reading: odo, on: date)
+                    : "Bitte einen gültigen Kilometerstand eingeben."
             ) {
                 HStack(spacing: Theme.Spacing.s) {
                     TextField("", text: $odo, prompt: formPrompt("0"))

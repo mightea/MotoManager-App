@@ -31,6 +31,8 @@ extension SDMaintenanceRecord {
         motorcycleId = dto.motorcycleId
         date = dto.date
         odo = dto.odo
+        // The server's value is the authoritative total.
+        odoOffset = nil
         recordType = dto.recordType
         cost = dto.cost
         normalizedCost = dto.normalizedCost
@@ -73,6 +75,7 @@ extension SDMaintenanceRecord {
             "odo": odo,
             "type": recordType,
         ]
+        if let odoOffset { p["odoOffset"] = odoOffset }
         if let cost { p["cost"] = cost }
         if let currency { p["currency"] = currency }
         if let pricePerUnit { p["pricePerUnit"] = pricePerUnit }
@@ -222,6 +225,7 @@ extension SDIssue {
         serverId = dto.id
         motorcycleId = dto.motorcycleId
         odo = dto.odo
+        odoOffset = nil
         title = dto.title
         recordDescription = dto.description
         descriptionMarkup = dto.descriptionMarkup
@@ -241,6 +245,7 @@ extension SDIssue {
             "status": status,
             "date": date,
         ]
+        if let odoOffset { p["odoOffset"] = odoOffset }
         // Both always sent so "" clears stale formatting (see maintenance).
         p["description"] = recordDescription ?? ""
         p["descriptionMarkup"] = descriptionMarkup ?? ""

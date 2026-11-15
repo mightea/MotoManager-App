@@ -33,7 +33,8 @@ struct AddIssueView: View {
             _notes = State(initialValue: NoteMarkup.attributedString(
                 NoteMarkup.resolve(description: issue.recordDescription, markup: issue.descriptionMarkup)))
             _notesSelection = State(initialValue: AttributedTextSelection())
-            _odo = State(initialValue: "\(issue.odo)")
+            // The field holds what the instrument shows (see `Odometer`).
+            _odo = State(initialValue: "\(viewModel.instrumentReading(total: issue.odo, on: issue.date))")
             _priority = State(initialValue: issue.priority)
             _status = State(initialValue: issue.status)
             let f = ISO8601DateFormatter(); f.formatOptions = [.withFullDate]
@@ -42,7 +43,7 @@ struct AddIssueView: View {
             _title = State(initialValue: "")
             _notes = State(initialValue: AttributedString())
             _notesSelection = State(initialValue: AttributedTextSelection())
-            _odo = State(initialValue: "\(viewModel.motorcycle.latestOdo ?? viewModel.motorcycle.initialOdo)")
+            _odo = State(initialValue: "\(viewModel.currentInstrumentReading)")
             _priority = State(initialValue: "medium")
             _status = State(initialValue: "new")
             _date = State(initialValue: Date())
@@ -69,7 +70,11 @@ struct AddIssueView: View {
                     .textInputAutocapitalization(.sentences)
             }
 
-            FormField("Kilometerstand", unit: "km") {
+            FormField(
+                viewModel.odometerFieldTitle,
+                unit: "km",
+                hint: viewModel.odometerTotalHint(reading: odo, on: date)
+            ) {
                 TextField("", text: $odo)
                     .keyboardType(.numberPad)
             }
